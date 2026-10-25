@@ -1,157 +1,69 @@
 <!doctype html>
 <html lang="zh-CN">
-  <head>
-    <meta charset="utf-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>司序·知所先后</title>
-    <link rel="stylesheet" href="./agent.css" />
-  </head>
-  <body>
-    <main class="app-shell sidebar-collapsed" id="appShell">
-      <aside class="sidebar" aria-label="项目说明">
-        <button class="sidebar-toggle" type="button" id="sidebarToggle" aria-label="toggle sidebar" aria-expanded="false">
-          <span class="toggle-icon" aria-hidden="true"></span>
-        </button>
-
-        <header class="brand">
-          <a class="brand-title" href="./">司序·知所先后</a>
-          <p>把通知、活动想法和时间安排整理成可执行的行动方案。</p>
-        </header>
-
-        <section class="intro">
-          <h1>司序·知所先后</h1>
-          <p>
-            面向校园办事、活动策划、多时间点通知和任务冲突判断，帮助用户快速看清要做什么、什么时候做、哪些事项需要取舍。
-          </p>
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="把校园通知整理成可核对的事项，按自己的空闲时间检查冲突与容量。">
+  <title>司序·知所先后</title>
+  <link rel="stylesheet" href="./agent.css">
+</head>
+<body>
+  <a class="skip-link" href="#taskSection">跳到任务清单</a>
+  <header class="site-header">
+    <a class="brand-title" href="./">司序<span>·知所先后</span></a>
+    <nav aria-label="辅助入口"><a href="./algorithm.html">计算说明</a><a href="https://udify.app/chat/Kj5b0eS5Bew0dRjU" target="_blank" rel="noreferrer">旧版对话<span class="sr-only">（新窗口，与当前清单独立）</span></a></nav>
+  </header>
+  <main class="workspace">
+    <div class="page-heading">
+      <div><h1>先理清，再安排。</h1><p>核对通知里的每一件事，用自己的时间判断做不做得完。</p></div>
+      <p class="save-state" id="saveState" role="status">清单保存在当前浏览器</p>
+    </div>
+    <nav class="flow-nav" aria-label="操作步骤"><a href="#noticeSection">1 导入通知</a><a href="#taskSection">2 核对事项</a><a href="#timeSection">3 填写空闲</a><a href="#resultSection">4 查看结果</a></nav>
+    <div id="appMessage" class="message" role="status" aria-live="polite" hidden></div>
+    <div id="storageConflict" class="message warning" hidden><p>清单在另一个标签页发生了变化。为避免覆盖，请先导出当前内容，再载入最新清单。</p><button type="button" id="reloadLatest">载入最新清单</button></div>
+    <div class="workspace-grid">
+      <aside class="input-column" aria-label="通知输入与原文">
+        <section class="surface" id="noticeSection" aria-labelledby="noticeHeading">
+          <h2 id="noticeHeading">导入一份通知</h2>
+          <p class="section-note">可以从群通知、课程要求，或你自己的安排开始。</p>
+          <form id="noticeForm">
+            <label for="noticeText">通知原文</label>
+            <textarea id="noticeText" rows="9" maxlength="100000" placeholder="粘贴通知。时间、地点和材料要求尽量保留原样。" required></textarea>
+            <label for="noticeDate">“今天、明天”的参照日期 <span class="optional">可选</span></label>
+            <input id="noticeDate" type="date" aria-describedby="noticeDateHelp">
+            <p class="field-help" id="noticeDateHelp">按通知原本的语境选择日期，不一定是今天。</p>
+            <button class="primary-button full-width" type="submit" id="parseNotice">提取待确认事项</button>
+          </form>
+          <div class="example-actions"><button class="text-button" id="fillExample" type="button">填入虚构通知</button><button class="text-button" id="loadNineMinutes" type="button">试试九分钟缺口</button></div>
+          <p class="privacy-note">原文仅在你点击提取时发往所选服务；清单保存在此浏览器，换设备不会同步。</p>
         </section>
-
-        <section class="capabilities" aria-label="核心能力">
-          <h2>核心能力</h2>
-          <div class="capability">
-            <span class="cap-icon">01</span>
-            <div>
-              <span class="cap-line-icon" aria-hidden="true">
-                <svg viewBox="0 0 24 24" focusable="false">
-                  <path d="M7 4.5h7l3 3v12H7z" />
-                  <path d="M14 4.5v3h3" />
-                  <path d="M9.5 11h5" />
-                  <path d="M9.5 14.5h4" />
-                </svg>
-              </span>
-              <strong>通知解析</strong>
-              <p>识别报名截止、材料提交、活动时间、地点和所需材料。</p>
-            </div>
-          </div>
-          <div class="capability">
-            <span class="cap-icon">02</span>
-            <div>
-              <span class="cap-line-icon" aria-hidden="true">
-                <svg viewBox="0 0 24 24" focusable="false">
-                  <path d="M6 5.5h12v13H6z" />
-                  <path d="M9 3.8v3.4" />
-                  <path d="M15 3.8v3.4" />
-                  <path d="M8.8 11h6.4" />
-                  <path d="M8.8 14.5h3.8" />
-                </svg>
-              </span>
-              <strong>活动策划</strong>
-              <p>生成分工、预算、物资、审批和当天执行流程。</p>
-            </div>
-          </div>
-          <div class="capability">
-            <span class="cap-icon">03</span>
-            <div>
-              <span class="cap-line-icon" aria-hidden="true">
-                <svg viewBox="0 0 24 24" focusable="false">
-                  <path d="M12 4.2l7 3.2v4.8c0 4.1-2.8 6.8-7 7.7-4.2-.9-7-3.6-7-7.7V7.4z" />
-                  <path d="M9 12h6" />
-                  <path d="M12 9v6" />
-                </svg>
-              </span>
-              <strong>冲突检测</strong>
-              <p>判断任务是否排得开，并给出调整、委托或放弃建议。</p>
-            </div>
-          </div>
-        </section>
-
-        <section class="examples" aria-label="示例问题">
-          <div class="section-heading">
-            <h2>示例</h2>
-            <span id="copyStatus">点击后复制</span>
-          </div>
-          <button data-prompt="请于2026年5月25日15:00前完成报名。现场抽签时间为2026年5月27日中午12:30，地点为体育部105会议室。比赛时间为2026年5月30日8点至18点。帮我整理行动清单。">通知解析</button>
-          <button data-prompt="我想策划一次班级篮球交流赛，预计30人参加，预算500元，需要场地、分工、物资和当天流程。">活动策划</button>
-          <button data-prompt="2026年第18届大广赛提交平台5月20日开放，6月12日16:00截止，学校线下提交时间为6月12日至14日每天9:00-17:00，6月18日24:00前可以退赛。请帮我区分这些时间。">多时间点通知</button>
-          <button data-prompt="我6月29日开始期末考试，前两周要复习高数、概率论、马原、英语、物理、离散数学。同时6月18日前还要处理大广赛，6月18日晚上还有学生工作例会。帮我判断是否排得开。">冲突检测</button>
-        </section>
-
-        <footer class="sidebar-footer">
-          <a href="./algorithm.html" target="_blank" rel="noreferrer">算法演示台</a>
-          <button type="button" id="openAgentFooter">打开智能体</button>
-          <small>源自第7组课程作品“口述行动链” · 升级开发中</small>
-        </footer>
+        <section class="source-section" aria-labelledby="sourceHeading"><div class="section-top"><h2 id="sourceHeading">保留的原文</h2><span id="sourceCount">0 份</span></div><div id="sourceList"><p class="empty-note">导入后可随时回来核对。</p></div></section>
+        <details class="settings" id="settingsPanel"><summary>服务与备份</summary>
+          <form id="apiForm"><label for="apiBase">解析与计算服务地址</label><input id="apiBase" type="url" inputmode="url" required><button type="submit">保存地址并检查连接</button><p class="field-help" id="connectionStatus" role="status">尚未检查连接</p></form>
+          <div class="backup-actions"><button type="button" id="exportSnapshot">导出清单</button><button type="button" id="importSnapshot">导入清单</button><input type="file" id="importFile" accept="application/json,.json" hidden><button class="danger-text" type="button" id="clearSnapshot">清空清单</button></div>
+          <p class="field-help">导出文件包含原文与个人安排，请妥善保存。旧版对话独立运行，不会写入此清单。</p>
+        </details>
       </aside>
-
-      <section class="chat-panel" aria-label="智能体对话">
-        <header class="chat-header">
-          <div>
-            <h2>司序·知所先后</h2>
-            <p>选择左侧示例并粘贴到输入框，或直接输入你的校园任务。</p>
-          </div>
-          <button class="ghost-button" type="button" id="resetHint">打开智能体</button>
-        </header>
-
-        <section class="agent-preview" aria-label="智能体演示">
-          <div class="preview-copy">
-            <h3>
-              <span>欢迎使用</span>
-              <span>「司序·知所先后」</span>
-            </h3>
-            <p>
-              司序，先理清眼前这件事。
-              别慌，把你脑子里乱糟糟的安排直接说给我听吧~。
-            </p>
-            <div class="preview-actions">
-              <button class="primary-action" type="button" id="openAgentPanel">打开智能体</button>
-              <button class="secondary-action" type="button" id="runParseDemo">运行通知解析 API</button>
-              <button class="secondary-action" type="button" id="runConflictDemo">运行冲突检测 API</button>
-            </div>
-            <p class="api-note" id="apiStatus">你只需要像说话一样描述你的任务，我会帮你拆解事项、排出时间点、识别冲突，并提醒你哪些事情必须优先处理喵。
-可以从一句话开始，比如：“我下周要办社团活动，还要交作业和参加讲座，帮我安排一下。”</p>
-          </div>
-
-          <div class="preview-stage" aria-label="智能体与 API 演示">
-            <div class="stage-tabs" role="tablist" aria-label="展示模式">
-              <button class="stage-tab is-active" type="button" id="showApiPanel">API 演示</button>
-              <button class="stage-tab" type="button" id="showAgentPanel">智能体</button>
-            </div>
-
-            <div class="api-console stage-panel is-active" id="apiPanel" aria-label="API 演示输出">
-              <div class="console-top">
-                <span>API OUTPUT</span>
-                <button type="button" id="runHealthCheck">检查连接</button>
-              </div>
-              <pre id="apiOutput">点击左侧按钮，查看后端返回的结构化结果。</pre>
-            </div>
-
-            <div class="agent-frame-wrap stage-panel" id="agentPanel" aria-label="Dify 智能体">
-              <div class="frame-top">
-                <span>DIFY AGENT</span>
-                <a href="https://udify.app/chat/Kj5b0eS5Bew0dRjU" target="_blank" rel="noreferrer">新窗口打开</a>
-              </div>
-              <iframe
-                title="司序·知所先后 Dify 智能体"
-                src="https://udify.app/chat/Kj5b0eS5Bew0dRjU"
-                loading="lazy"
-                referrerpolicy="no-referrer"
-                allow="clipboard-write; microphone"
-              ></iframe>
-            </div>
-          </div>
+      <div class="review-column">
+        <section class="surface task-section" id="taskSection" aria-labelledby="taskHeading">
+          <div class="section-top"><div><h2 id="taskHeading">逐件核对</h2><p class="section-note" id="taskSummary">先确认要做什么，再计算需要多少时间。</p></div><button type="button" id="addTask">手动添加事项</button></div>
+          <div id="taskList"><div class="empty-state"><h3>把模糊的安排，变成具体的一件事。</h3><p>导入左侧通知，或手动添加。核对截止、剩余时间和固定活动后，再确认事项。</p></div></div>
         </section>
-      </section>
-    </main>
-    <script src="./api-config.js"></script>
-    <script src="./agent.js"></script>
-  </body>
+        <section class="surface" id="timeSection" aria-labelledby="timeHeading">
+          <div class="section-top"><div><h2 id="timeHeading">你真正能用的时间</h2><p class="section-note">只填写愿意用来完成这些事项的时段，课程与会议会另行扣除。</p></div><button type="button" id="addAvailability">添加空闲时段</button></div>
+          <label for="referenceTime">从什么时刻开始计算</label><div class="reference-row"><input type="datetime-local" id="referenceTime" required><button type="button" id="useCurrentTime">使用当前时间</button></div><p class="field-help">所有日期和时间均按北京时间（UTC+8）解释。</p>
+          <div id="availabilityList"></div><p class="field-help" id="availabilityHelp">未填写时不能推断个人容量。填完时段后点击保存，修改前请先删除原时段。</p>
+          <form class="availability-form" id="availabilityForm" hidden><label>空闲开始<input type="datetime-local" id="availabilityStart" required></label><label>空闲结束<input type="datetime-local" id="availabilityEnd" required></label><div class="inline-actions"><button type="submit">保存时段</button><button type="button" class="text-button" id="cancelAvailability">取消</button></div><p class="field-error" id="availabilityError" role="status"></p></form>
+        </section>
+        <section class="surface result-section" id="resultSection" aria-labelledby="resultHeading">
+          <div class="section-top"><div><h2 id="resultHeading">用当前清单检查一次</h2><p class="section-note">核对固定重叠和截止前时长；本轮还不生成具体日程。</p></div><button class="primary-button" id="calculate" type="button">检查冲突与容量</button></div>
+          <div id="resultOutput" aria-live="polite"><p class="empty-note">确认事项并填写空闲时段后，结果会显示在这里。</p></div>
+        </section>
+      </div>
+    </div>
+    <footer class="page-footer"><span>源自第7组课程作品“口述行动链” · 升级开发中</span><span>以确认后的信息计算，把取舍留给你。</span></footer>
+  </main>
+  <noscript>此页面需要启用JavaScript才能编辑和计算任务。</noscript>
+  <script src="./api-config.js"></script><script type="module" src="./agent.js"></script>
+</body>
 </html>

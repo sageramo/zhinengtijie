@@ -1,89 +1,10 @@
 <!doctype html>
-<html lang="zh-CN">
-  <head>
-    <meta charset="utf-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>自研算法演示台 · 司序·知所先后</title>
-    <link rel="stylesheet" href="./agent.css" />
-    <link rel="stylesheet" href="./algorithm.css" />
-  </head>
-  <body>
-    <main class="algorithm-shell">
-      <header class="algorithm-hero glass">
-        <a class="back-link" href="./">返回智能体前端</a>
-        <p>SELF-BUILT ENGINE</p>
-        <h1>自研规则解析与冲突检测演示台</h1>
-        <span>
-          这里展示的是项目中不依赖 Dify 的技术部分：文本清洗、规则抽取、时间语义识别、容量估算和劝退建议。
-        </span>
-      </header>
-
-      <section class="tech-grid">
-        <article class="tech-card glass">
-          <span>01</span>
-          <h2>文本清洗</h2>
-          <p>修复群通知复制导致的中文编码错位，统一空格、换行、日期符号，为后续抽取做预处理。</p>
-        </article>
-        <article class="tech-card glass">
-          <span>02</span>
-          <h2>规则解析</h2>
-          <p>使用正则表达式抽取日期、时间段、地点、部门、材料和联系方式，降低大模型幻觉。</p>
-        </article>
-        <article class="tech-card glass">
-          <span>03</span>
-          <h2>时间语义分类</h2>
-          <p>根据上下文判断同一个通知中的时间含义：报名截止、材料提交、抽签签到、活动比赛、考试入场。</p>
-        </article>
-        <article class="tech-card glass">
-          <span>04</span>
-          <h2>冲突检测</h2>
-          <p>检测固定时间重叠、截止前容量不足、期末复习压力和前置材料风险。</p>
-        </article>
-      </section>
-
-      <section class="demo-grid">
-        <article class="demo-panel glass">
-          <h2>多时间点解析案例</h2>
-          <p class="source-text">
-            请于2026年5月25日15:00前完成报名。现场抽签时间为2026年5月27日中午12:30，地点为体育部105会议室。比赛时间为2026年5月30日8点至18点。
-          </p>
-          <div class="timeline">
-            <div><strong>报名截止</strong><span>2026-05-25 15:00 前</span></div>
-            <div><strong>抽签/签到</strong><span>2026-05-27 12:30，体育部105会议室</span></div>
-            <div><strong>比赛时间</strong><span>2026-05-30 08:00-18:00</span></div>
-          </div>
-          <p class="note">算法重点：不把抽签时间误判为报名截止，不把比赛时间误判为材料提交。</p>
-        </article>
-
-        <article class="demo-panel glass">
-          <h2>冲突检测案例</h2>
-          <p class="source-text">
-            6月29日开始期末考试，前两周复习高数、概率论、马原、英语、物理、离散数学；6月18日前处理大广赛，6月18日晚有学生工作例会。
-          </p>
-          <div class="estimate">
-            <div><strong>默认复习量</strong><span>约63小时</span></div>
-            <div><strong>竞赛与会议</strong><span>约21.5小时</span></div>
-            <div><strong>两周可用时间</strong><span>约72小时</span></div>
-            <div class="danger"><strong>缺口</strong><span>约12.5小时</span></div>
-          </div>
-          <p class="note">输出建议：保留考试复习，压缩大广赛非核心环节，学生工作例会建议委托或请假。</p>
-        </article>
-      </section>
-
-      <section class="code-panel glass">
-        <h2>核心规则示例</h2>
-        <pre><code>if "6月29日开始期末考试":
-    review_window = "2026-06-15 至 2026-06-28"
-    weekday_capacity = 4 小时/天
-    weekend_capacity = 8 小时/天
-
-if context contains ["报名", "截止", "前"]:
-    time_type = "报名截止"
-elif context contains ["提交", "材料"]:
-    time_type = "材料提交"
-elif context contains ["抽签", "签到", "入场"]:
-    time_type = "抽签/签到时间"</code></pre>
-      </section>
-    </main>
-  </body>
-</html>
+<html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>计算说明 · 司序·知所先后</title><link rel="stylesheet" href="./agent.css"></head>
+<body><header class="site-header"><a class="brand-title" href="./">司序<span>·知所先后</span></a><nav aria-label="页面导航"><a href="./">返回个人清单</a></nav></header>
+<main class="read-page"><h1>每一分钟，如何算清楚？</h1><p>司序先提出通知中的候选事项，由你核对关键字段；计算只使用这份已确认的清单，不把聊天中的建议当作已保存任务。</p>
+<h2>先核对信息，再检查时间</h2><p>通知里的报名截止、活动时段和办理窗口含义不同。只有日期的通知不能直接补成深夜截止，重复办理窗口也不能当作连续几天的固定占用。没有明确的信息会保留为待核对，由你补充后确认。</p>
+<h2>可用时间来自你的真实时段</h2><p>对每个截止时刻，合并你填写的空闲区间，裁剪到计算起始时刻和截止之间，再扣除固定活动的并集。相邻活动不会因为边界相同而冲突，重复填写的空闲不会增加容量，重叠固定活动不会重复扣减。固定占用与准备工时分开记录。</p>
+<table><caption>以下均为虚构算例</caption><thead><tr><th scope="col">输入</th><th scope="col">计算结果</th></tr></thead><tbody><tr><td>九点至十二点空闲，十点至十一点会议</td><td>剩余120分钟</td></tr><tr><td>23:50开始，23:59截止，报告还需180分钟</td><td>只有9分钟，缺少171分钟</td></tr></tbody></table>
+<h2>未发现冲突，不等于已经排好</h2><p>当前检查固定重叠和截止前累计时长。连续工作块、前置依赖、最早开始与办理窗口尚未完成排程验证，会明确说明限制。累计时长充足只能说明一项必要条件通过，不能保证所有事项都能放进具体空档。取舍由你决定，低优先级也不会被自动删除。</p>
+<h2>修改后，用新清单重新计算</h2><p>编辑截止、耗时、固定时段或个人空闲会使旧结果立即失效。计算返回时，页面会检查结果是否仍属于当前清单；旧请求不能覆盖已经修改的内容。已完成事项的剩余时间为零，不继续挤占新计划。</p>
+<h2>数据保存在哪里</h2><p>清单保存在当前浏览器，可导出备份；主动点击解析或计算时，相关数据才发送给所选服务，服务只读取本次提交的清单。独立的旧版Dify对话不会自动写回本清单。当前开发版本尚未代表线上服务已经完成升级。</p></main></body></html>

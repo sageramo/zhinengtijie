@@ -1,0 +1,379 @@
+{
+  "schemaVersion": 2,
+  "generatedAt": "2026-10-25T14:11:01Z",
+  "title": "Design System: 司序·知所先后",
+  "extensions": {
+    "colorMeta": {
+      "accent": {
+        "role": "primary",
+        "displayName": "深青",
+        "canonical": "#2f6f73",
+        "tonalRamp": [
+          "oklch(15% 0.06512 200.89)",
+          "oklch(25% 0.06512 200.89)",
+          "oklch(35% 0.06512 200.89)",
+          "oklch(45% 0.06512 200.89)",
+          "oklch(55% 0.06512 200.89)",
+          "oklch(65% 0.06512 200.89)",
+          "oklch(80% 0.06512 200.89)",
+          "oklch(95% 0.06512 200.89)"
+        ]
+      },
+      "accent-deep": {
+        "role": "primary",
+        "displayName": "深青暗部",
+        "canonical": "#255b60",
+        "tonalRamp": [
+          "oklch(15% 0.05707 203.57)",
+          "oklch(25% 0.05707 203.57)",
+          "oklch(35% 0.05707 203.57)",
+          "oklch(45% 0.05707 203.57)",
+          "oklch(55% 0.05707 203.57)",
+          "oklch(65% 0.05707 203.57)",
+          "oklch(80% 0.05707 203.57)",
+          "oklch(95% 0.05707 203.57)"
+        ]
+      },
+      "accent-soft": {
+        "role": "primary",
+        "displayName": "浅青",
+        "canonical": "#e6f1f1",
+        "tonalRamp": [
+          "oklch(15% 0.01168 196.96)",
+          "oklch(25% 0.01168 196.96)",
+          "oklch(35% 0.01168 196.96)",
+          "oklch(45% 0.01168 196.96)",
+          "oklch(55% 0.01168 196.96)",
+          "oklch(65% 0.01168 196.96)",
+          "oklch(80% 0.01168 196.96)",
+          "oklch(95% 0.01168 196.96)"
+        ]
+      },
+      "bg": {
+        "role": "neutral",
+        "displayName": "浅灰蓝",
+        "canonical": "#f6f8fb",
+        "tonalRamp": [
+          "oklch(15% 0.00453 258.32)",
+          "oklch(25% 0.00453 258.32)",
+          "oklch(35% 0.00453 258.32)",
+          "oklch(45% 0.00453 258.32)",
+          "oklch(55% 0.00453 258.32)",
+          "oklch(65% 0.00453 258.32)",
+          "oklch(80% 0.00453 258.32)",
+          "oklch(95% 0.00453 258.32)"
+        ]
+      },
+      "panel": {
+        "role": "neutral",
+        "displayName": "白色主面",
+        "canonical": "#fff",
+        "tonalRamp": [
+          "oklch(15% 0.00000 0.00)",
+          "oklch(25% 0.00000 0.00)",
+          "oklch(35% 0.00000 0.00)",
+          "oklch(45% 0.00000 0.00)",
+          "oklch(55% 0.00000 0.00)",
+          "oklch(65% 0.00000 0.00)",
+          "oklch(80% 0.00000 0.00)",
+          "oklch(95% 0.00000 0.00)"
+        ]
+      },
+      "panel-soft": {
+        "role": "neutral",
+        "displayName": "浅青灰",
+        "canonical": "#f0f5f5",
+        "tonalRamp": [
+          "oklch(15% 0.00532 197.07)",
+          "oklch(25% 0.00532 197.07)",
+          "oklch(35% 0.00532 197.07)",
+          "oklch(45% 0.00532 197.07)",
+          "oklch(55% 0.00532 197.07)",
+          "oklch(65% 0.00532 197.07)",
+          "oklch(80% 0.00532 197.07)",
+          "oklch(95% 0.00532 197.07)"
+        ]
+      },
+      "text": {
+        "role": "neutral",
+        "displayName": "墨青正文",
+        "canonical": "#182c30",
+        "tonalRamp": [
+          "oklch(15% 0.02684 211.68)",
+          "oklch(25% 0.02684 211.68)",
+          "oklch(35% 0.02684 211.68)",
+          "oklch(45% 0.02684 211.68)",
+          "oklch(55% 0.02684 211.68)",
+          "oklch(65% 0.02684 211.68)",
+          "oklch(80% 0.02684 211.68)",
+          "oklch(95% 0.02684 211.68)"
+        ]
+      },
+      "muted": {
+        "role": "neutral",
+        "displayName": "灰青说明",
+        "canonical": "#52646b",
+        "tonalRamp": [
+          "oklch(15% 0.02454 223.40)",
+          "oklch(25% 0.02454 223.40)",
+          "oklch(35% 0.02454 223.40)",
+          "oklch(45% 0.02454 223.40)",
+          "oklch(55% 0.02454 223.40)",
+          "oklch(65% 0.02454 223.40)",
+          "oklch(80% 0.02454 223.40)",
+          "oklch(95% 0.02454 223.40)"
+        ]
+      },
+      "line": {
+        "role": "neutral",
+        "displayName": "浅灰边界",
+        "canonical": "#dbe3e7",
+        "tonalRamp": [
+          "oklch(15% 0.01022 228.90)",
+          "oklch(25% 0.01022 228.90)",
+          "oklch(35% 0.01022 228.90)",
+          "oklch(45% 0.01022 228.90)",
+          "oklch(55% 0.01022 228.90)",
+          "oklch(65% 0.01022 228.90)",
+          "oklch(80% 0.01022 228.90)",
+          "oklch(95% 0.01022 228.90)"
+        ]
+      },
+      "line-strong": {
+        "role": "neutral",
+        "displayName": "较深中性边界",
+        "canonical": "#abbcc2",
+        "tonalRamp": [
+          "oklch(15% 0.02062 220.93)",
+          "oklch(25% 0.02062 220.93)",
+          "oklch(35% 0.02062 220.93)",
+          "oklch(45% 0.02062 220.93)",
+          "oklch(55% 0.02062 220.93)",
+          "oklch(65% 0.02062 220.93)",
+          "oklch(80% 0.02062 220.93)",
+          "oklch(95% 0.02062 220.93)"
+        ]
+      },
+      "warning": {
+        "role": "semantic",
+        "displayName": "棕色警示",
+        "canonical": "#805422",
+        "tonalRamp": [
+          "oklch(15% 0.08741 66.30)",
+          "oklch(25% 0.08741 66.30)",
+          "oklch(35% 0.08741 66.30)",
+          "oklch(45% 0.08741 66.30)",
+          "oklch(55% 0.08741 66.30)",
+          "oklch(65% 0.08741 66.30)",
+          "oklch(80% 0.08741 66.30)",
+          "oklch(95% 0.08741 66.30)"
+        ]
+      },
+      "warning-bg": {
+        "role": "semantic",
+        "displayName": "浅米警示面",
+        "canonical": "#fff8eb",
+        "tonalRamp": [
+          "oklch(15% 0.01869 83.06)",
+          "oklch(25% 0.01869 83.06)",
+          "oklch(35% 0.01869 83.06)",
+          "oklch(45% 0.01869 83.06)",
+          "oklch(55% 0.01869 83.06)",
+          "oklch(65% 0.01869 83.06)",
+          "oklch(80% 0.01869 83.06)",
+          "oklch(95% 0.01869 83.06)"
+        ]
+      },
+      "danger": {
+        "role": "semantic",
+        "displayName": "砖红错误",
+        "canonical": "#a2332d",
+        "tonalRamp": [
+          "oklch(15% 0.14756 27.15)",
+          "oklch(25% 0.14756 27.15)",
+          "oklch(35% 0.14756 27.15)",
+          "oklch(45% 0.14756 27.15)",
+          "oklch(55% 0.14756 27.15)",
+          "oklch(65% 0.14756 27.15)",
+          "oklch(80% 0.14756 27.15)",
+          "oklch(95% 0.14756 27.15)"
+        ]
+      },
+      "danger-bg": {
+        "role": "semantic",
+        "displayName": "浅红错误面",
+        "canonical": "#fff3f1",
+        "tonalRamp": [
+          "oklch(15% 0.01325 28.86)",
+          "oklch(25% 0.01325 28.86)",
+          "oklch(35% 0.01325 28.86)",
+          "oklch(45% 0.01325 28.86)",
+          "oklch(55% 0.01325 28.86)",
+          "oklch(65% 0.01325 28.86)",
+          "oklch(80% 0.01325 28.86)",
+          "oklch(95% 0.01325 28.86)"
+        ]
+      }
+    },
+    "typographyMeta": {
+      "headline": {
+        "displayName": "页面主标题",
+        "purpose": "操作工作台主标题；手机使用1.625rem，非营销展示字体。"
+      },
+      "title": {
+        "displayName": "分区标题",
+        "purpose": "分区名称与主要结果标题。"
+      },
+      "task-title": {
+        "displayName": "事项标题",
+        "purpose": "单件事项与空状态的标题。"
+      },
+      "body": {
+        "displayName": "正文",
+        "purpose": "普通中文说明，继承既有至少14px阅读基线。"
+      },
+      "control": {
+        "displayName": "按钮文字",
+        "purpose": "按钮与轻量操作。"
+      },
+      "field": {
+        "displayName": "输入内容",
+        "purpose": "原生单行输入与选择；多行输入行高为1.7。"
+      },
+      "label": {
+        "displayName": "字段标签",
+        "purpose": "上置标签及有限字重对比。"
+      }
+    },
+    "shadows": [],
+    "motion": [
+      {
+        "name": "button-state",
+        "value": "background-color 160ms ease, border-color 160ms ease",
+        "purpose": "按钮状态变化；prefers-reduced-motion: reduce时关闭。"
+      },
+      {
+        "name": "anchor-scroll",
+        "value": "smooth",
+        "purpose": "默认页内定位；CSS及三处JavaScript调用在减少动态偏好下改为auto，源码核对，未实际播放验收。"
+      }
+    ],
+    "breakpoints": [
+      {
+        "name": "compact-desktop",
+        "value": "1000px"
+      },
+      {
+        "name": "single-column",
+        "value": "760px"
+      }
+    ]
+  },
+  "components": [
+    {
+      "name": "主按钮",
+      "kind": "button",
+      "description": "提取、逐项确认与计算使用的既有深青主操作。",
+      "html": "<button type=\"button\" class=\"ds-button-primary\">提取待确认事项</button>",
+      "css": ".ds-button-primary{font-family:ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, \"Segoe UI\", \"PingFang SC\", \"Microsoft YaHei\", sans-serif;min-height:42px;padding:8px 14px;border:1px solid var(--line-strong, #abbcc2);border-radius:7px;background:var(--panel, #fff);color:var(--text, #182c30);cursor:pointer;font-size:.875rem;line-height:1.5;transition:background-color 160ms ease,border-color 160ms ease;background:var(--accent, #2f6f73);border-color:var(--accent, #2f6f73);color:var(--panel, #fff);}.ds-button-primary:hover{background:var(--accent-deep, #255b60);border-color:var(--accent, #2f6f73);}.ds-button-primary:active{background:var(--accent, #2f6f73);}.ds-button-primary:focus-visible{outline:3px solid var(--accent, #2f6f73);outline-offset:3px;}.ds-button-primary:disabled{cursor:not-allowed;opacity:.6;}.ds-button-primary[aria-busy=\"true\"]{cursor:progress;}@media(max-width:760px){.ds-button-primary{min-height:44px;}}@media(prefers-reduced-motion:reduce){.ds-button-primary{transition:none;}}",
+      "refersTo": "button-primary"
+    },
+    {
+      "name": "普通按钮",
+      "kind": "button",
+      "description": "手动添加、保存和备份等次级操作。",
+      "html": "<button type=\"button\" class=\"ds-button-secondary\">手动添加事项</button>",
+      "css": ".ds-button-secondary{font-family:ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, \"Segoe UI\", \"PingFang SC\", \"Microsoft YaHei\", sans-serif;min-height:42px;padding:8px 14px;border:1px solid var(--line-strong, #abbcc2);border-radius:7px;background:var(--panel, #fff);color:var(--text, #182c30);cursor:pointer;font-size:.875rem;line-height:1.5;transition:background-color 160ms ease,border-color 160ms ease;}.ds-button-secondary:hover{background:var(--panel-soft, #f0f5f5);border-color:var(--accent, #2f6f73);}.ds-button-secondary:active{background:var(--accent-soft, #e6f1f1);}.ds-button-secondary:focus-visible{outline:3px solid var(--accent, #2f6f73);outline-offset:3px;}.ds-button-secondary:disabled{cursor:not-allowed;opacity:.6;}.ds-button-secondary[aria-busy=\"true\"]{cursor:progress;}@media(max-width:760px){.ds-button-secondary{min-height:44px;}}@media(prefers-reduced-motion:reduce){.ds-button-secondary{transition:none;}}",
+      "refersTo": "button-secondary"
+    },
+    {
+      "name": "文字按钮",
+      "kind": "button",
+      "description": "原文查看与轻量辅助操作，无新增图标。",
+      "html": "<button type=\"button\" class=\"ds-button-text\">查看整份原文</button>",
+      "css": ".ds-button-text{font-family:ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, \"Segoe UI\", \"PingFang SC\", \"Microsoft YaHei\", sans-serif;min-height:42px;padding:8px 14px;border:1px solid var(--line-strong, #abbcc2);border-radius:7px;background:var(--panel, #fff);color:var(--text, #182c30);cursor:pointer;font-size:.875rem;line-height:1.5;transition:background-color 160ms ease,border-color 160ms ease;border-color:transparent;background:transparent;color:var(--accent-deep, #255b60);padding-left:6px;padding-right:6px;}.ds-button-text:hover{background:var(--accent-soft, #e6f1f1);border-color:var(--accent, #2f6f73);}.ds-button-text:active{background:var(--accent-soft, #e6f1f1);}.ds-button-text:focus-visible{outline:3px solid var(--accent, #2f6f73);outline-offset:3px;}.ds-button-text:disabled{cursor:not-allowed;opacity:.6;}.ds-button-text[aria-busy=\"true\"]{cursor:progress;}@media(max-width:760px){.ds-button-text{min-height:44px;}}@media(prefers-reduced-motion:reduce){.ds-button-text{transition:none;}}",
+      "refersTo": "button-text"
+    },
+    {
+      "name": "输入字段",
+      "kind": "input",
+      "description": "上置标签与全列输入，保留原生表单语义。",
+      "html": "<label class=\"ds-label\" for=\"ds-title\">事项名称</label><input class=\"ds-input\" id=\"ds-title\" placeholder=\"写清楚具体要完成什么\" maxlength=\"200\" required>",
+      "css": ".ds-label{font-family:ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, \"Segoe UI\", \"PingFang SC\", \"Microsoft YaHei\", sans-serif;display:block;margin-top:16px;margin-bottom:6px;font-size:.875rem;font-weight:550;line-height:1.65;color:var(--text, #182c30);}.ds-input{font-family:ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, \"Segoe UI\", \"PingFang SC\", \"Microsoft YaHei\", sans-serif;display:block;box-sizing:border-box;width:100%;min-height:42px;border:1px solid var(--line-strong, #abbcc2);border-radius:6px;padding:8px 10px;color:var(--text, #182c30);background:var(--panel, #fff);font-size:.875rem;line-height:1.65;}.ds-input::placeholder{color:var(--muted, #52646b);opacity:1;}.ds-input:focus-visible{outline:3px solid var(--accent, #2f6f73);outline-offset:3px;}.ds-input[aria-invalid=\"true\"]{border-color:var(--danger, #a2332d);}.ds-input:disabled{background:var(--bg, #f6f8fb);color:var(--muted, #52646b);}",
+      "refersTo": "field"
+    },
+    {
+      "name": "通知原文输入",
+      "kind": "input",
+      "description": "可纵向调整的多行通知输入，主动提取前保留原文。",
+      "html": "<label class=\"ds-notice-label\" for=\"ds-notice\">通知原文</label><textarea class=\"ds-notice\" id=\"ds-notice\" rows=\"5\" placeholder=\"粘贴通知。时间、地点和材料要求尽量保留原样。\" required></textarea>",
+      "css": ".ds-notice-label{font-family:ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, \"Segoe UI\", \"PingFang SC\", \"Microsoft YaHei\", sans-serif;display:block;margin-top:16px;margin-bottom:6px;font-size:.875rem;font-weight:550;line-height:1.65;color:var(--text, #182c30);}.ds-notice{font-family:ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, \"Segoe UI\", \"PingFang SC\", \"Microsoft YaHei\", sans-serif;display:block;box-sizing:border-box;width:100%;min-height:42px;border:1px solid var(--line-strong, #abbcc2);border-radius:6px;padding:8px 10px;color:var(--text, #182c30);background:var(--panel, #fff);font-size:.875rem;line-height:1.65;resize:vertical;min-height:120px;line-height:1.7;}.ds-notice::placeholder{color:var(--muted, #52646b);opacity:1;}.ds-notice:focus-visible{outline:3px solid var(--accent, #2f6f73);outline-offset:3px;}.ds-notice:disabled{background:var(--bg, #f6f8fb);color:var(--muted, #52646b);}",
+      "refersTo": "field"
+    },
+    {
+      "name": "页内步骤导航",
+      "kind": "nav",
+      "description": "当前工作台的数字锚点导航，窄屏换行；不是通用页面构图约束。",
+      "html": "<nav class=\"ds-flow-nav\" aria-label=\"操作步骤\"><a href=\"#noticeSection\">1 导入通知</a><a href=\"#taskSection\">2 核对事项</a><a href=\"#timeSection\">3 填写空闲</a><a href=\"#resultSection\">4 查看结果</a></nav>",
+      "css": ".ds-flow-nav{font-family:ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, \"Segoe UI\", \"PingFang SC\", \"Microsoft YaHei\", sans-serif;display:flex;gap:24px;margin:27px 0;padding-bottom:16px;border-bottom:1px solid var(--line, #dbe3e7);font-size:.875rem;line-height:1.65;}.ds-flow-nav a{color:var(--accent-deep, #255b60);text-decoration:none;text-underline-offset:4px;}.ds-flow-nav a:hover{color:var(--text, #182c30);}.ds-flow-nav a:focus-visible{outline:3px solid var(--accent, #2f6f73);outline-offset:3px;}@media(max-width:760px){.ds-flow-nav{flex-wrap:wrap;gap:10px 20px;}}"
+    },
+    {
+      "name": "分区主面",
+      "kind": "card",
+      "description": "平面白色容器以细边界承载标题、说明和操作。",
+      "html": "<section class=\"ds-surface\"><h2>逐件核对</h2><p>先确认要做什么，再计算需要多少时间。</p></section>",
+      "css": ".ds-surface{font-family:ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, \"Segoe UI\", \"PingFang SC\", \"Microsoft YaHei\", sans-serif;padding:24px;background:var(--panel, #fff);border:1px solid var(--line, #dbe3e7);border-radius:var(--radius, 12px);min-width:0;color:var(--text, #182c30);line-height:1.65;}.ds-surface h2{margin:0;font-size:1.125rem;line-height:1.5;font-weight:650;}.ds-surface p{color:var(--muted, #52646b);font-size:.875rem;line-height:1.7;margin:6px 0 0;max-width:64ch;}@media(max-width:1000px){.ds-surface{padding:20px;}}@media(max-width:760px){.ds-surface{padding:20px 18px;}}",
+      "refersTo": "surface"
+    },
+    {
+      "name": "原生证据展开项",
+      "kind": "custom",
+      "description": "按需核对原文与提取提醒，使用原生details/summary键盘行为。",
+      "html": "<details class=\"ds-evidence\"><summary>原文依据与提取提醒</summary><blockquote>手动建立的事项，以你的输入为依据。</blockquote></details>",
+      "css": ".ds-evidence{font-family:ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, \"Segoe UI\", \"PingFang SC\", \"Microsoft YaHei\", sans-serif;padding:8px 0 0;margin-top:12px;line-height:1.65;}.ds-evidence summary{cursor:pointer;color:var(--accent-deep, #255b60);min-height:40px;padding:8px 0;font-size:.875rem;}.ds-evidence summary:focus-visible{outline:3px solid var(--accent, #2f6f73);outline-offset:3px;}.ds-evidence blockquote{padding:0;margin:10px 0;color:var(--muted, #52646b);font-size:.875rem;white-space:pre-wrap;overflow-wrap:anywhere;}"
+    },
+    {
+      "name": "事项条目",
+      "kind": "custom",
+      "description": "标题、文字状态与类型的实际组合；13px辅助状态仅展示现状，不作为未来正文字号基线。",
+      "html": "<article class=\"ds-task\"><div class=\"ds-task-top\"><div><h3>核对通知中的具体事项</h3><p class=\"ds-task-status\">待核对</p></div><span class=\"ds-task-kind\">待安排工作</span></div></article>",
+      "css": ".ds-task{font-family:ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, \"Segoe UI\", \"PingFang SC\", \"Microsoft YaHei\", sans-serif;margin-top:24px;padding-top:22px;border-top:1px solid var(--line, #dbe3e7);color:var(--text, #182c30);line-height:1.65;}.ds-task-top{display:flex;align-items:start;justify-content:space-between;gap:16px;}.ds-task-top>div{min-width:0;}.ds-task h3{margin:0;font-size:1rem;line-height:1.5;font-weight:600;overflow-wrap:anywhere;}.ds-task-status{font-size:.8125rem;color:var(--warning, #805422);margin:3px 0 0;}.ds-task-status.ds-confirmed{color:var(--accent-deep, #255b60);}.ds-task-kind{font-size:.8125rem;color:var(--muted, #52646b);font-weight:400;margin-top:7px;line-height:1.65;}"
+    }
+  ],
+  "narrative": {
+    "northStar": "逐件核对的工作台",
+    "overview": "沿用原页面的深青、白色主面与浅灰蓝背景，这是现有实现的视觉记录，不作为新品牌定稿；“司序”为主名，“知所先后”为辅名，名称下方以普通文字说明用途。学生在教室、宿舍和移动途中核对通知，需要明亮背景、可读的日期和清晰的表单，系统因此以紧凑操作层次、直白中文与原生控件为主。\n\n本次合并保留既有文档的色彩、系统中文字体、边界分区与渐进展开决策，数值以 `agent.css` 为准，组件与状态以 `index.html`、`agent.js` 为准。操作顺序及首屏策略保存在 `.impeccable/surfaces/workbench.md`，不把这一页的双列构图当成所有页面的唯一模板。当前代理验收依据限于源码与非渲染 DOM；用户已自行打开本地工作台反馈“操作顺畅”，但自动浏览器访问仍被本机权限策略阻止，尚未独立核验实际桌面或手机几何、字体回退与渲染对比度。",
+    "keyCharacteristics": [
+      "明亮青灰白与中性细边界，避免装饰渐变和大面积阴影。",
+      "中文操作层次、普通字号与日期数字优先，主名和辅名分级。",
+      "状态同时使用文字与颜色，证据、原文和配置通过原生展开项呈现。"
+    ],
+    "rules": [
+      {
+        "name": "The Explicit State Rule",
+        "body": "待核对、已确认、冲突、失效与保存失败均写出状态文字，颜色只加强已有文字，不独自承担结论。",
+        "section": "colors"
+      },
+      {
+        "name": "The Operable Text Rule",
+        "body": "沿用既有正文至少（14px）、长文行高至少（1.6）的基线，操作保持普通字号，标题靠字重和层次区分。当前源码的（13px）辅助说明与（12px）页脚低于该阅读基线，本次仅记录差异，未把小字值纳入可继承的字号令牌，也未据此声称已通过可读性验收。",
+        "section": "typography"
+      },
+      {
+        "name": "The Bounded Surface Rule",
+        "body": "用中性边界、背景和间距组织操作区域；同一任务的字段属于同一展开项，不再把每个字段包成独立卡片。",
+        "section": "elevation"
+      }
+    ],
+    "dos": [
+      "**Do** 保留深青操作、青灰白信息面与中性边界，状态同时写明文字。",
+      "**Do** 保留中文正文的阅读基线、主辅名层次、可见键盘焦点与原生表单语义。",
+      "**Do** 在相邻说明中明确输入依据、未验证部分与当前状态，核心字段留在页面内。"
+    ],
+    "donts": [
+      "**Don't** 为操作型工作台添加装饰渐变、大面积阴影、眉题或无依据的图形装饰。",
+      "**Don't** 将现有较小辅助字、局部特殊值或尚未视觉验收的几何当成未来页面的强制模板。",
+      "**Don't** 把本次源码记录称为品牌定稿、桌面手机视觉验收通过或完整排程能力证明。"
+    ]
+  }
+}

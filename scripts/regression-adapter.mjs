@@ -1,0 +1,21 @@
+/** Development oracle for the actual browser-owned state and request gate. */
+import { createSnapshot, createTask, addTask, editTask, RevisionGate } from '../task-state.js';
+let input = '';
+for await (const chunk of process.stdin) input += chunk;
+const payload = JSON.parse(input || '{}');
+let snapshot = createSnapshot({ referenceTime: '2026-10-26T09:00:00+08:00' });
+const task = createTask();
+task.title = '虚构回归事项';
+snapshot = addTask(snapshot, task);
+snapshot.revision = payload.initial_revision;
+const gate = new RevisionGate();
+const oldRequest = gate.begin(snapshot);
+snapshot = editTask(snapshot, task.id, { title: '编辑后的虚构事项' });
+const oldAcceptedAfterEdit = gate.accepts(oldRequest, snapshot.revision);
+const newRequest = gate.begin(snapshot);
+const newAccepted = gate.accepts(newRequest, snapshot.revision);
+const laterRequest = gate.begin(snapshot);
+const earlierSameRevisionAccepted = gate.accepts(newRequest, snapshot.revision);
+const latestAccepted = gate.accepts(laterRequest, snapshot.revision);
+gate.invalidate();
+process.stdout.write(JSON.stringify({ revision: snapshot.revision, old_accepted_after_edit: oldAcceptedAfterEdit, new_accepted: newAccepted, earlier_same_revision_accepted: earlierSameRevisionAccepted, latest_accepted: latestAccepted, accepted_after_reset: gate.accepts(laterRequest, snapshot.revision) }));

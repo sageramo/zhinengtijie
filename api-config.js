@@ -1,4 +1,5 @@
-// If the Python backend is deployed separately, put its public URL here.
-// Example:
-// window.CAMPUS_AGENT_API = "https://verbal-action-chain-api.onrender.com";
-window.CAMPUS_AGENT_API = "https://campus-action-agent-back.onrender.com";
+// Select the local upgraded API during local development. No automatic text
+// submission occurs; production must pass capability negotiation before use.
+window.CAMPUS_AGENT_API = ["localhost", "127.0.0.1", "[::1]"].includes(location.hostname)
+  ? "http://127.0.0.1:8765"
+  : "https://campus-action-agent-back.onrender.com";
