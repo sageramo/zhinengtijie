@@ -200,6 +200,24 @@ export function editTask(snapshot, taskId, patch) {
   });
 }
 
+/** Explicit date review fills empty draft times; never overwrites user values. */
+export function applyTimeReview(snapshot, taskId, patch, referenceDate) {
+  if (typeof referenceDate !== 'string' || !isTimestamp(`${referenceDate}T00:00:00+08:00`)) fail('请选择有效的通知参照日期');
+  if (!object(patch) || !Object.keys(patch).length) fail('没有可补全的时间字段');
+  return change(snapshot, next => {
+    const task = findTask(next, taskId);
+    if (task.status !== 'draft') fail('只可补全待核对事项，不修改已确认或已完成事项');
+    const allowed = task.kind === 'fixed' ? ['fixed_start_at', 'fixed_end_at'] : ['flexible', 'milestone'].includes(task.kind) ? ['deadline_at'] : [];
+    if (Object.keys(patch).some(field => !allowed.includes(field) || task[field] !== null || !isTimestamp(patch[field]))) fail('补全只可写入空白时间，不覆盖已有输入');
+    Object.assign(task, clone(patch));
+    if (task.fixed_start_at && task.fixed_end_at && Date.parse(task.fixed_start_at) >= Date.parse(task.fixed_end_at)) fail('固定结束必须晚于开始');
+    task.confirmed_fields = task.confirmed_fields.filter(field => !Object.hasOwn(patch, field));
+    const note = `按你指定的通知参照日期 ${referenceDate} 解释原文时间，补全部分仍需核对；原文未给出的结束时间不会推测。`;
+    task.uncertainties = [...new Set([note, ...task.uncertainties.filter(item => !item.includes('未提供 reference_date') && !item.includes('本次未采用为可计算时间'))])];
+    for (const field of Object.keys(patch)) task.evidence.push({ field, origin: 'inferred', source_id: null, quote: `用户主动选择参照日期 ${referenceDate}，根据对应原文补全 ${patch[field]}，尚未确认。` });
+  });
+}
+
 export function removeTask(snapshot, taskId) {
   return change(snapshot, next => {
     findTask(next, taskId);
@@ -354,7 +372,7 @@ export class RevisionGate {
   }
 }
 
-function candidateTimestamp(value, timezone) {
+export function candidateTimestamp(value, timezone) {
   if (timezone && timezone !== 'Asia/Shanghai') return null;
   if (isTimestamp(value)) return value;
   if (typeof value !== 'string') return null;

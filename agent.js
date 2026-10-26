@@ -2,10 +2,11 @@ import {
   STORAGE_KEY, createSnapshot, createTask, addSource, addTask, editTask,
   removeTask, setAvailability, setReferenceTime, confirmTask, completeTask,
   reopenTask, noticeCandidates, parseSnapshot, serializeSnapshot,
-  readSnapshot, RevisionGate, isTimestamp, MAX_SNAPSHOT_BYTES,
+  readSnapshot, RevisionGate, isTimestamp, MAX_SNAPSHOT_BYTES, applyTimeReview,
 } from './task-state.js';
 import { SnapshotStore } from './snapshot-store.js';
 import { modelCandidates } from './model-candidates.js';
+import { reviewTimePatch } from './time-review.js';
 
 const $ = id => document.getElementById(id);
 const escapeHTML = value => String(value ?? '').replace(/[&<>"']/g, character => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[character]);
@@ -24,6 +25,7 @@ const isInactive = task => ['completed', 'cancelled'].includes(task.status);
 const sourceId = () => `notice-${globalThis.crypto?.randomUUID?.() || `${Date.now()}-${Math.random().toString(36).slice(2)}`}`;
 const scrollBehavior = () => window.matchMedia?.('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth';
 const stateLabels = { draft: '待核对', confirmed: '已确认', scheduled: '已确认', in_progress: '进行中', completed: '已完成，不计剩余量', cancelled: '已取消，不计剩余量' };
+const TIME_REVIEW_LABEL = '按参照日期补全原文时间';
 
 let storage;
 try { storage = window.localStorage; } catch { storage = null; }
@@ -46,6 +48,7 @@ let invalidReference = false;
 const invalidEdits = new Map();
 const parseGate = new RevisionGate();
 const calculateGate = new RevisionGate();
+const timeReviewGate = new RevisionGate();
 
 function tell(message, type = '') {
   $('appMessage').textContent = message;
@@ -74,11 +77,13 @@ function busy(button, value, idle, working) {
 function invalidateResults() {
   calculateGate.invalidate();
   parseGate.invalidate();
+  timeReviewGate.invalidate();
   activeParse = null;
   activeCalculation = null;
   result = null;
   busy($('calculate'), false, '检查冲突与容量');
   busy($('parseNotice'), false, '提取待确认事项');
+  for (const button of $('taskList').querySelectorAll('[data-action="resolve-time"]')) busy(button, false, TIME_REVIEW_LABEL);
   renderResult();
 }
 async function save() {
@@ -142,6 +147,10 @@ function taskMarkup(task) {
   const evidence = task.evidence.filter(item => item.origin === 'source_text');
   const inferred = task.evidence.filter(item => item.origin === 'inferred');
   const quotes = [...new Set(evidence.map(item => item.quote).filter(Boolean))];
+  const timeFields = task.kind === 'fixed' ? ['fixed_start_at', 'fixed_end_at'] : ['deadline_at'];
+  const timeQuotes = [...new Set(evidence.filter(item => timeFields.includes(item.field)).map(item => item.quote).filter(Boolean))];
+  const missingTime = task.status === 'draft' && timeFields.some(field => task[field] === null);
+  const timeHelp = missingTime ? `<div class="field-wide time-review"><p class="field-help">${timeQuotes.length ? `已识别时间原文：${timeQuotes.map(escapeHTML).join('；')}。` : ''}${task.kind === 'fixed' ? '开始需要完整日期；结束按你计划的离场时间填写，原文未给出时不会自动估计。' : '截止需要完整日期与时刻，原文未给出的部分请核实后填写。'}</p>${task.source_id && timeQuotes.length && task.kind !== 'visit_window' ? `<button type="button" class="text-button" data-action="resolve-time">${TIME_REVIEW_LABEL}</button><p class="field-help">先在左侧选择通知参照日期；仅补全空白时间，不调用模型、不增加事项。</p>` : ''}</div>` : '';
   const dependence = snapshot.tasks.filter(item => item.id !== task.id);
   return `<article class="task-item" data-task-id="${escapeHTML(task.id)}">
     <div class="task-top"><div><h3 class="task-name" data-task-name>${title}</h3><p class="task-status ${needsReview(task) ? '' : 'confirmed'}" data-task-status>${escapeHTML(stateLabels[task.status])}${!isInactive(task) && needsReview(task) && task.status !== 'draft' ? ' · 需重新核对关键字段' : ''}</p></div><span class="field-help">${escapeHTML(kindNames[task.kind])}</span></div>
@@ -151,7 +160,8 @@ function taskMarkup(task) {
         <label>事项类型<select data-task-field="kind">${Object.entries(kindNames).map(([key, name]) => key !== 'visit_window' || task.kind === 'visit_window' ? option(key, name, key === task.kind) : '').join('')}</select></label>
         <label>这件事是否必须完成<select data-task-field="must_do" required>${option('', '由你选择', task.must_do === null)}${option('true', '必须完成', task.must_do === true)}${option('false', '可以调整，由我取舍', task.must_do === false)}</select></label>
         ${temporalFields}
-        ${inputField('优先级（0–100，数字越大越优先）', 'priority', task.priority, 'number', 'min="0" max="100" step="1" placeholder="由你判断" required')}
+        ${timeHelp}
+        <label>优先级（0–100，数字越大越优先）<input data-task-field="priority" type="text" inputmode="numeric" pattern="[0-9]{1,3}" maxlength="3" autocomplete="off" name="priority-${escapeHTML(task.id)}" value="${escapeHTML(task.priority ?? '')}" placeholder="尚未设置，请手动填写" required><span class="field-help" data-priority-help>${task.priority === null ? '尚未选择；0也需要由你明确填写。' : '请核对这个数值是否代表你的选择。'}</span></label>
       </div>
       <p class="field-help">${task.kind === 'fixed' ? '这里仅记录固定占用；准备材料等工作请单独添加。' : task.kind === 'milestone' ? '这里只记录截止节点；如果还需要准备，请另建待安排工作。' : task.kind === 'visit_window' ? '办理窗口不能直接当成连续占用，请根据原文改成具体活动或截止节点后再确认。' : '填写剩余时间；连续块、前置关系等会保留，但本轮暂不生成具体安排。'}</p>
       <details><summary>地点、材料与其他条件</summary><div class="field-grid">${inputField('对应地点（可选）', 'location', task.location, 'text', 'maxlength="500"')}<label>本事项所需材料（可选）<input data-task-field="materials" value="${escapeHTML(task.materials.join('、'))}" placeholder="用顿号或逗号分隔"></label>${task.kind === 'flexible' ? inputField('最早可开始的时刻（可选）', 'earliest_start_at', toLocalInput(task.earliest_start_at), 'datetime-local') : ''}</div>
@@ -218,6 +228,7 @@ function updateTaskMeta(id) {
   card.querySelector('[data-task-name]').textContent = taskTitle(task);
   card.querySelector('[data-task-status]').textContent = invalidEdits.has(id) ? '输入尚未保存，请先修正' : stateLabels[task.status];
   card.querySelector('[data-task-status]').className = `task-status ${needsReview(task) ? '' : 'confirmed'}`;
+  card.querySelector('[data-priority-help]').textContent = task.priority === null ? '尚未选择；0也需要由你明确填写。' : '请核对这个数值是否代表你的选择。';
 }
 function renderSources() {
   $('sourceCount').textContent = `${snapshot.sources.length} 份`;
@@ -291,7 +302,7 @@ $('noticeForm').addEventListener('submit', async event => {
   if (!['rules', 'dify'].includes(mode)) return tell('请选择有效的提取方式。', 'warning');
   if (mode === 'dify' && [...text].length > 20000) return tell('模型提取每次最多两万字，请拆分通知后重试；原文尚未发送。', 'warning');
   const existingSource = snapshot.sources.find(source => source.text === text);
-  if (existingSource && snapshot.tasks.some(task => task.source_id === existingSource.id)) return tell('这份通知已导入，不会重复增加事项。请核对已有事项，或手动添加另一项独立工作。', 'warning');
+  if (existingSource && snapshot.tasks.some(task => task.source_id === existingSource.id)) return tell('这份通知已导入，不会重复增加事项。补日期时请先选择通知参照日期，再点击对应事项旁的“按参照日期补全原文时间”；也可以直接修改已有事项。', 'warning');
   const ticket = parseGate.begin(snapshot);
   activeParse = ticket;
   const base = apiBase;
@@ -322,7 +333,7 @@ $('noticeForm').addEventListener('submit', async event => {
     if (activeParse === ticket) tell(`提取未完成：${error.message} 也可以先手动添加事项。`, 'error');
   } finally { if (activeParse === ticket) { activeParse = null; busy($('parseNotice'), false, '提取待确认事项'); } }
 });
-for (const id of ['noticeText', 'noticeDate', 'extractionMode']) $(id).addEventListener('input', () => { parseGate.invalidate(); activeParse = null; busy($('parseNotice'), false, '提取待确认事项'); });
+for (const id of ['noticeText', 'noticeDate', 'extractionMode']) $(id).addEventListener('input', () => { parseGate.invalidate(); timeReviewGate.invalidate(); activeParse = null; busy($('parseNotice'), false, '提取待确认事项'); });
 
 $('addTask').addEventListener('click', () => {
   try { const task = createTask(); commit(addTask(snapshot, task)); $('taskList').lastElementChild.querySelector('[data-task-field="title"]').focus(); }
@@ -347,7 +358,7 @@ $('taskList').addEventListener('input', event => {
     if (['remaining_minutes', 'min_block_minutes', 'priority'].includes(field)) {
       const lower = field === 'priority' ? 0 : 1;
       const upper = field === 'priority' ? 100 : 10000000;
-      const valid = value !== '' && Number.isSafeInteger(Number(value)) && Number(value) >= lower && Number(value) <= upper;
+      const valid = value !== '' && (field !== 'priority' || /^[0-9]{1,3}$/.test(value)) && Number.isSafeInteger(Number(value)) && Number(value) >= lower && Number(value) <= upper;
       if (!valid && (value !== '' || input.validity?.badInput)) inputError = `请将${field === 'priority' ? '优先级' : field === 'remaining_minutes' ? '剩余分钟' : '最小连续分钟'}填写为${lower}至${upper}的整数；此输入尚未保存。`;
       value = valid ? Number(value) : null;
     }
@@ -376,13 +387,36 @@ $('taskList').addEventListener('input', event => {
     renderTaskErrors(id); updateTaskMeta(id); renderSummary();
   }
 });
-$('taskList').addEventListener('click', event => {
+$('taskList').addEventListener('click', async event => {
   const button = event.target.closest('[data-action]');
   const card = button?.closest('[data-task-id]');
   if (!button || !card) return;
   const id = card.dataset.taskId;
   const task = snapshot.tasks.find(item => item.id === id);
   try {
+    if (button.dataset.action === 'resolve-time') {
+      if (externalConflict) throw new Error('请先处理另一个标签页的清单变化。');
+      if (invalidEdits.has(id)) throw new Error('请先修正此事项尚未保存的无效输入。');
+      const referenceDate = $('noticeDate').value;
+      if (!referenceDate) throw new Error('请先在左侧“通知的参照日期”选择原通知语境日期，再点击补全。');
+      const source = snapshot.sources.find(item => item.id === task.source_id);
+      if (!source) throw new Error('找不到本事项的原通知，请手动核对时间。');
+      const ticket = timeReviewGate.begin(snapshot);
+      const base = apiBase;
+      busy(button, true, TIME_REVIEW_LABEL, '正在读取原文时间…');
+      try {
+        await ensureCapabilities(base);
+        if (!timeReviewGate.accepts(ticket, snapshot.revision) || base !== apiBase) return;
+        const parsed = await request('/api/parse', { text: source.text, reference_date: referenceDate, timezone: snapshot.timezone }, base);
+        if (!timeReviewGate.accepts(ticket, snapshot.revision) || base !== apiBase || referenceDate !== $('noticeDate').value) return;
+        const patch = reviewTimePatch(parsed, task, source);
+        commit(applyTimeReview(snapshot, id, patch, referenceDate));
+        tell(`已按参照日期 ${referenceDate} 补全原文支持的空白时间，事项仍待核对。${task.kind === 'fixed' && !(patch.fixed_end_at || task.fixed_end_at) ? '原文缺少结束时间，请按你的计划填写离场时间。' : ''}`);
+      } catch (error) {
+        if (timeReviewGate.accepts(ticket, snapshot.revision) && base === apiBase && referenceDate === $('noticeDate').value) throw error;
+      } finally { if (button.isConnected) busy(button, false, TIME_REVIEW_LABEL); }
+      return;
+    }
     if (button.dataset.action === 'source') {
       const source = Array.from($('sourceList').querySelectorAll('[data-source-id]')).find(item => item.dataset.sourceId === button.dataset.sourceId);
       if (source) { source.open = true; source.scrollIntoView({ behavior: scrollBehavior(), block: 'center' }); source.querySelector('summary').focus(); }
@@ -390,6 +424,8 @@ $('taskList').addEventListener('click', event => {
     }
     if (button.dataset.action === 'confirm') {
       if (invalidEdits.has(id)) { renderTaskErrors(id); return; }
+      const priorityInput = card.querySelector('[data-task-field="priority"]');
+      if (task.priority === null && priorityInput.value !== '') { priorityInput.value = ''; priorityInput.focus(); throw new Error('页面显示的优先级尚未保存为你的选择，请手动填写后再确认。'); }
       commit(confirmTask(snapshot, id));
     }
     if (button.dataset.action === 'complete') { invalidEdits.delete(id); commit(completeTask(snapshot, id)); }

@@ -8,7 +8,7 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { setImmediate } from 'node:timers/promises';
 import { JSDOM } from 'jsdom';
-import { STORAGE_KEY, createSnapshot, serializeSnapshot } from '../task-state.js';
+import { STORAGE_KEY, createSnapshot, createTask, addSource, addTask, serializeSnapshot } from '../task-state.js';
 
 const HTML = readFileSync(new URL('../index.html', import.meta.url), 'utf8');
 const BASE = 'https://sixu-api.invalid';
@@ -214,6 +214,90 @@ test('notice extraction preserves escaped original text and draft status, with d
 const modelNotice = '请于2026年10月28日15:00前提交报告。';
 const modelOutput = () => ({ schema_version: 1, provider: 'dify', parsing_status: 'needs_confirmation', candidates: [{ title: '提交报告', kind: 'flexible', deadline_at: '2026-10-28T15:00:00+08:00', fixed_start_at: null, fixed_end_at: null, visit_windows: [], location: null, materials: [], evidence: [{ field: 'title', origin: 'source_text', quote: '提交报告' }, { field: 'kind', origin: 'source_text', quote: '提交报告' }, { field: 'deadline_at', origin: 'source_text', quote: '2026年10月28日15:00' }], uncertainties: [] }], warnings: [] });
 const modelHealth = () => ({ capabilities: ['snapshot_v2', 'model_notice_candidates_v1'], model_extraction: { configured: true } });
+
+const basketballText = '各位同学：\n我院篮球队即将迎来新生杯比赛，对阵人文学院。\n比赛时间：10月26日18:00\n比赛地点：大学生活动中心\n现邀请大家到场观赛助威，用欢呼为队员加油，欢迎有空的同学前来！';
+function basketballSnapshot() {
+  const source = { id: 'source-basketball', kind: 'pasted_notice', text: basketballText, published_at: null };
+  const task = createTask('fixed', source.id); task.title = '到场观赛助威';
+  task.evidence = ['fixed_start_at', 'fixed_end_at'].map(field => ({ field, origin: 'source_text', source_id: source.id, quote: '10月26日18:00' }));
+  return serializeSnapshot(addTask(addSource(createSnapshot(), source), task));
+}
+const basketballRuleTime = () => ({ time_points: [{ time_type: '活动/比赛时间', value: '2026-10-26 18:00', end_value: null, precision: 'datetime', kind: 'point', timezone: 'Asia/Shanghai', evidence: '10月26日18:00' }] });
+
+test('missing fixed time shows the original fragment next to fields and no default priority', async t => {
+  const app = await boot(t, { initialRaw: basketballSnapshot() });
+  assert.match(app.find('.time-review').textContent, /10月26日18:00/);
+  assert.match(app.find('.time-review').textContent, /结束按你计划的离场时间/);
+  const priority = app.find('[data-task-field="priority"]');
+  assert.equal(priority.value, '');
+  assert.equal(priority.type, 'text');
+  assert.equal(priority.autocomplete, 'off');
+  assert.match(app.find('[data-priority-help]').textContent, /尚未选择/);
+});
+test('time completion requires an explicit reference day before transmitting the notice', async t => {
+  const app = await boot(t, { initialRaw: basketballSnapshot() });
+  app.click('[data-action="resolve-time"]'); await flush();
+  assert.deepEqual(app.calls, []);
+  assert.match(app.find('[data-task-error]').textContent, /通知的参照日期/);
+});
+test('reference-day time completion uses rules without a model call or duplicate tasks', async t => {
+  const app = await boot(t, { initialRaw: basketballSnapshot(), route(call) {
+    assert.equal(call.path, '/api/parse'); assert.equal(call.body.text, basketballText); assert.equal(call.body.reference_date, '2026-10-26'); return basketballRuleTime();
+  } });
+  app.input('#noticeDate', '2026-10-26'); app.click('[data-action="resolve-time"]'); await flush();
+  const state = app.stored();
+  assert.equal(state.tasks.length, 1);
+  assert.equal(state.tasks[0].fixed_start_at, '2026-10-26T18:00:00+08:00');
+  assert.equal(state.tasks[0].fixed_end_at, null);
+  assert.equal(state.tasks[0].priority, null);
+  assert.equal(state.tasks[0].must_do, null);
+  assert.equal(state.tasks[0].status, 'draft');
+  assert.deepEqual(app.calls.map(call => call.path), ['/api/health', '/api/parse']);
+  assert.match(app.find('#appMessage').textContent, /原文缺少结束时间/);
+  app.click('[data-action="confirm"]'); await flush();
+  assert.equal(app.stored().tasks[0].status, 'draft');
+});
+test('time completion preserves an already entered personal arrival time', async t => {
+  const app = await boot(t, { initialRaw: basketballSnapshot(), route: basketballRuleTime });
+  app.input('[data-task-field="fixed_start_at"]', '2026-10-26T18:20');
+  app.input('#noticeDate', '2026-10-26'); app.click('[data-action="resolve-time"]'); await flush();
+  assert.equal(app.stored().tasks[0].fixed_start_at, '2026-10-26T18:20:00+08:00');
+  assert.match(app.find('[data-task-error]').textContent, /没有可从原文补全/);
+});
+test('a changed reference day discards late time completion', async t => {
+  const pending = deferred();
+  const app = await boot(t, { initialRaw: basketballSnapshot(), route() { return pending.promise; } });
+  app.input('#noticeDate', '2026-10-26'); app.click('[data-action="resolve-time"]'); await flush();
+  app.input('#noticeDate', '2027-10-26'); pending.resolve(basketballRuleTime()); await flush();
+  assert.equal(app.stored().tasks[0].fixed_start_at, null);
+  assert.equal(app.find('[data-task-error]').textContent, '');
+});
+test('a failed old completion cannot add an error after task edits', async t => {
+  const pending = deferred();
+  const app = await boot(t, { initialRaw: basketballSnapshot(), async route() { await pending.promise; throw new Error('old failure'); } });
+  app.input('#noticeDate', '2026-10-26'); app.click('[data-action="resolve-time"]'); await flush();
+  app.input('[data-task-field="title"]', '我计划观赛'); pending.resolve(); await flush();
+  assert.equal(app.find('[data-task-error]').textContent, '');
+  assert.equal(app.stored().tasks[0].title, '我计划观赛');
+});
+test('an unsaved restored priority zero cannot masquerade as a chosen priority', async t => {
+  const app = await boot(t, { initialRaw: basketballSnapshot() });
+  // Mimic a visual form restoration without a corresponding accepted edit.
+  app.find('[data-task-field="priority"]').value = '0';
+  app.click('[data-action="confirm"]'); await flush();
+  assert.equal(app.find('[data-task-field="priority"]').value, '');
+  assert.equal(app.stored().tasks[0].priority, null);
+  assert.match(app.find('[data-task-error]').textContent, /尚未保存为你的选择/);
+});
+test('blank or whitespace priority cannot become zero; a deliberately typed zero remains valid', async t => {
+  const app = await boot(t, { initialRaw: basketballSnapshot() });
+  app.input('[data-task-field="priority"]', ' '); await flush();
+  assert.equal(app.stored().tasks[0].priority, null);
+  assert.match(app.find('[data-task-error]').textContent, /优先级/);
+  app.input('[data-task-field="priority"]', '0'); await flush();
+  assert.equal(app.stored().tasks[0].priority, 0);
+  assert.equal(app.find('[data-task-error]').textContent, '');
+});
 
 test('unconfigured model mode sends no notification and never silently uses rules', async t => {
   const app = await boot(t);
