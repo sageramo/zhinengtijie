@@ -12,13 +12,20 @@ const $ = id => document.getElementById(id);
 const escapeHTML = value => String(value ?? '').replace(/[&<>"']/g, character => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[character]);
 const clone = value => structuredClone(value);
 const nowISO = () => new Date().toISOString();
+const currentMinuteISO = () => new Date(Math.ceil(Date.now() / 60000) * 60000).toISOString();
 const toLocalInput = iso => isTimestamp(iso) ? new Date(Date.parse(iso) + 8 * 3600000).toISOString().slice(0, 16) : '';
 function fromLocalInput(value) {
   if (!/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/.test(value || '')) return null;
   const iso = `${value}:00+08:00`;
   return isTimestamp(iso) ? iso : null;
 }
-const readableTime = value => toLocalInput(value).replace('T', ' ');
+function readableTime(value) {
+  if (!isTimestamp(value)) return '';
+  const local = new Date(Date.parse(value) + 8 * 3600000).toISOString().slice(0, 19);
+  const fraction = (/\.(\d+)(?:Z|[+-]\d{2}:\d{2})$/.exec(value)?.[1] || '').replace(/0+$/, '');
+  const displayed = !fraction && local.endsWith(':00') ? local.slice(0, 16) : `${local}${fraction ? `.${fraction}` : ''}`;
+  return displayed.replace('T', ' ');
+}
 const minutes = value => `${Number(value).toLocaleString('zh-CN', { maximumFractionDigits: 2 })} 分钟`;
 const taskTitle = task => task.title.trim() || '未命名事项';
 const isInactive = task => ['completed', 'cancelled'].includes(task.status);
@@ -34,7 +41,7 @@ let storage;
 try { storage = window.localStorage; } catch { storage = null; }
 const recovered = readSnapshot(storage);
 const snapshotStore = new SnapshotStore(storage, { initialRaw: recovered.raw });
-let snapshot = recovered.snapshot || createSnapshot({ referenceTime: nowISO() });
+let snapshot = recovered.snapshot || createSnapshot({ referenceTime: currentMinuteISO() });
 let storageLocked = Boolean(recovered.error);
 let externalConflict = false;
 let apiBase = window.CAMPUS_AGENT_API || 'http://127.0.0.1:8765';
@@ -285,7 +292,14 @@ function renderAvailability() {
   $('referenceTime').value = toLocalInput(snapshot.reference_time);
   $('referenceTime').setAttribute('aria-invalid', 'false');
   invalidReference = false;
+  renderReferencePrecision();
   $('availabilityList').innerHTML = snapshot.availability.length ? snapshot.availability.map((interval, index) => `<div class="availability-item"><span>${escapeHTML(readableTime(interval.start))}<br>至 ${escapeHTML(readableTime(interval.end))}</span><button class="text-button danger-text" type="button" data-remove-availability="${index}" aria-label="删除第${index + 1}个空闲时段">删除</button></div>`).join('') : `<p class="empty-note">${snapshot.availability_confirmed ? '你已确认当前没有可用时段，计算时按0分钟处理。' : '还没有填写个人空闲时段。'}</p><button class="text-button" id="confirmNoAvailability" type="button">确认目前没有可用时间</button>`;
+}
+function renderReferencePrecision() {
+  const precise = readableTime(snapshot.reference_time);
+  const hasSeconds = precise !== toLocalInput(snapshot.reference_time).replace('T', ' ');
+  $('referencePrecision').textContent = hasSeconds ? `当前清单保存的实际计算起点：${precise}。如需从整分钟起算，可点击“使用当前时间”。` : '';
+  $('referencePrecision').hidden = !hasSeconds;
 }
 function renderResult() {
   const output = $('resultOutput');
@@ -300,12 +314,16 @@ function renderResult() {
   const conflicts = Array.isArray(result.conflicts) ? result.conflicts : [];
   const checks = Array.isArray(result.capacity_checks) ? result.capacity_checks : [];
   const excluded = Array.isArray(result.excluded_task_ids) ? result.excluded_task_ids : [];
+  const capacityNote = checks.some(check => check.result === 'shortage')
+    ? '累计需求已超过对应截止前的可用时长，需要减少工作量、增加空闲或调整安排后重新检查。'
+    : checks.length ? '容量没有超出，只说明累计时长这一必要条件通过，尚不能保证每件事都能排进具体空档。'
+      : '本次没有可列出的工作量容量节点；请结合上方冲突或待核对条件判断，不能据此确认整个计划可行。';
   output.innerHTML = `<h3 class="result-heading ${statusClass}">${escapeHTML(labels[result.status] || '结果需要核对')}</h3><p class="result-caption">按当前清单，从 ${escapeHTML(readableTime(snapshot.reference_time))} 开始检查。修改任意事项或时间后，需要重新计算。</p>
     ${excluded.length ? `<p class="field-error">以下事项未纳入计算，下面不是完整清单的总需求：${excluded.map(id => escapeHTML(taskTitle(snapshot.tasks.find(item => item.id === id) || { title: id }))).join('、')}。</p>` : ''}
     ${conflicts.map(item => `<div class="result-entry"><strong class="result-danger">${escapeHTML((item.tasks || []).join('、'))}</strong><p>${escapeHTML(item.reason)}</p></div>`).join('')}
     ${checks.length ? `<div class="result-table-wrap"><table><caption class="sr-only">各截止节点的累计工作量与可用时间</caption><thead><tr><th scope="col">截至</th><th scope="col">累计需要</th><th scope="col">实际可用</th><th scope="col">时长差额</th></tr></thead><tbody>${checks.map(check => `<tr><td>${escapeHTML(readableTime(check.deadline))}</td><td>${escapeHTML(minutes(check.known_required_minutes))}${check.unknown_workload_count ? '<br>另有未知工作量' : ''}</td><td>${escapeHTML(minutes(check.available_minutes))}</td><td class="${check.result === 'shortage' ? 'result-danger' : ''}">${check.result === 'shortage' ? '缺少 ' : '剩余 '}${escapeHTML(minutes(Math.abs(check.available_minutes - check.known_required_minutes)))}</td></tr>`).join('')}</tbody></table></div>` : ''}
     ${missing.length ? `<div class="result-entry"><strong>本次还没有验证的部分</strong><ul class="result-list">${missing.map(item => `<li>${escapeHTML(item.name || '事项')}：${escapeHTML(item.reason || (item.fields || []).join('、'))}</li>`).join('')}</ul></div>` : ''}
-    <p class="result-caption">容量没有超出，只说明累计时长这一必要条件通过，尚不能保证每件事都能排进具体空档。</p>
+    <p class="result-caption">${capacityNote}</p>
     <details><summary>计算口径与具体空档</summary>${(result.warnings || []).map(warning => `<p class="field-help">${escapeHTML(warning)}</p>`).join('')}${(result.limitations || []).map(limit => `<p class="field-help">${escapeHTML(limit)}</p>`).join('')}${checks.map(check => `<div class="result-entry"><strong>${escapeHTML(readableTime(check.deadline))}前的空档</strong>${(check.free_intervals || []).map(interval => `<p>${escapeHTML(readableTime(interval.start))} 至 ${escapeHTML(readableTime(interval.end))}</p>`).join('') || '<p>没有可用空档。</p>'}</div>`).join('')}</details>`;
   output.removeAttribute('aria-busy');
 }
@@ -497,10 +515,11 @@ $('referenceTime').addEventListener('input', event => {
   try { if (value) commit(setReferenceTime(snapshot, value), { full: false }); }
   catch (error) { invalidReference = true; tell(`新的计算时刻未保存：${error.message}`, 'error'); }
   event.target.setAttribute('aria-invalid', String(invalidReference));
+  renderReferencePrecision();
 });
 $('useCurrentTime').addEventListener('click', () => {
   invalidateResults();
-  try { commit(setReferenceTime(snapshot, nowISO())); }
+  try { commit(setReferenceTime(snapshot, currentMinuteISO())); }
   catch (error) { tell(`当前时刻未能保存：${error.message}`, 'error'); }
 });
 $('addAvailability').addEventListener('click', () => {
@@ -628,7 +647,7 @@ $('clearSnapshot').addEventListener('click', () => {
   if (!window.confirm('清空此浏览器中的当前清单？请先导出需要保留的内容。')) return;
   hasCalculated = false;
   invalidEdits.clear();
-  commit(createSnapshot({ referenceTime: nowISO() }), { unlock: true });
+  commit(createSnapshot({ referenceTime: currentMinuteISO() }), { unlock: true });
   $('noticeText').value = ''; $('noticeDate').value = ''; $('availabilityForm').hidden = true;
   tell('清单已清空，可以重新导入通知。');
 });

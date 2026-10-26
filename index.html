@@ -4,9 +4,9 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="description" content="把校园通知整理成可核对的事项，按自己的空闲时间检查冲突与容量。">
-  <meta name="sixu-ui-version" content="2026.10.26.2">
+  <meta name="sixu-ui-version" content="2026.10.26.3">
   <title>司序·知所先后</title>
-  <link rel="stylesheet" href="./agent.css?v=2026.10.26.2">
+  <link rel="stylesheet" href="./agent.css?v=2026.10.26.3">
 </head>
 <body>
   <a class="skip-link" href="#taskSection">跳到任务清单</a>
@@ -46,7 +46,7 @@
           <form id="apiForm"><label for="apiBase">解析与计算服务地址</label><input id="apiBase" type="url" inputmode="url" required><button type="submit">保存地址并检查连接</button><p class="field-help" id="connectionStatus" role="status">尚未检查连接</p></form>
           <div class="backup-actions"><button type="button" id="exportSnapshot">导出清单</button><button type="button" id="importSnapshot">导入清单</button><input type="file" id="importFile" accept="application/json,.json" hidden><button class="danger-text" type="button" id="clearSnapshot">清空清单</button></div>
           <p class="field-help">导出文件包含原文与个人安排，请妥善保存。旧版对话独立运行，不会写入此清单。</p>
-          <p class="field-help" id="uiVersion">界面版本 2026.10.26.2</p>
+          <p class="field-help" id="uiVersion">界面版本 2026.10.26.3</p>
         </details>
       </aside>
       <div class="review-column">
@@ -56,7 +56,7 @@
         </section>
         <section class="surface" id="timeSection" aria-labelledby="timeHeading">
           <div class="section-top"><div><h2 id="timeHeading">你真正能用的时间</h2><p class="section-note">只填写愿意用来完成这些事项的时段，课程与会议会另行扣除。</p></div><button type="button" id="addAvailability">添加空闲时段</button></div>
-          <label for="referenceTime">从什么时刻开始计算</label><div class="reference-row"><input type="datetime-local" id="referenceTime" required><button type="button" id="useCurrentTime">使用当前时间</button></div><p class="field-help">所有日期和时间均按北京时间（UTC+8）解释。</p>
+          <label for="referenceTime">从什么时刻开始计算</label><div class="reference-row"><input type="datetime-local" id="referenceTime" aria-describedby="referenceTimeHelp referencePrecision" required><button type="button" id="useCurrentTime">使用当前时间</button></div><p class="field-help" id="referenceTimeHelp">所有日期和时间均按北京时间（UTC+8）解释。“使用当前时间”按整分钟起算，不足一分钟顺延。</p><p class="field-help" id="referencePrecision" role="status" hidden></p>
           <div id="availabilityList"></div><p class="field-help" id="availabilityHelp">未填写时不能推断个人容量。填完时段后点击保存，修改前请先删除原时段。</p>
           <form class="availability-form" id="availabilityForm" hidden><label>空闲开始<input type="datetime-local" id="availabilityStart" required></label><label>空闲结束<input type="datetime-local" id="availabilityEnd" required></label><div class="inline-actions"><button type="submit">保存时段</button><button type="button" class="text-button" id="cancelAvailability">取消</button></div><p class="field-error" id="availabilityError" role="status"></p></form>
         </section>
@@ -69,7 +69,7 @@
     <footer class="page-footer"><span>源自第7组课程作品“口述行动链” · 升级开发中</span><span>以确认后的信息计算，把取舍留给你。</span></footer>
   </main>
   <noscript>此页面需要启用JavaScript才能编辑和计算任务。</noscript>
-  <script type="importmap">{"imports":{"./task-state.js":"./task-state.js?v=2026.10.26.2","./snapshot-store.js":"./snapshot-store.js?v=2026.10.26.2","./model-candidates.js":"./model-candidates.js?v=2026.10.26.2","./time-review.js":"./time-review.js?v=2026.10.26.2"}}</script>
-  <script src="./api-config.js?v=2026.10.26.2"></script><script type="module" src="./agent.js?v=2026.10.26.2"></script>
+  <script type="importmap">{"imports":{"./task-state.js":"./task-state.js?v=2026.10.26.3","./snapshot-store.js":"./snapshot-store.js?v=2026.10.26.3","./model-candidates.js":"./model-candidates.js?v=2026.10.26.3","./time-review.js":"./time-review.js?v=2026.10.26.3"}}</script>
+  <script src="./api-config.js?v=2026.10.26.3"></script><script type="module" src="./agent.js?v=2026.10.26.3"></script>
 </body>
 </html>

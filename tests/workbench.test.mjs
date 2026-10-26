@@ -8,7 +8,7 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { setImmediate } from 'node:timers/promises';
 import { JSDOM } from 'jsdom';
-import { STORAGE_KEY, createSnapshot, createTask, addSource, addTask, serializeSnapshot } from '../task-state.js';
+import { STORAGE_KEY, createSnapshot, createTask, addSource, addTask, editTask, confirmTask, setAvailability, serializeSnapshot } from '../task-state.js';
 
 const HTML = readFileSync(new URL('../index.html', import.meta.url), 'utf8');
 const BASE = 'https://sixu-api.invalid';
@@ -131,7 +131,8 @@ test('confirmed nine-minute example posts one snapshot and displays 180 / 9 / 17
   assert.match(row.children[1].textContent, /180 分钟/);
   assert.match(row.children[2].textContent, /9 分钟/);
   assert.match(row.children[3].textContent, /缺少 171 分钟/);
-  assert.match(app.find('#resultOutput').textContent, /尚不能保证/);
+  assert.match(app.find('#resultOutput').textContent, /累计需求已超过/);
+  assert.doesNotMatch(app.find('#resultOutput').textContent, /容量没有超出/);
 });
 
 test('editing any task field invalidates the displayed result immediately without losing focus', async t => {
@@ -625,5 +626,113 @@ test('a rejected visible field is focused at confirmation and its raw input is p
   assert.equal(location.getAttribute('aria-invalid'), 'true');
   assert.match(app.find('[data-task-error]').textContent, /尚未确认/);
   assert.equal(app.find('[data-task-confirmation]').textContent, '');
+  assert.deepEqual(app.calls, []);
+});
+
+function capacitySnapshot({ reference = '2026-10-26T16:42:46.800+08:00', fixedOnly = false } = {}) {
+  let state = createSnapshot({ referenceTime: reference });
+  if (!fixedOnly) {
+    const work = createTask();
+    state = addTask(state, work);
+    state = editTask(state, work.id, { title: '虚构复现：课程报告', must_do: true, priority: 90, deadline_at: '2026-10-26T23:59:00+08:00', remaining_minutes: 180, splittable: true, min_block_minutes: 1 });
+    state = confirmTask(state, work.id);
+  }
+  const event = createTask('fixed');
+  state = addTask(state, event);
+  state = editTask(state, event.id, { title: '虚构复现：观赛', must_do: false, priority: 10, fixed_start_at: '2026-10-26T18:00:00+08:00', fixed_end_at: '2026-10-26T20:00:00+08:00' });
+  state = confirmTask(state, event.id);
+  return serializeSnapshot(setAvailability(state, [{ start: '2026-10-26T16:41:00+08:00', end: '2026-10-26T22:00:00+08:00' }]));
+}
+
+test('a fresh workbench starts at a visible whole minute without counting elapsed seconds', async t => {
+  t.mock.method(Date, 'now', () => Date.parse('2026-10-26T16:42:46.800+08:00'));
+  const app = await boot(t);
+  assert.equal(app.find('#referenceTime').value, '2026-10-26T16:43');
+  assert.equal(app.find('#referencePrecision').hidden, true);
+  assert.deepEqual(app.writes, []);
+  app.click('#addTask');
+  await flush();
+  assert.equal(app.stored().reference_time, '2026-10-26T08:43:00.000Z');
+  assert.deepEqual(app.calls, []);
+});
+
+test('using current time preserves exact minute boundaries and carries midnight forward', async t => {
+  let now = Date.parse('2026-10-26T16:42:00+08:00');
+  t.mock.method(Date, 'now', () => now);
+  const app = await boot(t, { initialRaw: capacitySnapshot() });
+  for (const [instant, display] of [
+    ['2026-10-26T16:42:00+08:00', '2026-10-26T16:42'],
+    ['2026-10-26T16:42:00.001+08:00', '2026-10-26T16:43'],
+    ['2026-10-26T23:59:59.999+08:00', '2026-10-27T00:00'],
+  ]) {
+    now = Date.parse(instant);
+    app.click('#useCurrentTime');
+    await flush();
+    assert.equal(app.find('#referenceTime').value, display);
+    assert.equal(Date.parse(app.stored().reference_time) % 60000, 0);
+    assert.ok(Date.parse(app.stored().reference_time) >= now);
+    assert.ok(Date.parse(app.stored().reference_time) - now < 60000);
+    assert.equal(app.find('#referencePrecision').hidden, true);
+  }
+  assert.deepEqual(app.calls, []);
+});
+
+test('legacy precise time is explicitly shown, preserved in requests and explained beside fractional capacity', async t => {
+  const original = capacitySnapshot();
+  const app = await boot(t, { initialRaw: original, route(call) {
+    const result = calculated(call.body, { available: 197.22 });
+    result.capacity_checks[0].free_intervals = [
+      { start: '2026-10-26T16:42:46.800000+08:00', end: '2026-10-26T18:00:00+08:00' },
+      { start: '2026-10-26T20:00:00+08:00', end: '2026-10-26T22:00:00+08:00' },
+    ];
+    return result;
+  } });
+  assert.equal(app.find('#referenceTime').value, '2026-10-26T16:42');
+  assert.equal(app.find('#referencePrecision').hidden, false);
+  assert.match(app.find('#referencePrecision').textContent, /实际计算起点：2026-10-26 16:42:46\.8/);
+  assert.deepEqual(app.writes, []);
+  app.click('#calculate');
+  await flush();
+  assert.equal(app.calls.at(-1).body.reference_time, '2026-10-26T16:42:46.800+08:00');
+  assert.equal(app.data.get(STORAGE_KEY), original);
+  assert.match(app.find('#resultOutput .result-caption').textContent, /16:42:46\.8/);
+  assert.match(app.find('#resultOutput tbody tr').children[2].textContent, /197\.22 分钟/);
+  assert.match(app.find('#resultOutput details').textContent, /16:42:46\.8 至 2026-10-26 18:00/);
+  assert.match(app.find('#resultOutput').textContent, /容量没有超出/);
+});
+
+test('manually choosing a whole minute removes the old precision explanation without hiding an old result', async t => {
+  const app = await boot(t, { initialRaw: capacitySnapshot() });
+  app.click('#calculate'); await flush();
+  app.input('#referenceTime', '2026-10-26T16:42');
+  await flush();
+  assert.equal(app.find('#referencePrecision').hidden, true);
+  assert.equal(app.find('#referencePrecision').textContent, '');
+  assert.equal(app.stored().reference_time, '2026-10-26T16:42:00+08:00');
+  assert.equal(app.find('#resultOutput table'), null);
+  assert.match(app.find('#resultOutput').textContent, /原结果已失效/);
+});
+
+test('a fixed-only checklist does not claim that a nonexistent workload capacity check passed', async t => {
+  const app = await boot(t, { initialRaw: capacitySnapshot({ fixedOnly: true }), route(call) {
+    return { ...calculated(call.body, { required: 0, available: 0 }), capacity_checks: [] };
+  } });
+  app.click('#calculate');
+  await flush();
+  assert.match(app.find('#resultOutput').textContent, /没有可列出的工作量容量节点/);
+  assert.doesNotMatch(app.find('#resultOutput').textContent, /容量没有超出/);
+  assert.equal(app.find('#resultOutput table'), null);
+});
+
+test('clearing the checklist starts the next snapshot at a whole minute and retains the rounding rule', async t => {
+  t.mock.method(Date, 'now', () => Date.parse('2026-10-26T16:42:46.800+08:00'));
+  const app = await boot(t, { initialRaw: capacitySnapshot() });
+  app.click('#clearSnapshot');
+  await flush();
+  assert.equal(app.find('#referenceTime').value, '2026-10-26T16:43');
+  assert.equal(app.find('#referencePrecision').hidden, true);
+  assert.match(app.find('#referenceTimeHelp').textContent, /不足一分钟顺延/);
+  assert.equal(app.stored().tasks.length, 0);
+  assert.equal(Date.parse(app.stored().reference_time) % 60000, 0);
   assert.deepEqual(app.calls, []);
 });
