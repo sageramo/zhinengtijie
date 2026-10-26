@@ -102,6 +102,10 @@ summary { cursor: pointer; color: var(--accent-deep); min-height: 40px; padding:
 .field-grid label { min-width: 0; }
 .task-actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 20px; }
 .task-actions .danger-text { margin-left: auto; }
+.task-actions [aria-disabled="true"] { background: var(--accent-soft); color: var(--accent-deep); border-color: var(--accent); cursor: default; }
+.confirmation-status { color: var(--accent-deep); font-size: .875rem; margin-top: 14px; overflow-wrap: anywhere; }
+.confirmation-status:empty { display: none; }
+.confirmation-error { display: block; }
 .evidence { padding: 8px 0 0; margin-top: 12px; }
 .evidence blockquote { padding: 0; margin: 10px 0; color: var(--muted); font-size: .875rem; white-space: pre-wrap; overflow-wrap: anywhere; }
 .evidence .evidence-label { font-size: .8125rem; color: var(--muted); margin-top: 10px; }

@@ -534,6 +534,96 @@ test('confirming a reviewed task preserves focus on the confirmation action and 
   assert.strictEqual(app.document.activeElement, app.find('[data-action="confirm"]'));
   assert.equal(app.find('.task-details').open, true);
   assert.match(app.find('[data-task-status]').textContent, /已确认/);
+  assert.equal(app.find('[data-action="confirm"]').textContent, '已确认');
+  assert.equal(app.find('[data-action="confirm"]').getAttribute('aria-disabled'), 'true');
+  assert.match(app.find('[data-task-confirmation]').textContent, /事项已确认/);
   await flush();
   assert.equal(app.stored().tasks[0].status, 'confirmed');
+});
+
+test('the basketball task focuses missing priority and confirms after an explicit choice without a request', async t => {
+  const app = await boot(t, { initialRaw: basketballSnapshot() });
+  app.input('[data-task-field="must_do"]', 'false');
+  app.input('[data-task-field="fixed_start_at"]', '2026-10-26T18:00');
+  app.input('[data-task-field="fixed_end_at"]', '2026-10-26T20:00');
+  await flush();
+  const before = app.data.get(STORAGE_KEY);
+  app.click('[data-action="confirm"]');
+  const priority = app.find('[data-task-field="priority"]');
+  assert.strictEqual(app.document.activeElement, priority);
+  assert.equal(priority.getAttribute('aria-invalid'), 'true');
+  assert.match(app.document.getElementById(priority.getAttribute('aria-describedby')).textContent, /优先级/);
+  assert.match(app.find('[data-task-error]').textContent, /尚未确认/);
+  assert.equal(app.find('[data-task-confirmation]').textContent, '');
+  assert.equal(app.data.get(STORAGE_KEY), before);
+  app.input('[data-task-field="priority"]', '50');
+  assert.equal(app.find('[data-confirmation-error]'), null);
+  assert.equal(priority.getAttribute('aria-invalid'), 'false');
+  assert.equal(priority.hasAttribute('aria-describedby'), false);
+  app.click('[data-action="confirm"]');
+  await flush();
+  assert.equal(app.find('[data-action="confirm"]').textContent, '已确认');
+  assert.match(app.find('[data-task-confirmation]').textContent, /事项已确认/);
+  assert.equal(app.stored().tasks[0].status, 'confirmed');
+  assert.equal(app.stored().tasks[0].priority, 50);
+  assert.equal(app.stored().tasks[0].must_do, false);
+  assert.deepEqual(app.calls, []);
+});
+
+test('missing or reversed fixed end time has an adjacent error and leaves entered times intact', async t => {
+  const app = await boot(t, { initialRaw: basketballSnapshot() });
+  app.input('[data-task-field="must_do"]', 'false');
+  app.input('[data-task-field="priority"]', '0');
+  app.input('[data-task-field="fixed_start_at"]', '2026-10-26T18:00');
+  app.click('[data-action="confirm"]');
+  const end = app.find('[data-task-field="fixed_end_at"]');
+  assert.strictEqual(app.document.activeElement, end);
+  assert.match(app.find('[data-confirmation-error]').textContent, /结束时间/);
+  app.input('[data-task-field="fixed_end_at"]', '2026-10-26T17:00');
+  app.click('[data-action="confirm"]');
+  assert.strictEqual(app.document.activeElement, end);
+  assert.match(app.find('[data-confirmation-error]').textContent, /晚于开始/);
+  assert.equal(app.find('[data-task-field="fixed_start_at"]').value, '2026-10-26T18:00');
+  assert.equal(end.value, '2026-10-26T17:00');
+  await flush();
+  assert.equal(app.stored().tasks[0].status, 'draft');
+});
+
+test('confirmation success survives another card render; repeat clicks do not create a revision or request', async t => {
+  const app = await nineMinutes(t);
+  const before = app.data.get(STORAGE_KEY);
+  const writes = app.writes.length;
+  for (let click = 0; click < 5; click += 1) app.click('[data-action="confirm"]');
+  await flush();
+  assert.equal(app.data.get(STORAGE_KEY), before);
+  assert.equal(app.writes.length, writes);
+  app.click('#addTask');
+  assert.equal(app.find('[data-action="confirm"]').textContent, '已确认');
+  assert.match(app.find('[data-task-confirmation]').textContent, /事项已确认/);
+  assert.deepEqual(app.calls, []);
+});
+
+test('editing confirmed information clears success feedback and requires a fresh confirmation', async t => {
+  const app = await nineMinutes(t);
+  app.input('[data-task-field="priority"]', '30');
+  assert.equal(app.find('[data-action="confirm"]').textContent, '已逐项核对，确认事项');
+  assert.equal(app.find('[data-action="confirm"]').getAttribute('aria-disabled'), 'false');
+  assert.equal(app.find('[data-task-confirmation]').textContent, '');
+  await flush();
+  assert.equal(app.stored().tasks[0].status, 'draft');
+});
+
+test('a rejected visible field is focused at confirmation and its raw input is preserved', async t => {
+  const app = await nineMinutes(t);
+  const raw = '地'.repeat(501);
+  app.input('[data-task-field="location"]', raw);
+  app.click('[data-action="confirm"]');
+  const location = app.find('[data-task-field="location"]');
+  assert.strictEqual(app.document.activeElement, location);
+  assert.equal(location.closest('details').open, true);
+  assert.equal(location.value, raw);
+  assert.equal(location.getAttribute('aria-invalid'), 'true');
+  assert.match(app.find('[data-task-error]').textContent, /尚未确认/);
+  assert.equal(app.find('[data-task-confirmation]').textContent, '');
+  assert.deepEqual(app.calls, []);
 });

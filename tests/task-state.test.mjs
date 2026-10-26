@@ -82,6 +82,20 @@ test('confirmation requires explicit choices without silently inventing them', (
   assert.equal(state.revision, 1);
 });
 
+test('confirmation returns field-specific errors without changing the draft snapshot', () => {
+  const { state, taskId } = ready('fixed');
+  const draft = editTask(state, taskId, { priority: null, fixed_end_at: null });
+  const before = serializeSnapshot(draft);
+  assert.throws(() => confirmTask(draft, taskId), error => {
+    assert.deepEqual(error.fields, ['priority', 'fixed_end_at']);
+    assert.equal(error.errors.length, error.fields.length);
+    assert.match(error.errors[0], /优先级/);
+    assert.match(error.errors[1], /结束/);
+    return true;
+  });
+  assert.equal(serializeSnapshot(draft), before);
+});
+
 test('explicit confirmation records critical fields, clears checked uncertainty, and preserves source evidence', () => {
   const { state, taskId } = ready();
   state.tasks[0].uncertainties = ['原文缺少年份，请核对'];

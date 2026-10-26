@@ -40,10 +40,11 @@ export function isTimestamp(value) {
   return month >= 1 && month <= 12 && day >= 1 && day <= days && hour <= 23 && min <= 59 && sec <= 59 && (offset === 'Z' || (Number(oh) <= 23 && Number(om) <= 59)) && Number.isFinite(Date.parse(value));
 }
 
-function fail(message, errors = [message]) {
+function fail(message, errors = [message], fields = []) {
   const error = new Error(message);
   error.name = 'TaskStateError';
   error.errors = errors;
+  error.fields = fields;
   throw error;
 }
 
@@ -241,36 +242,39 @@ export function setReferenceTime(snapshot, iso) {
 
 function confirmationErrors(task) {
   const errors = [];
-  if (!nonempty(task.title, 200)) errors.push('请填写任务名称');
-  if (typeof task.must_do !== 'boolean') errors.push('请选择是否必须完成');
-  if (!Number.isSafeInteger(task.priority) || task.priority < 0 || task.priority > 100) errors.push('请设置0至100的优先级');
-  if (task.kind === 'visit_window') errors.push('办理窗口暂不支持自动确认，请拆为具体到场事项或截止节点');
+  const fields = [];
+  const add = (field, message) => { errors.push(message); fields.push(field); };
+  if (!nonempty(task.title, 200)) add('title', '请填写任务名称');
+  if (typeof task.must_do !== 'boolean') add('must_do', '请选择是否必须完成');
+  if (!Number.isSafeInteger(task.priority) || task.priority < 0 || task.priority > 100) add('priority', '请设置0至100的优先级');
+  if (task.kind === 'visit_window') add('kind', '办理窗口暂不支持自动确认，请拆为具体到场事项或截止节点');
   if (task.kind === 'flexible') {
-    if (!Number.isSafeInteger(task.remaining_minutes) || task.remaining_minutes <= 0) errors.push('请填写大于0的剩余工作分钟');
-    if (!isTimestamp(task.deadline_at)) errors.push('请确认含具体时刻的截止时间');
-    if (typeof task.splittable !== 'boolean') errors.push('请选择工作能否拆分');
-    if (task.splittable && (!Number.isSafeInteger(task.min_block_minutes) || task.min_block_minutes < 1)) errors.push('可拆分任务需要至少1分钟的最小连续块');
-    if (task.splittable && task.min_block_minutes > task.remaining_minutes) errors.push('最小连续块不能大于剩余工作分钟');
-    if (isTimestamp(task.earliest_start_at) && isTimestamp(task.deadline_at) && Date.parse(task.earliest_start_at) >= Date.parse(task.deadline_at)) errors.push('最早开始时间必须早于截止时间');
+    if (!Number.isSafeInteger(task.remaining_minutes) || task.remaining_minutes <= 0) add('remaining_minutes', '请填写大于0的剩余工作分钟');
+    if (!isTimestamp(task.deadline_at)) add('deadline_at', '请确认含具体时刻的截止时间');
+    if (typeof task.splittable !== 'boolean') add('splittable', '请选择工作能否拆分');
+    if (task.splittable && (!Number.isSafeInteger(task.min_block_minutes) || task.min_block_minutes < 1)) add('min_block_minutes', '可拆分任务需要至少1分钟的最小连续块');
+    if (task.splittable && task.min_block_minutes > task.remaining_minutes) add('min_block_minutes', '最小连续块不能大于剩余工作分钟');
+    if (isTimestamp(task.earliest_start_at) && isTimestamp(task.deadline_at) && Date.parse(task.earliest_start_at) >= Date.parse(task.deadline_at)) add('earliest_start_at', '最早开始时间必须早于截止时间');
   }
   if (task.kind === 'fixed') {
-    if (!isTimestamp(task.fixed_start_at) || !isTimestamp(task.fixed_end_at)) errors.push('固定事项需要确认开始与结束时间');
-    else if (Date.parse(task.fixed_start_at) >= Date.parse(task.fixed_end_at)) errors.push('固定事项结束必须晚于开始');
-    if (task.remaining_minutes !== 0) errors.push('固定事项不重复计入准备工作量，请把准备工作单独建任务');
+    if (!isTimestamp(task.fixed_start_at)) add('fixed_start_at', '请填写固定活动的开始时间');
+    if (!isTimestamp(task.fixed_end_at)) add('fixed_end_at', '请填写固定活动的结束时间');
+    if (isTimestamp(task.fixed_start_at) && isTimestamp(task.fixed_end_at) && Date.parse(task.fixed_start_at) >= Date.parse(task.fixed_end_at)) add('fixed_end_at', '固定事项结束必须晚于开始');
+    if (task.remaining_minutes !== 0) add('kind', '固定事项不重复计入准备工作量，请把准备工作单独建任务');
   }
   if (task.kind === 'milestone') {
-    if (!isTimestamp(task.deadline_at)) errors.push('截止节点需要确认具体截止时间');
-    if (task.remaining_minutes !== 0) errors.push('截止节点不计工作量，请把准备工作单独建任务');
+    if (!isTimestamp(task.deadline_at)) add('deadline_at', '截止节点需要确认具体截止时间');
+    if (task.remaining_minutes !== 0) add('kind', '截止节点不计工作量，请把准备工作单独建任务');
   }
-  return errors;
+  return { errors, fields };
 }
 
 export function confirmTask(snapshot, taskId) {
   return change(snapshot, next => {
     const task = findTask(next, taskId);
     if (task.status === 'completed' || task.status === 'cancelled') fail('已完成或已取消任务不能直接确认');
-    const errors = confirmationErrors(task);
-    if (errors.length) fail('任务信息尚未完整，请补充后确认', errors);
+    const { errors, fields: errorFields } = confirmationErrors(task);
+    if (errors.length) fail('任务信息尚未完整，请补充后确认', errors, errorFields);
     const fields = ['title', 'kind', 'must_do', 'priority'];
     if (task.kind === 'flexible') fields.push('deadline_at', 'remaining_minutes', 'splittable', ...(task.splittable ? ['min_block_minutes'] : []));
     if (task.kind === 'fixed') fields.push('fixed_start_at', 'fixed_end_at', 'remaining_minutes');

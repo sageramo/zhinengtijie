@@ -26,6 +26,9 @@ const sourceId = () => `notice-${globalThis.crypto?.randomUUID?.() || `${Date.no
 const scrollBehavior = () => window.matchMedia?.('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth';
 const stateLabels = { draft: '待核对', confirmed: '已确认', scheduled: '已确认', in_progress: '进行中', completed: '已完成，不计剩余量', cancelled: '已取消，不计剩余量' };
 const TIME_REVIEW_LABEL = '按参照日期补全原文时间';
+const CONFIRM_LABEL = '已逐项核对，确认事项';
+const CONFIRMED_HELP = '事项已确认。继续核对其他事项，或填写空闲时段后检查冲突与容量。';
+let confirmationErrorSequence = 0;
 
 let storage;
 try { storage = window.localStorage; } catch { storage = null; }
@@ -58,6 +61,41 @@ function tell(message, type = '') {
 function taskError(id, message) {
   const card = Array.from($('taskList').querySelectorAll('[data-task-id]')).find(element => element.dataset.taskId === id);
   if (card) card.querySelector('[data-task-error]').textContent = message;
+}
+function clearConfirmationErrors(card) {
+  const ids = new Set(Array.from(card.querySelectorAll('[data-confirmation-error]'), node => node.id));
+  for (const input of card.querySelectorAll('[data-task-field]')) {
+    const descriptions = (input.getAttribute('aria-describedby') || '').split(/\s+/).filter(id => id && !ids.has(id));
+    if (descriptions.length) input.setAttribute('aria-describedby', descriptions.join(' '));
+    else input.removeAttribute('aria-describedby');
+    input.setAttribute('aria-invalid', String(invalidEdits.get(card.dataset.taskId)?.has(input.dataset.taskField) || false));
+  }
+  for (const node of card.querySelectorAll('[data-confirmation-error]')) node.remove();
+}
+function showConfirmationErrors(id, messages, fields = []) {
+  const card = Array.from($('taskList').querySelectorAll('[data-task-id]')).find(element => element.dataset.taskId === id);
+  if (!card) return;
+  clearConfirmationErrors(card);
+  taskError(id, `尚未确认：${messages.join('；')}。补充后再次确认，已填内容会保留。`);
+  let first;
+  const controls = Array.from(card.querySelectorAll('[data-task-field]'));
+  for (let index = 0; index < messages.length; index += 1) {
+    const input = controls.find(control => control.dataset.taskField === fields[index]);
+    if (!input) continue;
+    const hint = document.createElement('span');
+    hint.id = `confirmation-error-${++confirmationErrorSequence}`;
+    hint.className = 'field-error confirmation-error';
+    hint.dataset.confirmationError = '';
+    hint.textContent = messages[index];
+    input.after(hint);
+    input.setAttribute('aria-invalid', 'true');
+    input.setAttribute('aria-describedby', [input.getAttribute('aria-describedby'), hint.id].filter(Boolean).join(' '));
+    first ||= input;
+  }
+  const target = first || card.querySelector('[data-task-error]');
+  for (let detail = target.closest('details'); detail && card.contains(detail); detail = detail.parentElement.closest('details')) detail.open = true;
+  target.focus({ preventScroll: true });
+  target.scrollIntoView({ behavior: scrollBehavior(), block: 'center' });
 }
 function needsReview(task) {
   if (isInactive(task)) return false;
@@ -130,6 +168,7 @@ function inputField(label, field, value, type = 'text', attributes = '') {
 }
 function taskMarkup(task) {
   const inactive = isInactive(task);
+  const reviewed = !inactive && !needsReview(task);
   const title = escapeHTML(taskTitle(task));
   const disabled = inactive ? 'disabled' : '';
   const kindNames = { flexible: '待安排工作', fixed: '固定活动', milestone: '截止节点', visit_window: '办理窗口（本轮待支持）' };
@@ -169,8 +208,9 @@ function taskMarkup(task) {
         ${task.visit_windows.length ? `<p class="field-help">导入的办理窗口：${task.visit_windows.map(item => `${escapeHTML(readableTime(item.start))} 至 ${escapeHTML(readableTime(item.end))}`).join('；')}。选择其他类型会清除窗口，请先核对原文。</p>` : ''}
       </details></fieldset>
       <details class="evidence" ${task.uncertainties.length ? 'open' : ''}><summary>原文依据与提取提醒</summary>${task.source_id ? `<button class="text-button" type="button" data-action="source" data-source-id="${escapeHTML(task.source_id)}">查看整份原文</button>` : '<p class="field-help">手动建立的事项，以你的输入为依据。</p>'}${quotes.map(quote => `<blockquote>${escapeHTML(quote)}</blockquote>`).join('')}${inferred.map(item => `<p class="field-help">${escapeHTML(item.quote)}</p>`).join('')}${task.uncertainties.length ? `<ul>${task.uncertainties.map(item => `<li>${escapeHTML(item)}</li>`).join('')}</ul>` : '<p class="field-help">如需修改，字段会重新转为待核对。</p>'}</details>
-      <p class="field-error" data-task-error role="status"></p>
-      <div class="task-actions">${inactive ? '<button type="button" data-action="reopen">恢复为待核对</button>' : `<button class="primary-button" type="button" data-action="confirm">已逐项核对，确认事项</button><button type="button" data-action="complete">标记完成</button>`}<button class="text-button danger-text" type="button" data-action="remove">删除事项</button></div>
+      <p class="field-error" data-task-error role="alert" tabindex="-1"></p>
+      <p class="confirmation-status" data-task-confirmation role="status">${reviewed ? CONFIRMED_HELP : ''}</p>
+      <div class="task-actions">${inactive ? '<button type="button" data-action="reopen">恢复为待核对</button>' : `<button class="primary-button" type="button" data-action="confirm" aria-disabled="${reviewed}">${reviewed ? '已确认' : CONFIRM_LABEL}</button><button type="button" data-action="complete">标记完成</button>`}<button class="text-button danger-text" type="button" data-action="remove">删除事项</button></div>
     </details>
   </article>`;
 }
@@ -229,6 +269,13 @@ function updateTaskMeta(id) {
   card.querySelector('[data-task-status]').textContent = invalidEdits.has(id) ? '输入尚未保存，请先修正' : stateLabels[task.status];
   card.querySelector('[data-task-status]').className = `task-status ${needsReview(task) ? '' : 'confirmed'}`;
   card.querySelector('[data-priority-help]').textContent = task.priority === null ? '尚未选择；0也需要由你明确填写。' : '请核对这个数值是否代表你的选择。';
+  const confirmButton = card.querySelector('[data-action="confirm"]');
+  if (confirmButton) {
+    const reviewed = !needsReview(task);
+    confirmButton.textContent = reviewed ? '已确认' : CONFIRM_LABEL;
+    confirmButton.setAttribute('aria-disabled', String(reviewed));
+    card.querySelector('[data-task-confirmation]').textContent = reviewed ? CONFIRMED_HELP : '';
+  }
 }
 function renderSources() {
   $('sourceCount').textContent = `${snapshot.sources.length} 份`;
@@ -346,6 +393,7 @@ $('taskList').addEventListener('input', event => {
   const id = card.dataset.taskId;
   const task = snapshot.tasks.find(item => item.id === id);
   if (!task || isInactive(task)) return;
+  clearConfirmationErrors(card);
   invalidateResults();
   const field = input.dataset.taskField;
   let inputError = '';
@@ -423,15 +471,23 @@ $('taskList').addEventListener('click', async event => {
       return;
     }
     if (button.dataset.action === 'confirm') {
-      if (invalidEdits.has(id)) { renderTaskErrors(id); return; }
+      if (invalidEdits.has(id)) {
+        const entries = [...invalidEdits.get(id)];
+        showConfirmationErrors(id, entries.map(([, entry]) => entry.message), entries.map(([field]) => field));
+        return;
+      }
+      if (!needsReview(task)) return;
       const priorityInput = card.querySelector('[data-task-field="priority"]');
-      if (task.priority === null && priorityInput.value !== '') { priorityInput.value = ''; priorityInput.focus(); throw new Error('页面显示的优先级尚未保存为你的选择，请手动填写后再确认。'); }
+      if (task.priority === null && priorityInput.value !== '') { priorityInput.value = ''; showConfirmationErrors(id, ['页面显示的优先级尚未保存为你的选择，请手动填写后再确认'], ['priority']); return; }
       commit(confirmTask(snapshot, id));
     }
     if (button.dataset.action === 'complete') { invalidEdits.delete(id); commit(completeTask(snapshot, id)); }
     if (button.dataset.action === 'reopen') commit(reopenTask(snapshot, id));
     if (button.dataset.action === 'remove' && window.confirm(`删除“${taskTitle(task)}”？该事项会从当前清单移除。`)) { const next = removeTask(snapshot, id); invalidEdits.delete(id); commit(next); }
-  } catch (error) { taskError(id, (error.errors || [error.message]).join('；')); }
+  } catch (error) {
+    if (button.dataset.action === 'confirm') showConfirmationErrors(id, error.errors || [error.message], error.fields);
+    else taskError(id, (error.errors || [error.message]).join('；'));
+  }
 });
 
 $('referenceTime').addEventListener('input', event => {
