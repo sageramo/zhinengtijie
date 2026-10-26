@@ -5,6 +5,7 @@ import {
   readSnapshot, RevisionGate, isTimestamp, MAX_SNAPSHOT_BYTES,
 } from './task-state.js';
 import { SnapshotStore } from './snapshot-store.js';
+import { modelCandidates } from './model-candidates.js';
 
 const $ = id => document.getElementById(id);
 const escapeHTML = value => String(value ?? '').replace(/[&<>"']/g, character => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[character]);
@@ -34,6 +35,7 @@ let externalConflict = false;
 let apiBase = window.CAMPUS_AGENT_API || 'http://127.0.0.1:8765';
 try { apiBase = storage?.getItem('sixu.api-base') || apiBase; } catch { /* Data can still be edited in memory. */ }
 let capabilityBase = null;
+let capabilityHealth = null;
 let result = null;
 let hasCalculated = false;
 let activeParse = null;
@@ -256,9 +258,9 @@ function normalizeApiBase(value) {
   if (!['http:', 'https:'].includes(url.protocol) || url.username || url.password || url.search || url.hash) throw new Error('请填写不含账号、查询参数或片段的HTTP/HTTPS服务地址。');
   return url.href.replace(/\/$/, '');
 }
-async function request(path, body, base) {
+async function request(path, body, base, timeoutMs = 30000) {
   const controller = new AbortController();
-  const timeout = window.setTimeout(() => controller.abort(), 30000);
+  const timeout = window.setTimeout(() => controller.abort(), timeoutMs);
   try {
     const response = await fetch(`${base}${path}`, { method: body === undefined ? 'GET' : 'POST', headers: body === undefined ? {} : { 'Content-Type': 'application/json' }, body: body === undefined ? undefined : JSON.stringify(body), credentials: 'omit', referrerPolicy: 'no-referrer', signal: controller.signal });
     const text = await response.text();
@@ -271,11 +273,12 @@ async function request(path, body, base) {
     throw error;
   } finally { window.clearTimeout(timeout); }
 }
-async function ensureCapabilities(base) {
-  if (capabilityBase === base) return;
+async function ensureCapabilities(base, { fresh = false } = {}) {
+  if (!fresh && capabilityBase === base) return capabilityHealth;
   const health = await request('/api/health', undefined, base);
   if (!Array.isArray(health.capabilities) || !health.capabilities.includes('snapshot_v2')) throw new Error('该服务尚未升级，暂不能处理这份新清单。请在“服务与备份”中连接本地新版服务；清单没有提交给旧算法。');
-  if (base === apiBase) capabilityBase = base;
+  if (base === apiBase) { capabilityBase = base; capabilityHealth = health; }
+  return health;
 }
 
 $('noticeForm').addEventListener('submit', async event => {
@@ -283,7 +286,10 @@ $('noticeForm').addEventListener('submit', async event => {
   if (externalConflict) return tell('请先处理另一个标签页的清单变化。', 'warning');
   const text = $('noticeText').value.trim();
   const referenceDate = $('noticeDate').value || null;
+  const mode = $('extractionMode').value;
   if (!text) return tell('请先粘贴通知原文。', 'warning');
+  if (!['rules', 'dify'].includes(mode)) return tell('请选择有效的提取方式。', 'warning');
+  if (mode === 'dify' && [...text].length > 20000) return tell('模型提取每次最多两万字，请拆分通知后重试；原文尚未发送。', 'warning');
   const existingSource = snapshot.sources.find(source => source.text === text);
   if (existingSource && snapshot.tasks.some(task => task.source_id === existingSource.id)) return tell('这份通知已导入，不会重复增加事项。请核对已有事项，或手动添加另一项独立工作。', 'warning');
   const ticket = parseGate.begin(snapshot);
@@ -292,26 +298,31 @@ $('noticeForm').addEventListener('submit', async event => {
   busy($('parseNotice'), true, '提取待确认事项', '正在提取，请稍候…');
   tell('');
   try {
-    await ensureCapabilities(base);
+    const health = await ensureCapabilities(base, { fresh: mode === 'dify' });
     if (!parseGate.accepts(ticket, snapshot.revision) || base !== apiBase) return;
+    if (mode === 'dify' && (!health.capabilities.includes('model_notice_candidates_v1') || !health.model_extraction?.configured)) throw new Error('当前服务尚未启用模型提取。请先按接入说明配置本地 Dify 服务，或主动选择规则提取。');
     $('connectionStatus').textContent = '已连接支持任务确认与重算的服务';
-    const parsed = await request('/api/parse', { text, reference_date: referenceDate, timezone: snapshot.timezone }, base);
-    if (!parseGate.accepts(ticket, snapshot.revision) || text !== $('noticeText').value.trim() || referenceDate !== ($('noticeDate').value || null) || base !== apiBase) return;
+    const parsed = await request(mode === 'dify' ? '/api/v2/extract' : '/api/parse', { text, reference_date: referenceDate, timezone: snapshot.timezone }, base, mode === 'dify' ? 100000 : 30000);
+    if (!parseGate.accepts(ticket, snapshot.revision) || text !== $('noticeText').value.trim() || referenceDate !== ($('noticeDate').value || null) || mode !== $('extractionMode').value || base !== apiBase) return;
     const source = existingSource || { id: sourceId(), kind: text.startsWith('【虚构示例】') ? 'synthetic' : 'pasted_notice', text, published_at: null };
-    const candidates = noticeCandidates(parsed, source.id);
+    const candidates = mode === 'dify' ? modelCandidates(parsed, source) : noticeCandidates(parsed, source.id);
+    if (!candidates.length) {
+      tell(`本次${mode === 'dify' ? '模型' : '规则'}提取没有识别到行动事项；原文与清单均保留。请核对通知，必要时手动添加。${(parsed.warnings || []).join(' ')}`, 'warning');
+      return;
+    }
     if (referenceDate && /今天|明天|后天|昨日|昨天|本周|这周|下周|今年|明年|去年/.test(text)) {
       for (const task of candidates) for (const field of ['deadline_at', 'fixed_start_at', 'fixed_end_at'].filter(field => task[field])) task.evidence.push({ field, origin: 'inferred', source_id: null, quote: `日期解释使用本次选择的参照日 ${referenceDate}；通知实际发布时间仍未知，请核对原语境。` });
     }
     let next = existingSource ? snapshot : addSource(snapshot, source);
     for (const task of candidates) next = addTask(next, task);
     commit(next);
-    tell(`已整理出 ${candidates.length} 件待核对事项。请检查名称、时间与原文，再逐项确认。`);
+    tell(`通过${mode === 'dify' ? 'Dify 模型' : '规则'}提取整理出 ${candidates.length} 件待核对事项。请检查名称、时间与原文，再逐项确认。`);
     $('taskSection').scrollIntoView({ behavior: scrollBehavior(), block: 'start' });
   } catch (error) {
     if (activeParse === ticket) tell(`提取未完成：${error.message} 也可以先手动添加事项。`, 'error');
   } finally { if (activeParse === ticket) { activeParse = null; busy($('parseNotice'), false, '提取待确认事项'); } }
 });
-for (const id of ['noticeText', 'noticeDate']) $(id).addEventListener('input', () => { parseGate.invalidate(); activeParse = null; busy($('parseNotice'), false, '提取待确认事项'); });
+for (const id of ['noticeText', 'noticeDate', 'extractionMode']) $(id).addEventListener('input', () => { parseGate.invalidate(); activeParse = null; busy($('parseNotice'), false, '提取待确认事项'); });
 
 $('addTask').addEventListener('click', () => {
   try { const task = createTask(); commit(addTask(snapshot, task)); $('taskList').lastElementChild.querySelector('[data-task-field="title"]').focus(); }

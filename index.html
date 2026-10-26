@@ -32,10 +32,13 @@
             <label for="noticeDate">“今天、明天”的参照日期 <span class="optional">可选</span></label>
             <input id="noticeDate" type="date" aria-describedby="noticeDateHelp">
             <p class="field-help" id="noticeDateHelp">按通知原本的语境选择日期，不一定是今天。</p>
+            <label for="extractionMode">提取方式</label>
+            <select id="extractionMode" aria-describedby="extractionModeHelp"><option value="rules">规则提取</option><option value="dify">模型提取 · Dify</option></select>
+            <p class="field-help" id="extractionModeHelp">规则提取不调用模型；模型提取需要先配置本地服务，每次最多两万字，原文会发往 Dify 及所选模型。</p>
             <button class="primary-button full-width" type="submit" id="parseNotice">提取待确认事项</button>
           </form>
           <div class="example-actions"><button class="text-button" id="fillExample" type="button">填入虚构通知</button><button class="text-button" id="loadNineMinutes" type="button">试试九分钟缺口</button></div>
-          <p class="privacy-note">原文仅在你点击提取时发往所选服务；清单保存在此浏览器，换设备不会同步。</p>
+          <p class="privacy-note">点击提取会发送原文；点击检查会发送清单及原文依据。模型提取还会将本次原文交给 Dify 与所选模型。清单保存在此浏览器，换设备不会同步。</p>
         </section>
         <section class="source-section" aria-labelledby="sourceHeading"><div class="section-top"><h2 id="sourceHeading">保留的原文</h2><span id="sourceCount">0 份</span></div><div id="sourceList"><p class="empty-note">导入后可随时回来核对。</p></div></section>
         <details class="settings" id="settingsPanel"><summary>服务与备份</summary>

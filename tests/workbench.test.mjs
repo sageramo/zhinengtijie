@@ -211,6 +211,56 @@ test('notice extraction preserves escaped original text and draft status, with d
   assert.match(app.find('#appMessage').textContent, /已导入，不会重复/);
 });
 
+const modelNotice = '请于2026年10月28日15:00前提交报告。';
+const modelOutput = () => ({ schema_version: 1, provider: 'dify', parsing_status: 'needs_confirmation', candidates: [{ title: '提交报告', kind: 'flexible', deadline_at: '2026-10-28T15:00:00+08:00', fixed_start_at: null, fixed_end_at: null, visit_windows: [], location: null, materials: [], evidence: [{ field: 'title', origin: 'source_text', quote: '提交报告' }, { field: 'kind', origin: 'source_text', quote: '提交报告' }, { field: 'deadline_at', origin: 'source_text', quote: '2026年10月28日15:00' }], uncertainties: [] }], warnings: [] });
+const modelHealth = () => ({ capabilities: ['snapshot_v2', 'model_notice_candidates_v1'], model_extraction: { configured: true } });
+
+test('unconfigured model mode sends no notification and never silently uses rules', async t => {
+  const app = await boot(t);
+  app.input('#extractionMode', 'dify'); app.input('#noticeText', modelNotice); app.submit('#noticeForm');
+  await flush();
+  assert.deepEqual(app.calls.map(call => call.path), ['/api/health']);
+  assert.match(app.find('#appMessage').textContent, /尚未启用模型提取/);
+  assert.equal(app.find('#noticeText').value, modelNotice);
+  assert.equal(app.writes.length, 0);
+});
+test('configured model mode posts only the notice and imports unconfirmed sourced drafts', async t => {
+  const app = await boot(t, { healthRoute: modelHealth, route(call) { assert.equal(call.path, '/api/v2/extract'); return modelOutput(); } });
+  app.input('#extractionMode', 'dify'); app.input('#noticeText', modelNotice); app.submit('#noticeForm');
+  await flush();
+  assert.deepEqual(Object.keys(app.calls[1].body).sort(), ['reference_date', 'text', 'timezone']);
+  assert.equal(app.stored().tasks[0].status, 'draft');
+  assert.equal(app.stored().tasks[0].priority, null);
+  assert.match(app.find('#appMessage').textContent, /Dify 模型/);
+  assert.match(app.find('.evidence').textContent, /不代表理解一定正确/);
+});
+test('switching extraction modes discards a late model response', async t => {
+  const pending = deferred();
+  const app = await boot(t, { healthRoute: modelHealth, route() { return pending.promise; } });
+  app.input('#extractionMode', 'dify'); app.input('#noticeText', modelNotice); app.submit('#noticeForm'); await flush();
+  app.input('#extractionMode', 'rules'); pending.resolve(modelOutput()); await flush();
+  assert.equal(app.document.querySelectorAll('[data-task-id]').length, 0);
+  assert.equal(app.writes.length, 0);
+});
+test('a failed model request preserves the input and does not issue a rules request', async t => {
+  const app = await boot(t, { healthRoute: modelHealth, route() { throw new Error('模型服务暂时不可用'); } });
+  app.input('#extractionMode', 'dify'); app.input('#noticeText', modelNotice); app.submit('#noticeForm'); await flush();
+  assert.deepEqual(app.calls.map(call => call.path), ['/api/health', '/api/v2/extract']);
+  assert.match(app.find('#appMessage').textContent, /模型服务暂时不可用/);
+  assert.equal(app.find('#noticeText').value, modelNotice);
+  assert.equal(app.writes.length, 0);
+});
+test('oversized model input is blocked before any network request', async t => {
+  const app = await boot(t); app.input('#extractionMode', 'dify'); app.input('#noticeText', '字'.repeat(20001)); app.submit('#noticeForm'); await flush();
+  assert.deepEqual(app.calls, []); assert.match(app.find('#appMessage').textContent, /两万字/);
+});
+test('no-action model output does not create an empty task or source', async t => {
+  const app = await boot(t, { healthRoute: modelHealth, route() { return { ...modelOutput(), candidates: [], warnings: ['只是背景介绍。'] }; } });
+  app.input('#extractionMode', 'dify'); app.input('#noticeText', modelNotice); app.submit('#noticeForm'); await flush();
+  assert.equal(app.writes.length, 0); assert.match(app.find('#appMessage').textContent, /没有识别到行动事项/);
+  assert.match(app.find('#appMessage').textContent, /只是背景介绍/);
+});
+
 test('unknown availability blocks calculation while explicitly confirmed zero is submitted', async t => {
   const app = await nineMinutes(t, { route(call) { return calculated(call.body, { available: 0 }); } });
   const saved = app.stored();

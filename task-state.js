@@ -17,7 +17,8 @@ const SOURCE_FIELDS = ['id', 'kind', 'text', 'published_at'];
 let fallbackId = 0;
 const clone = value => structuredClone(value);
 const object = value => value !== null && typeof value === 'object' && !Array.isArray(value) && (Object.getPrototypeOf(value) === Object.prototype || Object.getPrototypeOf(value) === null);
-const nonempty = (value, max = Infinity) => typeof value === 'string' && value.trim().length > 0 && value.length <= max;
+const charLength = value => Array.from(value).length;
+const nonempty = (value, max = Infinity) => typeof value === 'string' && value.trim().length > 0 && (max === Infinity || charLength(value) <= max);
 const id = value => nonempty(value, 100);
 const nullable = (value, predicate) => value === null || predicate(value);
 const uniqueStrings = (value, maxLength = Infinity) => Array.isArray(value) && value.every(item => nonempty(item, maxLength)) && new Set(value).size === value.length;
@@ -76,7 +77,7 @@ function checkTask(task, path, errors) {
   if (!id(task.id)) errors.push(`${path}.id无效`);
   if (!nullable(task.source_id, id)) errors.push(`${path}.source_id无效`);
   // A half-typed draft may be saved locally. It cannot be confirmed or calculated.
-  if (typeof task.title !== 'string' || task.title.length > 200 || (task.status !== 'draft' && !task.title.trim())) errors.push(`${path}.title无效`);
+  if (typeof task.title !== 'string' || charLength(task.title) > 200 || (task.status !== 'draft' && !task.title.trim())) errors.push(`${path}.title无效`);
   if (!KINDS.has(task.kind)) errors.push(`${path}.kind无效`);
   if (!STATUSES.has(task.status)) errors.push(`${path}.status无效`);
   for (const key of TIMESTAMP_FIELDS) if (!nullable(task[key], isTimestamp)) errors.push(`${path}.${key}需要带时区的合法时间或null`);
@@ -84,7 +85,7 @@ function checkTask(task, path, errors) {
     if (!nullable(task[key], value => Number.isSafeInteger(value) && value >= min && value <= max)) errors.push(`${path}.${key}数值无效`);
   }
   for (const key of ['splittable', 'must_do']) if (!nullable(task[key], value => typeof value === 'boolean')) errors.push(`${path}.${key}必须是布尔值或null`);
-  if (!nullable(task.location, value => typeof value === 'string' && value.length <= 500)) errors.push(`${path}.location无效`);
+  if (!nullable(task.location, value => typeof value === 'string' && charLength(value) <= 500)) errors.push(`${path}.location无效`);
   for (const key of ['materials', 'uncertainties', 'confirmed_fields']) if (!uniqueStrings(task[key])) errors.push(`${path}.${key}必须是不重复的非空文本数组`);
   if (!uniqueStrings(task.depends_on, 100)) errors.push(`${path}.depends_on无效`);
   checkIntervals(task.visit_windows, `${path}.visit_windows`, errors, 100);
@@ -95,7 +96,7 @@ function checkTask(task, path, errors) {
     if (!EVIDENCE_FIELDS.has(evidence.field)) errors.push(`${label}.field无效`);
     if (!['source_text', 'user_input', 'inferred'].includes(evidence.origin)) errors.push(`${label}.origin无效`);
     if (!nullable(evidence.source_id, id)) errors.push(`${label}.source_id无效`);
-    if (!nullable(evidence.quote, value => typeof value === 'string' && value.length <= 3000)) errors.push(`${label}.quote无效`);
+    if (!nullable(evidence.quote, value => typeof value === 'string' && charLength(value) <= 3000)) errors.push(`${label}.quote无效`);
     if (evidence.origin === 'source_text' && (!id(evidence.source_id) || !nonempty(evidence.quote, 3000))) errors.push(`${label}原文依据需要来源和原文片段`);
   });
   if (task.status === 'completed' && task.remaining_minutes !== 0) errors.push(`${path}已完成任务剩余时间必须为0`);
@@ -110,7 +111,7 @@ export function validateSnapshot(snapshot) {
   if (!Number.isSafeInteger(snapshot.revision) || snapshot.revision < 0) errors.push('revision必须是非负安全整数');
   if (snapshot.timezone !== 'Asia/Shanghai') errors.push('timezone必须是Asia/Shanghai');
   if (!isTimestamp(snapshot.reference_time)) errors.push('reference_time需要带时区的合法时间');
-  if (Object.hasOwn(snapshot, 'label') && (typeof snapshot.label !== 'string' || snapshot.label.length > 200)) errors.push('label最长200字');
+  if (Object.hasOwn(snapshot, 'label') && (typeof snapshot.label !== 'string' || charLength(snapshot.label) > 200)) errors.push('label最长200字');
   if (Object.hasOwn(snapshot, 'availability_confirmed') && typeof snapshot.availability_confirmed !== 'boolean') errors.push('availability_confirmed必须是布尔值');
   if (!Array.isArray(snapshot.sources) || snapshot.sources.length > 100) errors.push('sources必须是最多100个来源的数组');
   else {
