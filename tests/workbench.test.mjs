@@ -92,6 +92,136 @@ async function nineMinutes(t, options) {
   return app;
 }
 
+function planned(body, status = 'feasible_found') {
+  const start = body.reference_time;
+  const end = new Date(Date.parse(start) + body.tasks[0].remaining_minutes * 60000).toISOString();
+  return { schema_version: 1, revision: body.revision, status,
+    horizon: { start, end: body.tasks[0].deadline_at },
+    schedule: status === 'feasible_found' ? [{ task_id: body.tasks[0].id, kind: 'work', start, end }] : [],
+    validation: { passed: status === 'feasible_found' ? true : null, errors: [], checked_constraints: ['confirmed_inputs', 'availability', 'fixed_occupancy', 'no_overlap', 'release_and_deadline', 'exact_remaining_work', 'continuous_blocks', 'dependencies'] },
+    issues: [], conflicts: [], capacity_checks: [], warnings: [], limitations: ['四种排序不保证最优，未找到不代表无解。'],
+    algorithm: { name: 'bounded_greedy_v1', attempts: 1, max_attempts: 4 } };
+}
+async function shortWork(t, options = {}) {
+  const app = await nineMinutes(t, { capabilities: ['snapshot_v2', 'bounded_planning_v1'], ...options });
+  app.input('[data-task-field="remaining_minutes"]', '5');
+  app.click('[data-action="confirm"]');
+  await flush();
+  return app;
+}
+
+test('an old service receives no snapshot when concrete planning is unavailable', async t => {
+  const app = await shortWork(t, { capabilities: ['snapshot_v2'] });
+  app.click('#generatePlan'); await flush();
+  assert.deepEqual(app.calls.map(call => call.path), ['/api/health']);
+  assert.match(app.find('#appMessage').textContent, /重启本地服务加载1.5/);
+  assert.equal(app.find('#generatePlan').disabled, false);
+});
+
+test('concrete planning is read only and renders a complete independently checked schedule', async t => {
+  const app = await shortWork(t, { route(call) { assert.equal(call.path, '/api/v2/plan'); return planned(call.body); } });
+  const before = app.data.get(STORAGE_KEY), writes = app.writes.length;
+  app.click('#generatePlan'); await flush();
+  assert.deepEqual(app.calls.map(call => call.path), ['/api/health', '/api/v2/plan']);
+  assert.match(app.find('#resultOutput h3').textContent, /通过校验/);
+  assert.equal(app.document.querySelectorAll('.schedule-row').length, 1);
+  assert.match(app.find('.schedule-time').textContent, /23:50 至 23:55/);
+  assert.match(app.find('#resultOutput').textContent, /全部 1 件/);
+  assert.equal(app.data.get(STORAGE_KEY), before);
+  assert.equal(app.writes.length, writes);
+  assert.equal(app.stored().tasks[0].status, 'confirmed');
+  app.input('[data-task-field="priority"]', '20');
+  assert.equal(app.find('.schedule-row'), null);
+  assert.match(app.find('#resultOutput').textContent, /原结果已失效/);
+});
+
+test('an edited checklist cannot be replaced by a late concrete schedule', async t => {
+  const response = deferred(); let submitted;
+  const app = await shortWork(t, { route(call) { submitted = call.body; return response.promise; } });
+  app.click('#generatePlan'); await flush();
+  app.input('[data-task-field="remaining_minutes"]', '4');
+  response.resolve(planned(submitted)); await flush();
+  assert.equal(app.find('.schedule-row'), null);
+  assert.match(app.find('#resultOutput').textContent, /原结果已失效/);
+  assert.equal(app.find('#generatePlan').disabled, false);
+});
+
+for (const first of ['plan', 'calculate']) test(`a late ${first} result cannot replace the other newer action`, async t => {
+  const response = deferred(); let older;
+  const app = await shortWork(t, { route(call) {
+    const isFirst = call.path.endsWith(`/${first}`);
+    if (isFirst) { older = call.body; return response.promise; }
+    return first === 'plan' ? calculated(call.body, { required: 5, available: 9 }) : planned(call.body);
+  } });
+  app.click(first === 'plan' ? '#generatePlan' : '#calculate'); await flush();
+  app.click(first === 'plan' ? '#calculate' : '#generatePlan'); await flush();
+  const newer = app.find('#resultOutput').innerHTML;
+  response.resolve(first === 'plan' ? planned(older) : calculated(older)); await flush();
+  assert.equal(app.find('#resultOutput').innerHTML, newer);
+  assert.equal(app.find('#generatePlan').disabled, false);
+  assert.equal(app.find('#calculate').disabled, false);
+});
+
+test('changing the service discards an in-flight schedule without sending it to the new service', async t => {
+  const response = deferred(); let submitted;
+  const app = await shortWork(t, { route(call) { submitted = call.body; return response.promise; } });
+  app.click('#generatePlan'); await flush();
+  app.input('#apiBase', 'https://second.invalid'); app.submit('#apiForm'); await flush();
+  response.resolve(planned(submitted)); await flush();
+  assert.equal(app.find('.schedule-row'), null);
+  assert.equal(app.calls.filter(call => call.path === '/api/v2/plan').length, 1);
+});
+
+test('a claimed success with failed validation is rejected rather than shown as green', async t => {
+  const app = await shortWork(t, { route(call) { const result = planned(call.body); result.validation.passed = false; return result; } });
+  app.click('#generatePlan'); await flush();
+  assert.equal(app.find('.schedule-row'), null);
+  assert.equal(app.find('.result-success'), null);
+  assert.match(app.find('#appMessage').textContent, /结果不完整/);
+});
+
+test('not found remains distinct from a proven conflict and displays no partial time slots', async t => {
+  const app = await shortWork(t, { route(call) { const result = planned(call.body, 'not_found'); result.algorithm.attempts = 4; return result; } });
+  app.click('#generatePlan'); await flush();
+  assert.match(app.find('#resultOutput').textContent, /不能证明无解/);
+  assert.equal(app.find('.schedule-row'), null);
+  assert.equal(app.find('.result-success'), null);
+});
+
+test('invalid visible inputs and unfinished availability forms prevent concrete planning', async t => {
+  const app = await shortWork(t, { route(call) { return planned(call.body); } });
+  app.input('[data-task-field="priority"]', 'wrong');
+  app.click('#generatePlan'); await flush();
+  assert.deepEqual(app.calls, []);
+  app.input('[data-task-field="priority"]', '50'); app.click('[data-action="confirm"]'); await flush();
+  app.click('#addAvailability'); app.click('#generatePlan'); await flush();
+  assert.deepEqual(app.calls, []);
+  assert.match(app.find('#appMessage').textContent, /保存或取消/);
+});
+
+test('the evening example is explicitly synthetic, draft-only and does not send data automatically', async t => {
+  const app = await boot(t);
+  app.click('#loadEveningPlan'); await flush();
+  assert.deepEqual(app.calls, []);
+  assert.equal(app.stored().sources[0].kind, 'synthetic');
+  assert.equal(app.stored().tasks.length, 3);
+  assert.ok(app.stored().tasks.every(task => task.status === 'draft'));
+  app.click('#generatePlan'); assert.deepEqual(app.calls, []);
+  for (const task of app.stored().tasks) app.click(`[data-task-id="${task.id}"] [data-action="confirm"]`);
+  await flush();
+  assert.ok(app.stored().tasks.every(task => task.status === 'confirmed'));
+  assert.equal(app.stored().tasks.find(task => task.kind === 'fixed').depends_on.length, 1);
+});
+
+test('declining an evening example replacement preserves the existing snapshot', async t => {
+  const app = await nineMinutes(t);
+  const before = app.data.get(STORAGE_KEY);
+  app.window.confirm = () => false;
+  app.click('#loadEveningPlan'); await flush();
+  assert.equal(app.data.get(STORAGE_KEY), before);
+  assert.deepEqual(app.calls, []);
+});
+
 test('opening an empty workbench sends no network request and creates no saved data', async t => {
   const app = await boot(t);
   assert.deepEqual(app.calls, []);

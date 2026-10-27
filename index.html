@@ -3,10 +3,10 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <meta name="description" content="把校园通知整理成可核对的事项，按自己的空闲时间检查冲突与容量。">
-  <meta name="sixu-ui-version" content="2026.10.27.1">
+  <meta name="description" content="把校园通知整理成可核对的事项，用真实空闲生成经过校验的个人安排。">
+  <meta name="sixu-ui-version" content="2026.10.27.2">
   <title>司序·知所先后</title>
-  <link rel="stylesheet" href="./agent.css?v=2026.10.27.1">
+  <link rel="stylesheet" href="./agent.css?v=2026.10.27.2">
 </head>
 <body>
   <a class="skip-link" href="#taskSection">跳到任务清单</a>
@@ -16,10 +16,10 @@
   </header>
   <main class="workspace">
     <div class="page-heading">
-      <div><h1>先理清，再安排。</h1><p>核对通知里的每一件事，用自己的时间判断做不做得完。</p></div>
+      <div><h1>先理清，再安排。</h1><p>核对通知里的每一件事，用自己的时间，排出一份做得到的安排。</p></div>
       <p class="save-state" id="saveState" role="status">清单保存在当前浏览器</p>
     </div>
-    <nav class="flow-nav" aria-label="操作步骤"><a href="#noticeSection">1 导入通知</a><a href="#taskSection">2 核对事项</a><a href="#timeSection">3 填写空闲</a><a href="#resultSection">4 查看结果</a></nav>
+    <nav class="flow-nav" aria-label="操作步骤"><a href="#noticeSection">1 导入通知</a><a href="#taskSection">2 核对事项</a><a href="#timeSection">3 填写空闲</a><a href="#resultSection">4 查看安排</a></nav>
     <div id="appMessage" class="message" role="status" aria-live="polite" hidden></div>
     <div id="storageConflict" class="message warning" hidden><p>清单在另一个标签页发生了变化。为避免覆盖，请先导出当前内容，再载入最新清单。</p><button type="button" id="reloadLatest">载入最新清单</button></div>
     <div class="workspace-grid">
@@ -38,15 +38,15 @@
             <p class="field-help" id="extractionModeHelp">规则提取不调用模型；模型提取需要先配置本地服务，每次最多两万字，原文会发往 Dify 及所选模型。</p>
             <button class="primary-button full-width" type="submit" id="parseNotice">提取待确认事项</button>
           </form>
-          <div class="example-actions"><button class="text-button" id="fillExample" type="button">填入虚构通知</button><button class="text-button" id="loadNineMinutes" type="button">试试九分钟缺口</button></div>
-          <p class="privacy-note">提取或补全时间会发送对应原文；检查会发送清单及原文依据。模型提取还会将本次原文交给 Dify 与所选模型。清单保存在此浏览器，换设备不会同步。</p>
+          <div class="example-actions"><button class="text-button" id="fillExample" type="button">填入虚构通知</button><button class="text-button" id="loadEveningPlan" type="button">试试一晚安排</button><button class="text-button" id="loadNineMinutes" type="button">试试九分钟缺口</button></div>
+          <p class="privacy-note">提取或补全时间会发送对应原文；检查或生成安排会向所选服务发送清单及原文依据，排程不调用模型。模型提取还会将本次原文交给 Dify 与所选模型。清单保存在此浏览器，换设备不会同步。</p>
         </section>
         <section class="source-section" aria-labelledby="sourceHeading"><div class="section-top"><h2 id="sourceHeading">保留的原文</h2><span id="sourceCount">0 份</span></div><div id="sourceList"><p class="empty-note">导入后可随时回来核对。</p></div></section>
         <details class="settings" id="settingsPanel"><summary>服务与备份</summary>
           <form id="apiForm"><label for="apiBase">解析与计算服务地址</label><input id="apiBase" type="url" inputmode="url" required><button type="submit">保存地址并检查连接</button><p class="field-help" id="connectionStatus" role="status">尚未检查连接</p></form>
           <div class="backup-actions"><button type="button" id="exportSnapshot">导出清单</button><button type="button" id="importSnapshot">导入清单</button><input type="file" id="importFile" accept="application/json,.json" hidden><button class="danger-text" type="button" id="clearSnapshot">清空清单</button></div>
           <p class="field-help">导出文件包含原文与个人安排，请妥善保存。旧版对话独立运行，不会写入此清单。</p>
-          <p class="field-help" id="uiVersion">界面版本 2026.10.27.1</p>
+          <p class="field-help" id="uiVersion">界面版本 2026.10.27.2</p>
         </details>
       </aside>
       <div class="review-column">
@@ -61,15 +61,15 @@
           <form class="availability-form" id="availabilityForm" hidden><label>空闲开始<input type="datetime-local" id="availabilityStart" required></label><label>空闲结束<input type="datetime-local" id="availabilityEnd" required></label><div class="inline-actions"><button type="submit">保存时段</button><button type="button" class="text-button" id="cancelAvailability">取消</button></div><p class="field-error" id="availabilityError" role="status"></p></form>
         </section>
         <section class="surface result-section" id="resultSection" aria-labelledby="resultHeading">
-          <div class="section-top"><div><h2 id="resultHeading">用当前清单检查一次</h2><p class="section-note">核对固定重叠和截止前时长；本轮还不生成具体日程。</p></div><button class="primary-button" id="calculate" type="button">检查冲突与容量</button></div>
-          <div id="resultOutput" aria-live="polite"><p class="empty-note">确认事项并填写空闲时段后，结果会显示在这里。</p></div>
+          <div class="section-top"><div><h2 id="resultHeading">把事情放进时间里</h2><p class="section-note">先确认全部事项，再生成安排。最多40件未完成事项，最长31天。</p></div><div class="analysis-actions"><button class="primary-button" id="generatePlan" type="button">生成具体安排</button><button id="calculate" type="button">检查冲突与容量</button></div></div>
+          <div id="resultOutput" aria-live="polite"><p class="empty-note">确认事项并填写空闲时段后，可以生成安排或检查容量。</p></div>
         </section>
       </div>
     </div>
     <footer class="page-footer"><span>源自第7组课程作品“口述行动链” · 升级开发中</span><span>以确认后的信息计算，把取舍留给你。</span></footer>
   </main>
   <noscript>此页面需要启用JavaScript才能编辑和计算任务。</noscript>
-  <script type="importmap">{"imports":{"./task-state.js":"./task-state.js?v=2026.10.27.1","./snapshot-store.js":"./snapshot-store.js?v=2026.10.27.1","./model-candidates.js":"./model-candidates.js?v=2026.10.27.1","./time-review.js":"./time-review.js?v=2026.10.27.1"}}</script>
-  <script src="./api-config.js?v=2026.10.27.1"></script><script type="module" src="./agent.js?v=2026.10.27.1"></script>
+  <script type="importmap">{"imports":{"./task-state.js":"./task-state.js?v=2026.10.27.2","./snapshot-store.js":"./snapshot-store.js?v=2026.10.27.2","./model-candidates.js":"./model-candidates.js?v=2026.10.27.2","./time-review.js":"./time-review.js?v=2026.10.27.2","./planning-result.js":"./planning-result.js?v=2026.10.27.2"}}</script>
+  <script src="./api-config.js?v=2026.10.27.2"></script><script type="module" src="./agent.js?v=2026.10.27.2"></script>
 </body>
 </html>

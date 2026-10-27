@@ -7,6 +7,7 @@ import {
 import { SnapshotStore } from './snapshot-store.js';
 import { modelCandidates } from './model-candidates.js';
 import { reviewTimePatch } from './time-review.js';
+import { readPlanResponse, planMarkup } from './planning-result.js';
 
 const $ = id => document.getElementById(id);
 const escapeHTML = value => String(value ?? '').replace(/[&<>"']/g, character => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[character]);
@@ -34,7 +35,7 @@ const scrollBehavior = () => window.matchMedia?.('(prefers-reduced-motion: reduc
 const stateLabels = { draft: '待核对', confirmed: '已确认', scheduled: '已确认', in_progress: '进行中', completed: '已完成，不计剩余量', cancelled: '已取消，不计剩余量' };
 const TIME_REVIEW_LABEL = '按参照日期补全原文时间';
 const CONFIRM_LABEL = '已逐项核对，确认事项';
-const CONFIRMED_HELP = '事项已确认。继续核对其他事项，或填写空闲时段后检查冲突与容量。';
+const CONFIRMED_HELP = '事项已确认。继续核对其他事项，或填写空闲时段后生成具体安排。';
 let confirmationErrorSequence = 0;
 
 let storage;
@@ -49,6 +50,7 @@ try { apiBase = storage?.getItem('sixu.api-base') || apiBase; } catch { /* Data 
 let capabilityBase = null;
 let capabilityHealth = null;
 let result = null;
+let planResult = null;
 let hasCalculated = false;
 let activeParse = null;
 let activeCalculation = null;
@@ -126,7 +128,9 @@ function invalidateResults() {
   activeParse = null;
   activeCalculation = null;
   result = null;
+  planResult = null;
   busy($('calculate'), false, '检查冲突与容量');
+  busy($('generatePlan'), false, '生成具体安排');
   busy($('parseNotice'), false, '提取待确认事项');
   for (const button of $('taskList').querySelectorAll('[data-action="resolve-time"]')) busy(button, false, TIME_REVIEW_LABEL);
   renderResult();
@@ -210,9 +214,9 @@ function taskMarkup(task) {
         ${timeHelp}
         <label>优先级（0–100，数字越大越优先）<input data-task-field="priority" type="text" inputmode="numeric" pattern="[0-9]{1,3}" maxlength="3" autocomplete="off" name="priority-${escapeHTML(task.id)}" value="${escapeHTML(task.priority ?? '')}" placeholder="尚未设置，请手动填写" required><span class="field-help" data-priority-help>${task.priority === null ? '尚未选择；0也需要由你明确填写。' : '请核对这个数值是否代表你的选择。'}</span></label>
       </div>
-      <p class="field-help">${task.kind === 'fixed' ? '这里仅记录固定占用；准备材料等工作请单独添加。' : task.kind === 'milestone' ? '这里只记录截止节点；如果还需要准备，请另建待安排工作。' : task.kind === 'visit_window' ? '办理窗口不能直接当成连续占用，请根据原文改成具体活动或截止节点后再确认。' : '填写剩余时间；连续块、前置关系等会保留，但本轮暂不生成具体安排。'}</p>
+      <p class="field-help">${task.kind === 'fixed' ? '这里仅记录固定占用；准备材料等工作请单独添加。' : task.kind === 'milestone' ? '这里只记录截止节点；如果还需要准备，请另建待安排工作。' : task.kind === 'visit_window' ? '办理窗口不能直接当成连续占用，请根据原文改成具体活动或截止节点后再确认。' : '按剩余工时安排；不能拆开的工作需要完整连续空档。可拆分时，每一段（包括最后一段）都须达到最小连续时长。'}</p>
       <details><summary>地点、材料与其他条件</summary><div class="field-grid">${inputField('对应地点（可选）', 'location', task.location, 'text', 'maxlength="500"')}<label>本事项所需材料（可选）<input data-task-field="materials" value="${escapeHTML(task.materials.join('、'))}" placeholder="用顿号或逗号分隔"></label>${task.kind === 'flexible' ? inputField('最早可开始的时刻（可选）', 'earliest_start_at', toLocalInput(task.earliest_start_at), 'datetime-local') : ''}</div>
-        ${dependence.length ? `<fieldset class="dependencies"><legend class="field-help">前置事项（可选，本轮尚未验证依赖排程）</legend>${dependence.map(other => `<label class="check-label"><input type="checkbox" data-dependency="${escapeHTML(other.id)}" ${task.depends_on.includes(other.id) ? 'checked' : ''}>${escapeHTML(taskTitle(other))}</label>`).join('')}</fieldset>` : ''}
+        ${dependence.length ? `<fieldset class="dependencies"><legend class="field-help">前置事项（可选，生成安排时须先完成）</legend>${dependence.map(other => `<label class="check-label"><input type="checkbox" data-dependency="${escapeHTML(other.id)}" ${task.depends_on.includes(other.id) ? 'checked' : ''}>${escapeHTML(taskTitle(other))}</label>`).join('')}</fieldset>` : ''}
         ${task.visit_windows.length ? `<p class="field-help">导入的办理窗口：${task.visit_windows.map(item => `${escapeHTML(readableTime(item.start))} 至 ${escapeHTML(readableTime(item.end))}`).join('；')}。选择其他类型会清除窗口，请先核对原文。</p>` : ''}
       </details></fieldset>
       <details class="evidence" ${task.uncertainties.length ? 'open' : ''}><summary>原文依据与提取提醒</summary>${task.source_id ? `<button class="text-button" type="button" data-action="source" data-source-id="${escapeHTML(task.source_id)}">查看整份原文</button>` : '<p class="field-help">手动建立的事项，以你的输入为依据。</p>'}${quotes.map(quote => `<blockquote>${escapeHTML(quote)}</blockquote>`).join('')}${inferred.map(item => `<p class="field-help">${escapeHTML(item.quote)}</p>`).join('')}${task.uncertainties.length ? `<ul>${task.uncertainties.map(item => `<li>${escapeHTML(item)}</li>`).join('')}</ul>` : '<p class="field-help">如需修改，字段会重新转为待核对。</p>'}</details>
@@ -304,9 +308,14 @@ function renderReferencePrecision() {
 }
 function renderResult() {
   const output = $('resultOutput');
+  if (planResult) {
+    output.innerHTML = planMarkup(planResult, snapshot, readableTime);
+    output.removeAttribute('aria-busy');
+    return;
+  }
   if (!result) {
     output.removeAttribute('aria-busy');
-    output.innerHTML = `<p class="empty-note">${hasCalculated ? '清单或时间已修改，原结果已失效，请重新检查。' : '确认事项并填写空闲时段后，结果会显示在这里。'}</p>`;
+    output.innerHTML = `<p class="empty-note">${hasCalculated ? '清单或时间已修改，原结果已失效，请重新生成安排或检查。' : '确认事项并填写空闲时段后，可以生成安排或检查容量。'}</p>`;
     return;
   }
   const labels = { conflicts_detected: '发现需要处理的冲突', information_needed: '还有条件需要核对', no_conflict_detected: '本次检查未发现冲突' };
@@ -552,7 +561,9 @@ $('availabilityList').addEventListener('click', event => {
   try { commit(setAvailability(snapshot, snapshot.availability.filter((_, item) => item !== index))); }
   catch (error) { tell(error.message, 'error'); }
 });
-$('calculate').addEventListener('click', async () => {
+async function runAnalysis(mode) {
+  const planning = mode === 'plan';
+  const action = planning ? '生成安排' : '检查';
   if (externalConflict) return tell('请先处理另一个标签页的清单变化。', 'warning');
   if (!$('availabilityForm').hidden) return tell('请先保存或取消正在填写的空闲时段。', 'warning');
   if (invalidReference || !fromLocalInput($('referenceTime').value)) return tell('请填写并保存有效的计算起始时刻。', 'warning');
@@ -571,27 +582,37 @@ $('calculate').addEventListener('click', async () => {
   const base = apiBase;
   hasCalculated = true;
   result = null;
+  planResult = null;
+  // Both actions share one request gate: an older check cannot replace a newer plan.
+  busy($('calculate'), false, '检查冲突与容量');
+  busy($('generatePlan'), false, '生成具体安排');
   $('resultOutput').setAttribute('aria-busy', 'true');
-  $('resultOutput').innerHTML = '<p class="loading-output">正在按这份已确认清单计算。修改内容后，本次结果会失效。</p>';
-  busy($('calculate'), true, '检查冲突与容量', '正在检查…');
+  $('resultOutput').innerHTML = `<p class="loading-output">正在按这份已确认清单${action}。修改内容后，本次结果会失效。</p>`;
+  busy($(planning ? 'generatePlan' : 'calculate'), true, planning ? '生成具体安排' : '检查冲突与容量', planning ? '正在安排并校验…' : '正在检查…');
   tell('');
   try {
-    await ensureCapabilities(base);
+    const health = await ensureCapabilities(base, { fresh: planning });
     if (!calculateGate.accepts(ticket, snapshot.revision) || base !== apiBase) return;
+    if (planning && !health.capabilities.includes('bounded_planning_v1')) throw new Error('当前服务尚未支持具体排程，请重启本地服务加载1.5版后重试；清单没有提交给旧算法。');
     $('connectionStatus').textContent = '已连接支持任务确认与重算的服务';
-    const computed = await request('/api/v2/calculate', submitted, base);
+    const computed = await request(planning ? '/api/v2/plan' : '/api/v2/calculate', submitted, base);
     if (!calculateGate.accepts(ticket, snapshot.revision) || base !== apiBase) return;
-    if (computed.schema_version !== 2 || computed.revision !== submitted.revision || !['information_needed', 'conflicts_detected', 'no_conflict_detected'].includes(computed.status)) throw new Error('计算结果与当前清单不匹配，请重新检查服务版本。');
-    result = computed;
+    if (planning) planResult = readPlanResponse(computed, submitted);
+    else {
+      if (computed.schema_version !== 2 || computed.revision !== submitted.revision || !['information_needed', 'conflicts_detected', 'no_conflict_detected'].includes(computed.status)) throw new Error('计算结果与当前清单不匹配，请重新检查服务版本。');
+      result = computed;
+    }
     renderResult();
   } catch (error) {
     if (activeCalculation === ticket) {
       $('resultOutput').removeAttribute('aria-busy');
-      $('resultOutput').innerHTML = '<p class="field-error">本次检查未完成，清单已保留。检查服务连接或输入后可以重试。</p>';
-      tell(`检查未完成：${error.message}`, 'error');
+      $('resultOutput').innerHTML = `<p class="field-error">本次${action}未完成，清单已保留。检查服务连接或输入后可以重试。</p>`;
+      tell(`${action}未完成：${error.message}`, 'error');
     }
-  } finally { if (activeCalculation === ticket) { activeCalculation = null; busy($('calculate'), false, '检查冲突与容量'); } }
-});
+  } finally { if (activeCalculation === ticket) { activeCalculation = null; busy($('calculate'), false, '检查冲突与容量'); busy($('generatePlan'), false, '生成具体安排'); } }
+}
+$('calculate').addEventListener('click', () => runAnalysis('calculate'));
+$('generatePlan').addEventListener('click', () => runAnalysis('plan'));
 
 $('apiBase').value = apiBase;
 $('apiForm').addEventListener('submit', async event => {
@@ -696,6 +717,24 @@ $('loadNineMinutes').addEventListener('click', () => {
   hasCalculated = false; invalidEdits.clear(); commit(next, { unlock: !externalConflict && !storageLocked });
   $('availabilityForm').hidden = true;
   tell('已载入虚构场景，时间不是当前时刻。先确认报告事项，再检查180分钟工作面对9分钟空闲会发生什么。');
+});
+$('loadEveningPlan').addEventListener('click', () => {
+  if (snapshot.tasks.length && !window.confirm('载入虚构场景会替换当前清单，请先导出要保留的内容。是否继续？')) return;
+  const day = new Date(Date.parse(nowISO()) + 8 * 3600000 + 86400000).toISOString().slice(0, 10);
+  const at = time => `${day}T${time}:00+08:00`;
+  const source = { id: sourceId(), kind: 'synthetic', text: `【虚构示例】一晚安排\n${day}19:00前准备汇报材料，剩余30分钟；19:00至20:00参加小组汇报，须先准备材料，地点主楼405；22:00前完成课程报告，剩余90分钟。个人愿意投入18:00至22:00。工时、优先级和其他选择均为演示设定。`, published_at: null };
+  let next = addSource(createSnapshot({ referenceTime: at('18:00') }), source);
+  const prep = createTask('flexible', source.id), event = createTask('fixed', source.id), report = createTask('flexible', source.id);
+  Object.assign(prep, { title: '虚构示例：准备汇报材料', deadline_at: at('19:00'), remaining_minutes: 30, priority: 80, must_do: true, splittable: false });
+  Object.assign(event, { title: '虚构示例：小组汇报', fixed_start_at: at('19:00'), fixed_end_at: at('20:00'), location: '主楼405', remaining_minutes: 0, priority: 80, must_do: true, depends_on: [prep.id] });
+  Object.assign(report, { title: '虚构示例：完成课程报告', deadline_at: at('22:00'), remaining_minutes: 90, priority: 70, must_do: true, splittable: true, min_block_minutes: 30 });
+  for (const task of [prep, event, report]) { task.uncertainties = ['这是虚构演示，工时与优先级均为示例选择，请核对后确认。']; next = addTask(next, task); }
+  next = setAvailability(next, [{ start: at('18:00'), end: at('22:00') }]);
+  next.label = '虚构示例：一晚安排';
+  hasCalculated = false; invalidEdits.clear(); commit(next, { unlock: !externalConflict && !storageLocked });
+  $('availabilityForm').hidden = true;
+  tell('已载入3件虚构事项，时间不是当前时刻。逐项核对并确认后，点击“生成具体安排”；这里的工时与优先级仅为演示设定。');
+  $('taskSection').scrollIntoView({ behavior: scrollBehavior(), block: 'start' });
 });
 
 renderAll();
