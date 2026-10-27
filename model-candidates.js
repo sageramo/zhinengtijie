@@ -24,7 +24,7 @@ export function modelCandidates(result, source) {
       if (!isTimestamp(window.start) || !isTimestamp(window.end) || Date.parse(window.start) >= Date.parse(window.end)) invalid();
     }
     if (candidate.kind === 'fixed') {
-      if (candidate.deadline_at || candidate.visit_windows.length || Boolean(candidate.fixed_start_at) !== Boolean(candidate.fixed_end_at) || (candidate.fixed_start_at && Date.parse(candidate.fixed_start_at) >= Date.parse(candidate.fixed_end_at))) invalid();
+      if (candidate.deadline_at || candidate.visit_windows.length || (!candidate.fixed_start_at && candidate.fixed_end_at) || (candidate.fixed_start_at && candidate.fixed_end_at && Date.parse(candidate.fixed_start_at) >= Date.parse(candidate.fixed_end_at))) invalid();
     } else if (candidate.fixed_start_at || candidate.fixed_end_at || (candidate.kind !== 'visit_window' && candidate.visit_windows.length) || (candidate.kind === 'visit_window' && candidate.deadline_at)) invalid();
     if (!Array.isArray(candidate.evidence) || candidate.evidence.length > 100) invalid();
     for (const evidence of candidate.evidence) {

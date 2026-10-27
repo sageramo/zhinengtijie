@@ -235,6 +235,22 @@ test('missing fixed time shows the original fragment next to fields and no defau
   assert.equal(priority.autocomplete, 'off');
   assert.match(app.find('[data-priority-help]').textContent, /尚未选择/);
 });
+
+test('an extracted known start stays visible while only the missing end requires user input', async t => {
+  const snapshot = JSON.parse(basketballSnapshot());
+  snapshot.tasks[0].fixed_start_at = '2026-10-26T18:00:00+08:00';
+  snapshot.tasks[0].evidence = snapshot.tasks[0].evidence.filter(item => item.field !== 'fixed_end_at');
+  const app = await boot(t, { initialRaw: JSON.stringify(snapshot) });
+  assert.equal(app.find('[data-task-field="fixed_start_at"]').value, '2026-10-26T18:00');
+  assert.equal(app.find('[data-task-field="fixed_end_at"]').value, '');
+  assert.equal(app.find('[data-action="resolve-time"]'), null);
+  assert.match(app.find('.time-review').textContent, /不会自动估计/);
+  app.input('[data-task-field="must_do"]', 'false');
+  app.input('[data-task-field="priority"]', '20');
+  app.click('[data-action="confirm"]');
+  assert.strictEqual(app.document.activeElement, app.find('[data-task-field="fixed_end_at"]'));
+  assert.deepEqual(app.calls, []);
+});
 test('time completion requires an explicit reference day before transmitting the notice', async t => {
   const app = await boot(t, { initialRaw: basketballSnapshot() });
   app.click('[data-action="resolve-time"]'); await flush();
