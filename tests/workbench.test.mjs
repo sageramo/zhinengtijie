@@ -222,6 +222,172 @@ test('declining an evening example replacement preserves the existing snapshot',
   assert.deepEqual(app.calls, []);
 });
 
+async function plannedApp(t, options = {}) {
+  const app = await shortWork(t, { route(call) { return planned(call.body); }, ...options });
+  app.click('#generatePlan'); await flush();
+  assert.ok(app.find('#scenarioForm'));
+  return app;
+}
+async function measureRemaining(app, value) {
+  app.input('#scenarioMinutes', value); app.submit('#scenarioForm'); await flush();
+}
+
+test('a hypothetical comparison leaves the original snapshot and result intact until adoption', async t => {
+  const app = await plannedApp(t);
+  const before = app.data.get(STORAGE_KEY), writes = app.writes.length;
+  const originalHeading = app.find('#resultOutput h3').textContent;
+  await measureRemaining(app, '4');
+  assert.equal(app.find('#resultOutput h3').textContent, originalHeading);
+  assert.equal(app.data.get(STORAGE_KEY), before); assert.equal(app.writes.length, writes);
+  const hypothetical = app.calls.filter(call => call.path === '/api/v2/plan').at(-1).body;
+  assert.equal(hypothetical.tasks[0].remaining_minutes, 4);
+  assert.equal(hypothetical.tasks[0].status, 'confirmed');
+  assert.ok(!Object.hasOwn(hypothetical, 'proposal'));
+  assert.match(app.find('#scenarioOutput').textContent, /假设方案，尚未采用/);
+  assert.equal(app.find('[data-scenario-action="adopt"]').disabled, true);
+  app.click('[data-scenario-action="adopt"]'); assert.equal(app.data.get(STORAGE_KEY), before);
+  app.click('#scenarioReality'); app.click('[data-scenario-action="adopt"]'); await flush();
+  assert.equal(app.stored().tasks[0].remaining_minutes, 4);
+  assert.equal(app.stored().tasks[0].status, 'draft');
+  assert.ok(!app.stored().tasks[0].confirmed_fields.includes('remaining_minutes'));
+  assert.equal(app.document.activeElement.dataset.action, 'confirm');
+  assert.equal(app.find('.schedule-row'), null);
+  const calls = app.calls.length; app.click('#generatePlan'); await flush();
+  assert.equal(app.calls.length, calls); assert.match(app.find('#appMessage').textContent, /需要核对/);
+});
+
+test('discarding a measured hypothesis does not save or change current numbers', async t => {
+  const app = await plannedApp(t); const before = app.data.get(STORAGE_KEY);
+  await measureRemaining(app, '4');
+  app.click('[data-scenario-action="discard"]'); await flush();
+  assert.equal(app.data.get(STORAGE_KEY), before);
+  assert.match(app.find('#scenarioOutput').textContent, /已放弃/);
+  assert.equal(app.document.activeElement.id, 'measureScenario');
+  assert.equal(app.find('[data-scenario-action="adopt"]'), null);
+  assert.match(app.find('#resultOutput > h3').textContent, /通过校验/);
+});
+
+test('changing hypothesis input removes its old result and consent without editing the snapshot', async t => {
+  const app = await plannedApp(t); const before = app.data.get(STORAGE_KEY);
+  await measureRemaining(app, '4'); app.click('#scenarioReality');
+  app.input('#scenarioMinutes', '3');
+  assert.equal(app.find('[data-scenario-action="adopt"]'), null);
+  assert.match(app.find('#scenarioOutput').textContent, /原试算结果失效/);
+  assert.equal(app.data.get(STORAGE_KEY), before);
+  await measureRemaining(app, '3');
+  assert.equal(app.find('#scenarioReality').checked, false);
+});
+
+test('an invalid hypothesis is explained beside the form and never posted', async t => {
+  const app = await plannedApp(t); const before = app.calls.length;
+  for (const value of ['', '0', '-1', '1.5', '10000001', '5']) {
+    await measureRemaining(app, value);
+    assert.equal(app.calls.length, before);
+    assert.ok(app.find('#scenarioOutput .field-error'));
+    assert.equal(app.find('.result-success').textContent, '找到一份通过校验的安排');
+  }
+});
+
+test('a late hypothetical result cannot repaint a checklist that was edited meanwhile', async t => {
+  const response = deferred(); let submitted, posts = 0;
+  const app = await plannedApp(t, { route(call) { if (++posts === 1) return planned(call.body); submitted = call.body; return response.promise; } });
+  await measureRemaining(app, '4');
+  app.input('[data-task-field="remaining_minutes"]', '6');
+  response.resolve(planned(submitted)); await flush();
+  assert.equal(app.find('#scenarioForm'), null); assert.equal(app.find('.schedule-row'), null);
+  assert.equal(app.stored().tasks[0].remaining_minutes, 6);
+});
+
+test('newer hypothetical measurements win without a snapshot revision change', async t => {
+  const first = deferred(); let older, posts = 0;
+  const app = await plannedApp(t, { route(call) { posts += 1; if (posts === 2) { older = call.body; return first.promise; } return planned(call.body); } });
+  const revision = app.stored().revision;
+  await measureRemaining(app, '4'); await measureRemaining(app, '3');
+  assert.match(app.find('#scenarioOutput').textContent, /→ 3分钟/);
+  const newer = app.find('#scenarioOutput').innerHTML;
+  first.resolve(planned(older)); await flush();
+  assert.equal(app.find('#scenarioOutput').innerHTML, newer);
+  assert.equal(app.stored().revision, revision);
+});
+
+for (const action of ['calculate', 'generatePlan']) test(`starting ${action} discards an in-flight hypothesis even when revision stays the same`, async t => {
+  const pending = deferred(); let older, posts = 0;
+  const app = await plannedApp(t, { route(call) {
+    posts += 1;
+    if (posts === 2) { older = call.body; return pending.promise; }
+    return call.path === '/api/v2/calculate' ? calculated(call.body, { required: 5, available: 9 }) : planned(call.body);
+  } });
+  await measureRemaining(app, '4'); app.click(`#${action}`); await flush();
+  const newer = app.find('#resultOutput').innerHTML;
+  pending.resolve(planned(older)); await flush();
+  assert.equal(app.find('#resultOutput').innerHTML, newer);
+  assert.equal(app.find('[data-scenario-action="adopt"]'), null);
+});
+
+test('switching services discards an in-flight hypothesis and cannot enable its adoption', async t => {
+  const pending = deferred(); let older, posts = 0;
+  const app = await plannedApp(t, { route(call) { if (++posts === 1) return planned(call.body); older = call.body; return pending.promise; } });
+  await measureRemaining(app, '4');
+  app.input('#apiBase', 'https://second.invalid'); app.submit('#apiForm'); await flush();
+  pending.resolve(planned(older)); await flush();
+  assert.equal(app.find('#scenarioForm'), null); assert.equal(app.find('[data-scenario-action="adopt"]'), null);
+});
+
+test('a stale or failed hypothetical response preserves the original successful result', async t => {
+  let posts = 0;
+  const app = await plannedApp(t, { route(call) {
+    const result = planned(call.body);
+    if (++posts > 1) result.revision -= 1;
+    return result;
+  } });
+  const before = app.data.get(STORAGE_KEY);
+  await measureRemaining(app, '4');
+  assert.equal(app.data.get(STORAGE_KEY), before);
+  assert.match(app.find('#scenarioOutput').textContent, /试算未完成/);
+  assert.equal(app.find('[data-scenario-action="adopt"]'), null);
+  assert.match(app.find('#resultOutput > h3').textContent, /通过校验/);
+});
+
+test('old planning capability on a fresh handshake prevents posting a hypothesis', async t => {
+  let checks = 0;
+  const app = await plannedApp(t, { healthRoute() { return { capabilities: ++checks === 1 ? ['snapshot_v2', 'bounded_planning_v1'] : ['snapshot_v2'] }; } });
+  await measureRemaining(app, '4');
+  assert.equal(app.calls.filter(call => call.path === '/api/v2/plan').length, 1);
+  assert.match(app.find('#scenarioOutput').textContent, /假设未提交/);
+});
+
+test('new availability adoption preserves task confirmations and does not install a preview schedule', async t => {
+  const day = '2031-03-14';
+  let snapshot = createSnapshot({ referenceTime: `${day}T18:00:00+08:00` });
+  const task = createTask('flexible');
+  Object.assign(task, { title: '报告', deadline_at: `${day}T22:00:00+08:00`, remaining_minutes: 120, priority: 75, must_do: true, splittable: true, min_block_minutes: 30 });
+  snapshot = confirmTask(addTask(snapshot, task), task.id);
+  snapshot = setAvailability(snapshot, [{ start: `${day}T18:00:00+08:00`, end: `${day}T19:00:00+08:00` }]);
+  const app = await boot(t, { initialRaw: serializeSnapshot(snapshot), capabilities: ['snapshot_v2', 'bounded_planning_v1'], route(call) {
+    const body = call.body; const hasNew = body.availability.length === 2;
+    const result = planned(body, hasNew ? 'feasible_found' : 'conflicts_detected');
+    result.capacity_checks = [{ deadline: body.tasks[0].deadline_at, known_required_minutes: 120, available_minutes: hasNew ? 120 : 60 }];
+    result.conflicts = hasNew ? [] : [{ reason: '容量缺少60分钟', tasks: ['报告'] }];
+    if (hasNew) result.schedule = body.availability.map(interval => ({ ...interval, task_id: task.id, kind: 'work' }));
+    return result;
+  } });
+  app.click('#generatePlan'); await flush();
+  const before = app.data.get(STORAGE_KEY);
+  app.input('#scenarioKind', 'availability');
+  assert.equal(app.find('#scenarioWorkFields').disabled, true);
+  assert.equal(app.find('#scenarioAvailabilityFields').hidden, false);
+  app.input('#scenarioStart', `${day}T20:00`); app.input('#scenarioEnd', `${day}T21:00`);
+  app.submit('#scenarioForm'); await flush();
+  assert.equal(app.data.get(STORAGE_KEY), before);
+  const cells = app.find('#scenarioOutput tbody').children[1].children;
+  assert.equal(cells[1].textContent, '60 分钟'); assert.equal(cells[2].textContent, '0 分钟');
+  app.click('#scenarioReality'); app.click('[data-scenario-action="adopt"]'); await flush();
+  assert.equal(app.stored().availability.length, 2);
+  assert.deepEqual(app.stored().tasks, snapshot.tasks);
+  assert.equal(app.find('.schedule-row'), null);
+  assert.equal(app.document.activeElement.id, 'generatePlan');
+});
+
 test('opening an empty workbench sends no network request and creates no saved data', async t => {
   const app = await boot(t);
   assert.deepEqual(app.calls, []);

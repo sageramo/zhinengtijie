@@ -8,6 +8,7 @@ import { SnapshotStore } from './snapshot-store.js';
 import { modelCandidates } from './model-candidates.js';
 import { reviewTimePatch } from './time-review.js';
 import { readPlanResponse, planMarkup } from './planning-result.js';
+import { canCompare, buildScenario, adoptScenario, scenarioForm, comparisonMarkup } from './scenario.js';
 
 const $ = id => document.getElementById(id);
 const escapeHTML = value => String(value ?? '').replace(/[&<>"']/g, character => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[character]);
@@ -54,6 +55,8 @@ let planResult = null;
 let hasCalculated = false;
 let activeParse = null;
 let activeCalculation = null;
+let activeScenario = null;
+let scenarioPreview = null;
 let importSequence = 0;
 let connectionSequence = 0;
 let invalidReference = false;
@@ -61,6 +64,7 @@ const invalidEdits = new Map();
 const parseGate = new RevisionGate();
 const calculateGate = new RevisionGate();
 const timeReviewGate = new RevisionGate();
+const scenarioGate = new RevisionGate();
 
 function tell(message, type = '') {
   $('appMessage').textContent = message;
@@ -122,6 +126,7 @@ function busy(button, value, idle, working) {
   button.textContent = value ? working : idle;
 }
 function invalidateResults() {
+  invalidateScenario();
   calculateGate.invalidate();
   parseGate.invalidate();
   timeReviewGate.invalidate();
@@ -309,7 +314,7 @@ function renderReferencePrecision() {
 function renderResult() {
   const output = $('resultOutput');
   if (planResult) {
-    output.innerHTML = planMarkup(planResult, snapshot, readableTime);
+    output.innerHTML = planMarkup(planResult, snapshot, readableTime) + (canCompare(planResult) ? scenarioForm(snapshot, toLocalInput) : '');
     output.removeAttribute('aria-busy');
     return;
   }
@@ -577,6 +582,7 @@ async function runAnalysis(mode) {
     if (new TextEncoder().encode(serializeSnapshot(snapshot)).byteLength > MAX_SNAPSHOT_BYTES) throw new Error('清单超过15MB，请导出并拆分清单后再检查。');
   } catch (error) { return tell(error.message, 'error'); }
   const submitted = clone(snapshot);
+  invalidateScenario();
   const ticket = calculateGate.begin(submitted);
   activeCalculation = ticket;
   const base = apiBase;
@@ -613,6 +619,104 @@ async function runAnalysis(mode) {
 }
 $('calculate').addEventListener('click', () => runAnalysis('calculate'));
 $('generatePlan').addEventListener('click', () => runAnalysis('plan'));
+
+function invalidateScenario(message = '') {
+  scenarioGate.invalidate();
+  activeScenario = null;
+  scenarioPreview = null;
+  const output = $('scenarioOutput');
+  if (output) {
+    output.removeAttribute('aria-busy');
+    output.innerHTML = `<p class="result-caption">${escapeHTML(message || '方案参数已修改，原试算结果失效；当前清单未改变。')}</p>`;
+  }
+  if ($('measureScenario')) busy($('measureScenario'), false, '按此假设测算');
+}
+function scenarioInput() {
+  if ($('scenarioKind').value === 'remaining') {
+    const raw = $('scenarioMinutes').value;
+    if (!/^[0-9]{1,8}$/.test(raw)) throw new Error('请填写1至10000000的整数分钟。');
+    return { kind: 'remaining', task_id: $('scenarioTask').value, minutes: Number(raw) };
+  }
+  if ($('scenarioKind').value !== 'availability') throw new Error('请选择有效的调整方式。');
+  return { kind: 'availability', start: fromLocalInput($('scenarioStart').value), end: fromLocalInput($('scenarioEnd').value) };
+}
+function scenarioAccepts(ticket, originalPlan, base) {
+  return scenarioGate.accepts(ticket, snapshot.revision) && planResult === originalPlan && apiBase === base;
+}
+$('resultOutput').addEventListener('input', event => {
+  if (event.target.id === 'scenarioReality') {
+    const adopt = $('scenarioOutput')?.querySelector('[data-scenario-action="adopt"]');
+    if (adopt) adopt.disabled = !event.target.checked;
+    return;
+  }
+  if (!event.target.closest('#scenarioForm')) return;
+  invalidateScenario();
+  event.target.removeAttribute('aria-invalid');
+  if (event.target.id === 'scenarioKind') {
+    const work = event.target.value === 'remaining';
+    $('scenarioWorkFields').hidden = !work; $('scenarioWorkFields').disabled = !work;
+    $('scenarioAvailabilityFields').hidden = work; $('scenarioAvailabilityFields').disabled = work;
+  }
+});
+$('resultOutput').addEventListener('submit', async event => {
+  if (event.target.id !== 'scenarioForm') return;
+  event.preventDefault();
+  if (!canCompare(planResult) || externalConflict) return tell('当前结果已失效，请先重新生成正式安排。', 'warning');
+  invalidateScenario();
+  const originalPlan = planResult;
+  let prepared;
+  try { prepared = buildScenario(snapshot, scenarioInput()); }
+  catch (error) {
+    $('scenarioOutput').innerHTML = `<p class="field-error" role="alert">${escapeHTML((error.errors || [error.message]).join('；'))}</p>`;
+    const input = $($('scenarioKind').value === 'remaining' ? 'scenarioMinutes' : !$('scenarioStart').value ? 'scenarioStart' : 'scenarioEnd');
+    input.setAttribute('aria-invalid', 'true'); input.focus();
+    return;
+  }
+  const ticket = scenarioGate.begin(snapshot);
+  const base = apiBase;
+  activeScenario = ticket;
+  $('scenarioOutput').setAttribute('aria-busy', 'true');
+  $('scenarioOutput').innerHTML = '<p class="loading-output">正在测算这项假设，当前清单和原结果保留。</p>';
+  busy($('measureScenario'), true, '按此假设测算', '正在测算并校验…');
+  try {
+    const health = await ensureCapabilities(base, { fresh: true });
+    if (!scenarioAccepts(ticket, originalPlan, base)) return;
+    if (!health.capabilities.includes('bounded_planning_v1')) throw new Error('当前服务不支持具体排程，假设未提交；请检查服务版本。');
+    const raw = await request('/api/v2/plan', prepared.candidate, base);
+    if (!scenarioAccepts(ticket, originalPlan, base)) return;
+    const computed = readPlanResponse(raw, prepared.candidate);
+    scenarioPreview = { ...prepared, originalPlan, ticket, base };
+    $('scenarioOutput').innerHTML = comparisonMarkup(originalPlan, computed, prepared.proposal, prepared.candidate, readableTime);
+    $('scenarioOutput').removeAttribute('aria-busy');
+  } catch (error) {
+    if (scenarioAccepts(ticket, originalPlan, base)) {
+      $('scenarioOutput').removeAttribute('aria-busy');
+      $('scenarioOutput').innerHTML = `<p class="field-error" role="alert">试算未完成：${escapeHTML(error.message)} 当前清单未改变，可以修改参数或重试。</p>`;
+    }
+  } finally { if (activeScenario === ticket) { activeScenario = null; if ($('measureScenario')) busy($('measureScenario'), false, '按此假设测算'); } }
+});
+$('resultOutput').addEventListener('click', event => {
+  const button = event.target.closest('[data-scenario-action]');
+  if (!button) return;
+  if (button.dataset.scenarioAction === 'discard') { invalidateScenario('已放弃此方案，当前清单和原结果保持原样。'); $('measureScenario')?.focus(); return; }
+  const preview = scenarioPreview;
+  if (!preview || !scenarioAccepts(preview.ticket, preview.originalPlan, preview.base) || externalConflict) { invalidateScenario('旧方案已失效，请重新测算。'); return; }
+  if (!$('scenarioReality')?.checked) return tell('请先确认改动符合实际，再决定是否写入清单。', 'warning');
+  try {
+    const next = adoptScenario(snapshot, preview.proposal);
+    commit(next);
+    tell(preview.proposal.input.kind === 'remaining' ? '已写入工时改动，该事项恢复待核对。请重新确认后生成正式安排。' : '已写入你确认的新增空闲。请重新生成正式安排，试算结果没有直接替换当前安排。');
+    if (preview.proposal.input.kind === 'remaining') {
+      const card = Array.from($('taskList').querySelectorAll('[data-task-id]')).find(node => node.dataset.taskId === preview.proposal.input.task_id);
+      const confirm = card?.querySelector('[data-action="confirm"]');
+      if (confirm) { confirm.closest('details').open = true; confirm.focus({ preventScroll: true }); }
+      $('taskSection').scrollIntoView({ behavior: scrollBehavior(), block: 'start' });
+    } else {
+      $('generatePlan').focus({ preventScroll: true });
+      $('resultSection').scrollIntoView({ behavior: scrollBehavior(), block: 'start' });
+    }
+  } catch (error) { tell(`未采用：${(error.errors || [error.message]).join('；')}`, 'error'); }
+});
 
 $('apiBase').value = apiBase;
 $('apiForm').addEventListener('submit', async event => {

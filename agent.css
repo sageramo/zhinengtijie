@@ -135,6 +135,11 @@ summary { cursor: pointer; color: var(--accent-deep); min-height: 40px; padding:
 .schedule-time { font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
 .schedule-time span { display: block; }
 .plan-details { margin-top: 18px; }
+.scenario-workbench { margin-top: 30px; padding-top: 22px; border-top: 1px solid var(--line-strong); }
+.scenario-workbench > .result-caption, .scenario-workbench form { max-width: 65ch; }
+.scenario-assumption { margin-top: 22px; font-size: .875rem; font-weight: 600; overflow-wrap: anywhere; }
+.scenario-workbench caption { text-align: left; margin-bottom: 8px; color: var(--muted); }
+.scenario-workbench td, .scenario-workbench th { min-width: 112px; }
 .result-heading { font-size: 1.125rem; margin-top: 25px; }
 .result-caption { color: var(--muted); font-size: .875rem; margin-top: 8px; }
 .result-warning { color: var(--warning); }

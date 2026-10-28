@@ -1,4 +1,6 @@
-/** Real HTTP + actual app module, in jsdom. No browser/layout/screenshots. */
+/** Real HTTP + actual app module, in jsdom. No browser/layout/screenshots.
+ * Pass --scenarios to additionally exercise hypothetical comparison/adoption.
+ */
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { setTimeout } from 'node:timers/promises';
@@ -30,11 +32,18 @@ const errors = [];
 window.addEventListener('error', event => { errors.push(String(event.error)); });
 const doc = window.document;
 const click = selector => { assert.ok(doc.querySelector(selector), selector); doc.querySelector(selector).click(); };
+const input = (selector, value) => { const node = doc.querySelector(selector); assert.ok(node, selector); node.value = value; node.dispatchEvent(new window.Event('input', { bubbles: true })); };
+const submit = selector => { const node = doc.querySelector(selector); assert.ok(node, selector); node.dispatchEvent(new window.Event('submit', { bubbles: true, cancelable: true })); };
 const flush = () => setTimeout(20);
 async function settlePlan() {
   const deadline = Date.now() + 10000;
   while (doc.getElementById('resultOutput').getAttribute('aria-busy') === 'true' && Date.now() < deadline) await flush();
   assert.notEqual(doc.getElementById('resultOutput').getAttribute('aria-busy'), 'true', 'request must settle');
+}
+async function settleScenario() {
+  const deadline = Date.now() + 10000;
+  while (doc.getElementById('scenarioOutput').getAttribute('aria-busy') === 'true' && Date.now() < deadline) await flush();
+  assert.notEqual(doc.getElementById('scenarioOutput').getAttribute('aria-busy'), 'true', 'hypothesis must settle');
 }
 const stored = () => JSON.parse(data.get(STORAGE_KEY));
 const confirmAll = () => { for (const task of stored().tasks) click(`[data-task-id="${task.id}"] [data-action="confirm"]`); };
@@ -70,6 +79,59 @@ try {
   const short = responses.filter(item => item.path === '/api/v2/plan').at(-1).payload;
   assert.equal(short.status, 'feasible_found'); assert.equal(doc.querySelectorAll('.schedule-row').length, 1);
   cases.push({ id: 'change_and_reconfirm_then_replan', passed: true, status: short.status, schedule: short.schedule });
+  if (process.argv.includes('--scenarios')) {
+    const beforeHypothesis = data.get(STORAGE_KEY);
+    input('#scenarioMinutes', '4'); submit('#scenarioForm'); await settleScenario();
+    const measured = responses.filter(item => item.path === '/api/v2/plan').at(-1).payload;
+    assert.equal(measured.status, 'feasible_found');
+    assert.equal(data.get(STORAGE_KEY), beforeHypothesis);
+    assert.equal(doc.querySelector('[data-scenario-action="adopt"]').disabled, true);
+    cases.push({ id: 'work_hypothesis_readonly', passed: true, preview_minutes: 4, actual_minutes: stored().tasks[0].remaining_minutes, adoption_requires_consent: true });
+    const beforeAdoptionCalls = calls.length;
+    click('#scenarioReality'); click('[data-scenario-action="adopt"]'); await flush();
+    assert.equal(stored().tasks[0].remaining_minutes, 4); assert.equal(stored().tasks[0].status, 'draft');
+    assert.equal(doc.querySelector('.schedule-row'), null);
+    click('#generatePlan'); assert.equal(calls.length, beforeAdoptionCalls);
+    confirmAll(); await flush(); click('#generatePlan'); await settlePlan();
+    assert.equal(responses.filter(item => item.path === '/api/v2/plan').at(-1).payload.status, 'feasible_found');
+    cases.push({ id: 'work_adoption_requires_reconfirmation_and_formal_replan', passed: true });
+    const beforeOverlap = data.get(STORAGE_KEY);
+    const reference = stored().reference_time;
+    const toInput = value => new Date(Date.parse(value) + 8 * 3600000).toISOString().slice(0, 16);
+    input('#scenarioKind', 'availability');
+    input('#scenarioStart', toInput(reference)); input('#scenarioEnd', toInput(new Date(Date.parse(reference) + 120 * 60000).toISOString()));
+    submit('#scenarioForm'); await settleScenario();
+    const overlap = responses.filter(item => item.path === '/api/v2/plan').at(-1).payload;
+    assert.equal(overlap.capacity_checks[0].available_minutes, 9);
+    assert.equal(data.get(STORAGE_KEY), beforeOverlap);
+    click('[data-scenario-action="discard"]');
+    assert.equal(data.get(STORAGE_KEY), beforeOverlap);
+    cases.push({ id: 'overlap_and_time_after_deadline_do_not_inflate_capacity', passed: true, available: 9, discarded_without_changes: true });
+    click('#loadEveningPlan'); await flush(); confirmAll(); await flush();
+    click('[data-remove-availability="0"]'); click('#addAvailability');
+    const start = toInput(stored().reference_time);
+    input('#availabilityStart', start); input('#availabilityEnd', `${start.slice(0, 10)}T19:00`); submit('#availabilityForm'); await flush();
+    click('#generatePlan'); await settlePlan();
+    const scarce = responses.filter(item => item.path === '/api/v2/plan').at(-1).payload;
+    assert.equal(scarce.status, 'conflicts_detected');
+    const beforeExtraTime = data.get(STORAGE_KEY);
+    input('#scenarioKind', 'availability');
+    input('#scenarioStart', `${start.slice(0, 10)}T20:00`); input('#scenarioEnd', `${start.slice(0, 10)}T21:00`); submit('#scenarioForm'); await settleScenario();
+    const enough = responses.filter(item => item.path === '/api/v2/plan').at(-1).payload;
+    assert.equal(enough.status, 'feasible_found'); assert.equal(enough.validation.passed, true);
+    const deficit = plan => Math.max(0, ...plan.capacity_checks.map(row => row.known_required_minutes - row.available_minutes));
+    assert.equal(deficit(scarce), 60); assert.equal(deficit(enough), 0);
+    assert.equal(data.get(STORAGE_KEY), beforeExtraTime);
+    cases.push({ id: 'extra_time_hypothesis_resolves_real_capacity_deficit', passed: true, baseline_status: scarce.status, hypothetical_status: enough.status, before_deficit: 60, after_deficit: 0, snapshot_unchanged: true });
+    const tasksBeforeAdoption = stored().tasks;
+    click('#scenarioReality'); click('[data-scenario-action="adopt"]'); await flush();
+    assert.equal(stored().availability.length, 2); assert.deepEqual(stored().tasks, tasksBeforeAdoption);
+    assert.equal(doc.querySelector('.schedule-row'), null);
+    click('#generatePlan'); await settlePlan();
+    const formal = responses.filter(item => item.path === '/api/v2/plan').at(-1).payload;
+    assert.equal(formal.status, 'feasible_found'); assert.equal(formal.validation.passed, true);
+    cases.push({ id: 'extra_time_adoption_preserves_tasks_and_requires_formal_replan', passed: true, schedule: formal.schedule });
+  }
   assert.deepEqual(errors, []);
-  process.stdout.write(JSON.stringify({ kind: 'real_temporary_http_and_jsdom_not_browser', ui_version: doc.querySelector('meta[name="sixu-ui-version"]').content, backend_version: responses.find(item => item.path === '/api/health').payload.version, passed: cases.length, cases, request_paths: calls }, null, 2));
+  process.stdout.write(JSON.stringify({ kind: 'real_http_and_jsdom_not_browser', ui_version: doc.querySelector('meta[name="sixu-ui-version"]').content, backend_version: responses.find(item => item.path === '/api/health').payload.version, passed: cases.length, cases, request_paths: calls }, null, 2));
 } finally { window.close(); }

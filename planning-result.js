@@ -15,6 +15,7 @@ function instant(value) {
   if (fraction.length > 6) throw new Error('安排时间精度超出服务约定。');
   return BigInt(Date.parse(value.replace(/\.\d+(?=Z|[+-]\d{2}:\d{2}$)/, ''))) * 1000n + BigInt(fraction.padEnd(6, '0'));
 }
+export { instant as timestampMicros };
 
 /** Response boundary checks; the independent constraint checker runs on the server. */
 export function readPlanResponse(payload, snapshot) {
