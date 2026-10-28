@@ -4,6 +4,9 @@ import { planMarkup, timestampMicros } from './planning-result.js';
 const inactive = task => ['completed', 'cancelled'].includes(task.status);
 const escape = value => String(value ?? '').replace(/[&<>"']/g, character => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[character]);
 export const canCompare = plan => ['feasible_found', 'conflicts_detected', 'not_found'].includes(plan?.status);
+function inputError(field, message) {
+  throw Object.assign(new Error(message), { scenarioField: field });
+}
 
 /** A user-entered hypothesis lives only in memory until explicitly adopted. */
 export function buildScenario(snapshot, input) {
@@ -15,17 +18,18 @@ export function buildScenario(snapshot, input) {
   let candidate, summary;
   if (input.kind === 'remaining') {
     const task = snapshot.tasks.find(task => task.id === input.task_id);
-    if (!task || inactive(task) || task.kind !== 'flexible') throw new Error('只能测算未完成工作的剩余工时。');
-    if (!Number.isSafeInteger(input.minutes) || input.minutes < 1 || input.minutes > 10000000) throw new Error('剩余工时须为1至10000000的整数分钟；已完成请使用“标记完成”。');
-    if (input.minutes === task.remaining_minutes) throw new Error('新工时与当前相同，请填写实际变化后的估计。');
-    if (task.splittable && input.minutes < task.min_block_minutes) throw new Error('新工时小于最小连续时长，请先核对分段规则；试算不会自动放松约束。');
+    if (!task || inactive(task) || task.kind !== 'flexible') inputError('task_id', '只能测算未完成工作的剩余工时。');
+    if (!Number.isSafeInteger(input.minutes) || input.minutes < 1 || input.minutes > 10000000) inputError('minutes', '剩余工时须为1至10000000的整数分钟；已完成请使用“标记完成”。');
+    if (input.minutes === task.remaining_minutes) inputError('minutes', '新工时与当前相同，请填写实际变化后的估计。');
+    if (task.splittable && input.minutes < task.min_block_minutes) inputError('minutes', '新工时小于最小连续时长，请先核对分段规则；试算不会自动放松约束。');
     // Confirmation applies only to the explicitly requested hypothetical copy.
     candidate = confirmTask(editTask(snapshot, task.id, { remaining_minutes: input.minutes }), task.id);
     summary = `${task.title}：剩余${task.remaining_minutes}分钟 → ${input.minutes}分钟（假设）`;
   } else {
-    if (!isTimestamp(input.start) || !isTimestamp(input.end) || timestampMicros(input.end) <= timestampMicros(input.start)) throw new Error('请填写完整的新增空闲时段，结束须晚于开始。');
-    if (timestampMicros(input.start) < timestampMicros(snapshot.reference_time)) throw new Error('新增空闲不能早于本次计算起点。');
-    if (snapshot.availability.some(row => timestampMicros(row.start) === timestampMicros(input.start) && timestampMicros(row.end) === timestampMicros(input.end))) throw new Error('这段空闲已经存在，请填写不同的实际时段。');
+    if (!isTimestamp(input.start)) inputError('start', '请填写有效的新增空闲开始时间。');
+    if (!isTimestamp(input.end) || timestampMicros(input.end) <= timestampMicros(input.start)) inputError('end', '请填写完整的新增空闲时段，结束须晚于开始。');
+    if (timestampMicros(input.start) < timestampMicros(snapshot.reference_time)) inputError('start', '新增空闲不能早于本次计算起点。');
+    if (snapshot.availability.some(row => timestampMicros(row.start) === timestampMicros(input.start) && timestampMicros(row.end) === timestampMicros(input.end))) inputError('start', '这段空闲已经存在，请填写不同的实际时段。');
     candidate = setAvailability(snapshot, [...snapshot.availability, { start: input.start, end: input.end }]);
     summary = '假设可以增加一段实际空闲；重叠部分不会重复增加容量。';
   }

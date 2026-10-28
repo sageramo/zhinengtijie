@@ -30,7 +30,7 @@ function calculated(body, { required = 180, available = 9, warning = '' } = {}) 
   };
 }
 
-async function boot(t, { route, healthRoute, initialRaw = null, capabilities = ['snapshot_v2'] } = {}) {
+async function boot(t, { route, healthRoute, httpStatus, initialRaw = null, capabilities = ['snapshot_v2'] } = {}) {
   // No resources option: stylesheets/scripts/images are never fetched by jsdom.
   const dom = new JSDOM(HTML, { url: 'http://localhost:8873/', runScripts: 'outside-only' });
   const { window } = dom;
@@ -58,7 +58,8 @@ async function boot(t, { route, healthRoute, initialRaw = null, capabilities = [
     else if (route) payload = await route(call);
     else if (path === '/api/v2/calculate') payload = calculated(body);
     else throw new Error(`Unexpected mocked request: ${path}`);
-    return { ok: true, status: 200, async text() { return JSON.stringify(payload); } };
+    const status = httpStatus ? httpStatus(call) : 200;
+    return { ok: status >= 200 && status < 300, status, async text() { return JSON.stringify(payload); } };
   };
   const globals = { window, document: window.document, location: window.location, navigator: window.navigator, fetch: mockedFetch };
   const original = new Map(Object.keys(globals).map(key => [key, Object.getOwnPropertyDescriptor(globalThis, key)]));
@@ -386,6 +387,79 @@ test('new availability adoption preserves task confirmations and does not instal
   assert.deepEqual(app.stored().tasks, snapshot.tasks);
   assert.equal(app.find('.schedule-row'), null);
   assert.equal(app.document.activeElement.id, 'generatePlan');
+});
+
+test('an availability start before the reference marks and focuses the start, with an associated error', async t => {
+  const app = await plannedApp(t);
+  const toInput = value => new Date(value + 8 * 3600000).toISOString().slice(0, 16);
+  const reference = Date.parse(app.stored().reference_time), before = app.calls.length;
+  app.input('#scenarioKind', 'availability');
+  app.input('#scenarioStart', toInput(reference - 60000)); app.input('#scenarioEnd', toInput(reference + 180000));
+  app.submit('#scenarioForm'); await flush();
+  assert.equal(app.calls.length, before);
+  assert.match(app.find('#scenarioOutput').textContent, /不能早于/);
+  assert.equal(app.find('#scenarioStart').getAttribute('aria-invalid'), 'true');
+  assert.notEqual(app.find('#scenarioEnd').getAttribute('aria-invalid'), 'true');
+  assert.equal(app.document.activeElement.id, 'scenarioStart');
+  assert.ok(app.find('#scenarioStart').getAttribute('aria-describedby')?.split(/\s+/).includes('scenarioValidationError'));
+});
+
+test('correcting an availability error clears stale error labels before a successful trial', async t => {
+  const app = await plannedApp(t);
+  const toInput = value => new Date(value + 8 * 3600000).toISOString().slice(0, 16);
+  const reference = Date.parse(app.stored().reference_time);
+  app.input('#scenarioKind', 'availability');
+  app.input('#scenarioStart', toInput(reference - 60000)); app.input('#scenarioEnd', toInput(reference + 180000));
+  app.submit('#scenarioForm'); await flush();
+  app.input('#scenarioStart', toInput(reference + 60000)); app.submit('#scenarioForm'); await flush();
+  assert.ok(app.find('#scenarioOutput table'));
+  assert.equal(app.find('#scenarioForm [aria-invalid="true"]'), null);
+  assert.equal(app.find('#scenarioForm [aria-describedby~="scenarioValidationError"]'), null);
+  assert.equal(app.find('#scenarioValidationError'), null);
+});
+
+test('a failed trial connection keeps the original plan and can be retried without losing input', async t => {
+  let posts = 0;
+  const app = await plannedApp(t, { route(call) { if (++posts === 2) throw new Error('模拟断网'); return planned(call.body); } });
+  const before = app.data.get(STORAGE_KEY);
+  await measureRemaining(app, '4');
+  assert.equal(app.data.get(STORAGE_KEY), before);
+  assert.match(app.find('#scenarioOutput').textContent, /模拟断网/);
+  assert.equal(app.find('[data-scenario-action="adopt"]'), null);
+  assert.equal(app.find('#scenarioMinutes').value, '4');
+  assert.equal(app.find('#measureScenario').disabled, false);
+  assert.match(app.find('#resultOutput > h3').textContent, /通过校验/);
+  app.submit('#scenarioForm'); await flush();
+  assert.ok(app.find('#scenarioOutput table'));
+  assert.equal(app.data.get(STORAGE_KEY), before);
+});
+
+test('HTTP 503 during trial is recoverable and never masquerades as a successful hypothesis', async t => {
+  const app = await plannedApp(t, {
+    httpStatus(call) { return call.path === '/api/v2/plan' && call.body.tasks[0].remaining_minutes === 4 ? 503 : 200; },
+    route(call) { return call.body.tasks[0].remaining_minutes === 4 ? { error: '模拟服务维护' } : planned(call.body); },
+  });
+  const before = app.data.get(STORAGE_KEY);
+  await measureRemaining(app, '4');
+  assert.match(app.find('#scenarioOutput').textContent, /模拟服务维护/);
+  assert.equal(app.find('#scenarioOutput .result-success'), null);
+  assert.equal(app.find('[data-scenario-action="adopt"]'), null);
+  assert.equal(app.data.get(STORAGE_KEY), before);
+  await measureRemaining(app, '3');
+  assert.ok(app.find('#scenarioOutput table'));
+  assert.equal(app.data.get(STORAGE_KEY), before);
+});
+
+test('adopting after a missed cross-tab event never overwrites the foreign saved snapshot', async t => {
+  const app = await plannedApp(t);
+  await measureRemaining(app, '4'); app.click('#scenarioReality');
+  const foreign = app.stored(); foreign.label = '其他标签页已保存的新版本';
+  const raw = serializeSnapshot(foreign); app.data.set(STORAGE_KEY, raw);
+  app.click('[data-scenario-action="adopt"]'); await flush();
+  assert.equal(app.data.get(STORAGE_KEY), raw);
+  assert.equal(app.find('#storageConflict').hidden, false);
+  assert.match(app.find('#saveState').textContent, /保存遇到版本变化/);
+  assert.equal(app.find('#scenarioForm'), null);
 });
 
 test('opening an empty workbench sends no network request and creates no saved data', async t => {

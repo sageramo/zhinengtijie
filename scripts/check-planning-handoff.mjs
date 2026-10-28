@@ -131,6 +131,45 @@ try {
     const formal = responses.filter(item => item.path === '/api/v2/plan').at(-1).payload;
     assert.equal(formal.status, 'feasible_found'); assert.equal(formal.validation.passed, true);
     cases.push({ id: 'extra_time_adoption_preserves_tasks_and_requires_formal_replan', passed: true, schedule: formal.schedule });
+    if (process.argv.includes('--validation')) {
+      const beforeInvalid = calls.length;
+      const saved = data.get(STORAGE_KEY);
+      const reference = Date.parse(stored().reference_time);
+      input('#scenarioKind', 'availability');
+      input('#scenarioStart', toInput(new Date(reference - 60000).toISOString()));
+      input('#scenarioEnd', toInput(new Date(reference + 1200000).toISOString()));
+      submit('#scenarioForm'); await flush();
+      assert.equal(calls.length, beforeInvalid);
+      assert.equal(doc.activeElement.id, 'scenarioStart');
+      assert.equal(doc.getElementById('scenarioStart').getAttribute('aria-invalid'), 'true');
+      assert.notEqual(doc.getElementById('scenarioEnd').getAttribute('aria-invalid'), 'true');
+      assert.ok(doc.getElementById('scenarioStart').getAttribute('aria-describedby').includes('scenarioValidationError'));
+      cases.push({ id: 'invalid_start_focuses_and_labels_correct_field_without_http', passed: true });
+      input('#scenarioStart', toInput(new Date(reference + 600000).toISOString()));
+      submit('#scenarioForm'); await settleScenario();
+      assert.equal(responses.filter(item => item.path === '/api/v2/plan').at(-1).payload.status, 'feasible_found');
+      assert.equal(doc.querySelector('#scenarioForm [aria-invalid="true"]'), null);
+      assert.equal(doc.querySelector('#scenarioForm [aria-describedby~="scenarioValidationError"]'), null);
+      assert.equal(data.get(STORAGE_KEY), saved);
+      cases.push({ id: 'corrected_start_clears_error_and_completes_http_trial', passed: true, snapshot_unchanged: true });
+      const ids = Array.from(doc.querySelectorAll('[id]'), node => node.id);
+      assert.equal(new Set(ids).size, ids.length, 'authored document IDs must remain unique');
+      let fields = 0, references = 0;
+      for (const node of doc.querySelectorAll('input,select,textarea')) {
+        if (node.closest('[hidden]') || node.type === 'hidden') continue;
+        assert.ok(node.labels?.length || node.getAttribute('aria-label') || node.getAttribute('aria-labelledby'), `field needs a label: ${node.id || node.dataset.taskField}`);
+        fields += 1;
+      }
+      for (const node of doc.querySelectorAll('[aria-describedby],[aria-labelledby]')) {
+        for (const attribute of ['aria-describedby', 'aria-labelledby']) {
+          for (const id of (node.getAttribute(attribute) || '').split(/\s+/).filter(Boolean)) {
+            assert.ok(doc.getElementById(id), `missing authored accessibility reference: ${id}`);
+            references += 1;
+          }
+        }
+      }
+      cases.push({ id: 'authored_semantics_unique_ids_labelled_fields_and_resolved_references', passed: true, checked_fields: fields, checked_references: references, rendered_accessibility_test: false });
+    }
   }
   assert.deepEqual(errors, []);
   process.stdout.write(JSON.stringify({ kind: 'real_http_and_jsdom_not_browser', ui_version: doc.querySelector('meta[name="sixu-ui-version"]').content, backend_version: responses.find(item => item.path === '/api/health').payload.version, passed: cases.length, cases, request_paths: calls }, null, 2));

@@ -620,10 +620,19 @@ async function runAnalysis(mode) {
 $('calculate').addEventListener('click', () => runAnalysis('calculate'));
 $('generatePlan').addEventListener('click', () => runAnalysis('plan'));
 
+function clearScenarioValidation() {
+  for (const input of $('scenarioForm')?.querySelectorAll('input,select') || []) {
+    input.removeAttribute('aria-invalid');
+    const descriptions = (input.getAttribute('aria-describedby') || '').split(/\s+/).filter(id => id && id !== 'scenarioValidationError');
+    if (descriptions.length) input.setAttribute('aria-describedby', descriptions.join(' '));
+    else input.removeAttribute('aria-describedby');
+  }
+}
 function invalidateScenario(message = '') {
   scenarioGate.invalidate();
   activeScenario = null;
   scenarioPreview = null;
+  clearScenarioValidation();
   const output = $('scenarioOutput');
   if (output) {
     output.removeAttribute('aria-busy');
@@ -634,10 +643,10 @@ function invalidateScenario(message = '') {
 function scenarioInput() {
   if ($('scenarioKind').value === 'remaining') {
     const raw = $('scenarioMinutes').value;
-    if (!/^[0-9]{1,8}$/.test(raw)) throw new Error('请填写1至10000000的整数分钟。');
+    if (!/^[0-9]{1,8}$/.test(raw)) throw Object.assign(new Error('请填写1至10000000的整数分钟。'), { scenarioField: 'minutes' });
     return { kind: 'remaining', task_id: $('scenarioTask').value, minutes: Number(raw) };
   }
-  if ($('scenarioKind').value !== 'availability') throw new Error('请选择有效的调整方式。');
+  if ($('scenarioKind').value !== 'availability') throw Object.assign(new Error('请选择有效的调整方式。'), { scenarioField: 'kind' });
   return { kind: 'availability', start: fromLocalInput($('scenarioStart').value), end: fromLocalInput($('scenarioEnd').value) };
 }
 function scenarioAccepts(ticket, originalPlan, base) {
@@ -667,9 +676,14 @@ $('resultOutput').addEventListener('submit', async event => {
   let prepared;
   try { prepared = buildScenario(snapshot, scenarioInput()); }
   catch (error) {
-    $('scenarioOutput').innerHTML = `<p class="field-error" role="alert">${escapeHTML((error.errors || [error.message]).join('；'))}</p>`;
-    const input = $($('scenarioKind').value === 'remaining' ? 'scenarioMinutes' : !$('scenarioStart').value ? 'scenarioStart' : 'scenarioEnd');
-    input.setAttribute('aria-invalid', 'true'); input.focus();
+    $('scenarioOutput').innerHTML = `<p class="field-error" id="scenarioValidationError" role="alert" tabindex="-1">${escapeHTML((error.errors || [error.message]).join('；'))}</p>`;
+    const field = { kind: 'scenarioKind', task_id: 'scenarioTask', minutes: 'scenarioMinutes', start: 'scenarioStart', end: 'scenarioEnd' }[error.scenarioField];
+    const input = field ? $(field) : null;
+    if (input) {
+      input.setAttribute('aria-invalid', 'true');
+      input.setAttribute('aria-describedby', [input.getAttribute('aria-describedby'), 'scenarioValidationError'].filter(Boolean).join(' '));
+      input.focus();
+    } else $('scenarioValidationError').focus();
     return;
   }
   const ticket = scenarioGate.begin(snapshot);
