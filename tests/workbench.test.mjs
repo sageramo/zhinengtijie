@@ -721,6 +721,31 @@ test('a failed model request preserves the input and does not issue a rules requ
   assert.equal(app.find('#noticeText').value, modelNotice);
   assert.equal(app.writes.length, 0);
 });
+test('an HTTP 504 model timeout preserves an existing checklist and notice without automatic retry', async t => {
+  const pending = deferred();
+  const app = await nineMinutes(t, {
+    healthRoute: modelHealth,
+    httpStatus(call) { return call.path === '/api/v2/extract' ? 504 : 200; },
+    route(call) { assert.equal(call.path, '/api/v2/extract'); return pending.promise; },
+  });
+  const before = app.data.get(STORAGE_KEY), writes = app.writes.length;
+  app.input('#extractionMode', 'dify');
+  app.input('#noticeText', modelNotice);
+  app.input('#noticeDate', '2026-10-28');
+  app.submit('#noticeForm'); await flush();
+  assert.equal(app.find('#parseNotice').disabled, true);
+  pending.resolve({ error: '模型提取等待超时，本次未取得候选；请检查工作流运行记录后再决定是否重试。', code: 'model_timeout' });
+  await flush();
+  assert.deepEqual(app.calls.map(call => call.path), ['/api/health', '/api/v2/extract']);
+  assert.match(app.find('#appMessage').textContent, /提取未完成.*模型提取等待超时/);
+  assert.doesNotMatch(app.find('#appMessage').textContent, /没有识别到行动事项/);
+  assert.equal(app.find('#noticeText').value, modelNotice);
+  assert.equal(app.find('#noticeDate').value, '2026-10-28');
+  assert.equal(app.data.get(STORAGE_KEY), before);
+  assert.equal(app.writes.length, writes);
+  assert.equal(app.stored().tasks[0].status, 'confirmed');
+  assert.equal(app.find('#parseNotice').disabled, false);
+});
 test('oversized model input is blocked before any network request', async t => {
   const app = await boot(t); app.input('#extractionMode', 'dify'); app.input('#noticeText', '字'.repeat(20001)); app.submit('#noticeForm'); await flush();
   assert.deepEqual(app.calls, []); assert.match(app.find('#appMessage').textContent, /两万字/);
