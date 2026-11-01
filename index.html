@@ -4,43 +4,55 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="description" content="把校园通知整理成可核对的事项，用真实空闲生成经过校验的个人安排。">
-  <meta name="sixu-ui-version" content="2026.11.01.5">
+  <meta name="sixu-ui-version" content="2026.11.02.3">
   <title>司序·知所先后</title>
   <link rel="icon" href="./assets/sixu-mark.svg" type="image/svg+xml">
-  <script>document.documentElement.classList.add('has-js'); try { if (sessionStorage.getItem('sixu-entered') === '1' && location.hash !== '#welcome') document.documentElement.dataset.entered = '1'; } catch { /* Storage blocked: show the welcome. */ }</script>
-  <link rel="stylesheet" href="./agent.css?v=2026.11.01.5">
+  <script>{ const h = location.hash; document.documentElement.dataset.current = h.startsWith('#/') && ['import', 'review', 'time', 'plan'].includes(h.slice(2)) ? h.slice(2) : 'home'; }</script>
+  <link rel="stylesheet" href="./agent.css?v=2026.11.02.3">
 </head>
 <body>
-  <a class="skip-link" href="#taskSection">跳到任务清单</a>
-  <section class="welcome" id="welcome" aria-labelledby="welcomeTitle">
-    <canvas class="welcome-sky" id="welcomeSky" aria-hidden="true"></canvas>
-    <div class="welcome-stage">
-      <p class="welcome-title brand-lockup" id="welcomeTitle"><span class="brand-name">司序</span><span class="brand-dot">·</span><span class="brand-sub">知所先后</span></p>
-      <button class="welcome-dial" id="enterWorkbench" type="button" aria-describedby="welcomeTag">
-        <svg class="dial" viewBox="0 0 100 100" width="240" height="240" aria-hidden="true">
-          <path class="mark-ring" d="M92.06 58.94A43 43 0 0 1 58.94 92.06M41.06 92.06A43 43 0 0 1 7.94 58.94M7.94 41.06A43 43 0 0 1 41.06 7.94M58.94 7.94A43 43 0 0 1 92.06 41.06" fill="none" stroke="currentColor" stroke-width="6" stroke-linecap="round"/>
-          <g class="dial-needle"><path d="M50 2Q54.6 45.4 75 50H25Q45.4 45.4 50 2Z" fill="currentColor"/><path d="M27.5 50Q46 54.6 50 82Q54 54.6 72.5 50" fill="none" stroke="currentColor" stroke-width="5" stroke-linejoin="round" stroke-linecap="round"/></g>
-        </svg>
-        <span class="welcome-enter">开始安排</span>
-      </button>
-      <p class="welcome-tag" id="welcomeTag">整理校园通知的关键时间与任务，逐步建立基于个人可用时间的行动规划。</p>
-    </div>
-    <p class="welcome-foot">针北实南虚：先做的落到实处，后做的留出余地。</p>
-  </section>
+  <a class="skip-link" href="#/review">跳到核对事项</a>
+  <div class="landing" id="home" data-page="home">
+    <section class="hero" aria-labelledby="heroTitle">
+      <div class="hero-frame">
+        <canvas class="hero-sky" id="heroSky" aria-hidden="true"></canvas>
+        <div class="noise-overlay" aria-hidden="true"></div>
+        <div class="hero-shade" aria-hidden="true"></div>
+        <nav class="hero-nav" aria-label="首页导航"><a href="#about">知所先后</a><a href="#features">四步</a><a href="#/import">开始安排</a><a href="./algorithm.html">计算说明</a><a href="https://udify.app/chat/Kj5b0eS5Bew0dRjU" target="_blank" rel="noreferrer">旧版对话<span class="sr-only">（新窗口，与当前清单独立）</span></a></nav>
+        <div class="hero-content">
+          <h1 class="hero-title" id="heroTitle" data-pull><span class="sr-only">司序·知所先后</span><span aria-hidden="true"><span class="w" style="--i:0">司</span><span class="w" style="--i:1">序</span><svg class="hero-star" viewBox="0 0 100 100" aria-hidden="true"><path class="mark-ring" d="M92.06 58.94A43 43 0 0 1 58.94 92.06M41.06 92.06A43 43 0 0 1 7.94 58.94M7.94 41.06A43 43 0 0 1 41.06 7.94M58.94 7.94A43 43 0 0 1 92.06 41.06" fill="none" stroke="currentColor" stroke-width="6" stroke-linecap="round"/><path d="M50 2Q54.6 45.4 75 50H25Q45.4 45.4 50 2Z" fill="currentColor"/><path d="M27.5 50Q46 54.6 50 82Q54 54.6 72.5 50" fill="none" stroke="currentColor" stroke-width="5" stroke-linejoin="round" stroke-linecap="round"/></svg></span></h1>
+          <div class="hero-side">
+            <p class="hero-desc" data-rise style="--d:.5s">把群通知、课程要求和自己的安排，整理成一件件可以核对的事；再按你真正能用的时间，排出一份做得到的安排。</p>
+            <a class="cta" href="#/import" data-rise style="--d:.7s">开始安排<span class="cta-dot"><svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><path d="M5 12h14M13 6l6 6-6 6" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></span></a>
+          </div>
+        </div>
+      </div>
+    </section>
+    <section class="about" id="about" aria-labelledby="aboutTitle">
+      <div class="about-card">
+        <p class="about-label">出自《大学》</p>
+        <h2 class="about-title" id="aboutTitle" data-pull><span class="w serif" style="--i:0">物</span><span class="w serif" style="--i:1">有</span><span class="w serif" style="--i:2">本</span><span class="w serif" style="--i:3">末</span><span class="w serif" style="--i:4">，</span><span class="w serif" style="--i:5">事</span><span class="w serif" style="--i:6">有</span><span class="w serif" style="--i:7">终</span><span class="w serif" style="--i:8">始</span><span class="w serif" style="--i:9">。</span><span class="w kai" style="--i:10">知</span><span class="w kai" style="--i:11">所</span><span class="w kai" style="--i:12">先</span><span class="w kai" style="--i:13">后</span><span class="w kai" style="--i:14">，</span><span class="w serif" style="--i:15">则</span><span class="w serif" style="--i:16">近</span><span class="w serif" style="--i:17">道</span><span class="w serif" style="--i:18">矣</span><span class="w serif" style="--i:19">。</span></h2>
+        <p class="about-body" data-reveal>司序不替你做决定。它把通知里的每一件事拆成可以核对的字段：要做什么、何时截止、还需要多久、能不能拆开做；再把这些事放进你亲手填写的空闲时段里。先做的落到实处，后做的留出余地。每一步都能回看原文依据，改动任何一处，旧的安排就作废、重新计算。</p>
+      </div>
+    </section>
+    <section class="features" id="features" aria-labelledby="featuresTitle">
+      <div class="bg-noise" aria-hidden="true"></div>
+      <h2 class="features-head" id="featuresTitle" data-pull><span class="w serif" style="--i:0">四</span><span class="w serif" style="--i:1">步</span><span class="w serif" style="--i:2">，</span><span class="w serif" style="--i:3">把</span><span class="w serif" style="--i:4">通</span><span class="w serif" style="--i:5">知</span><span class="w serif" style="--i:6">变</span><span class="w serif" style="--i:7">成</span><span class="w serif" style="--i:8">做</span><span class="w serif" style="--i:9">得</span><span class="w serif" style="--i:10">到</span><span class="w serif" style="--i:11">的</span><span class="w serif" style="--i:12">安</span><span class="w serif" style="--i:13">排</span><span class="w serif" style="--i:14">。</span><br><span class="w serif muted" style="--i:0">先</span><span class="w serif muted" style="--i:1">理</span><span class="w serif muted" style="--i:2">清</span><span class="w serif muted" style="--i:3">，</span><span class="w serif muted" style="--i:4">再</span><span class="w serif muted" style="--i:5">安</span><span class="w serif muted" style="--i:6">排</span><span class="w serif muted" style="--i:7">。</span></h2>
+      <div class="feature-grid" data-rise><a class="feature-card" href="#/import" style="--i:0"><span class="feature-no">01</span><h3 class="feature-title">导入通知</h3><ul><li><svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 7.5" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg><span>粘贴群通知、课程要求，或直接贴截图</span></li><li><svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 7.5" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg><span>规则提取在本机即时完成</span></li><li><svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 7.5" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg><span>保留原文，随时回来对照</span></li></ul><span class="feature-link">进入<svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true"><path d="M5 12h14M13 6l6 6-6 6" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></span></a><a class="feature-card" href="#/review" style="--i:1"><span class="feature-no">02</span><h3 class="feature-title">核对事项</h3><ul><li><svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 7.5" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg><span>逐件确认要做什么、何时截止</span></li><li><svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 7.5" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg><span>缺什么一眼可见，点一下就跳到字段</span></li><li><svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 7.5" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg><span>每个字段都能回看原文依据</span></li></ul><span class="feature-link">进入<svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true"><path d="M5 12h14M13 6l6 6-6 6" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></span></a><a class="feature-card" href="#/time" style="--i:2"><span class="feature-no">03</span><h3 class="feature-title">空闲时间</h3><ul><li><svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 7.5" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg><span>只填你愿意用来做事的时段</span></li><li><svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 7.5" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg><span>课程与会议另行扣除</span></li><li><svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 7.5" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg><span>按北京时间、整分钟起算</span></li></ul><span class="feature-link">进入<svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true"><path d="M5 12h14M13 6l6 6-6 6" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></span></a><a class="feature-card" href="#/plan" style="--i:3"><span class="feature-no">04</span><h3 class="feature-title">生成安排</h3><ul><li><svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 7.5" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg><span>把事项放进真实空档</span></li><li><svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 7.5" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg><span>独立校验截止、连续块与前后顺序</span></li><li><svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 7.5" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg><span>改动任何一处，旧安排即失效</span></li></ul><span class="feature-link">进入<svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true"><path d="M5 12h14M13 6l6 6-6 6" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></span></a></div>
+      <footer class="landing-foot"><span>源自第7组课程作品“口述行动链”</span><span>以确认后的信息计算，把取舍留给你。</span></footer>
+    </section>
+  </div>
+  <div class="app" data-app>
   <header class="site-header">
-    <a class="brand-lockup brand-title" href="./#welcome" aria-label="司序·知所先后，回到开场"><svg class="brand-mark" viewBox="0 0 100 100" width="36" height="36" aria-hidden="true"><path class="mark-ring" d="M92.06 58.94A43 43 0 0 1 58.94 92.06M41.06 92.06A43 43 0 0 1 7.94 58.94M7.94 41.06A43 43 0 0 1 41.06 7.94M58.94 7.94A43 43 0 0 1 92.06 41.06" fill="none" stroke="currentColor" stroke-width="6" stroke-linecap="round"/><path d="M50 2Q54.6 45.4 75 50H25Q45.4 45.4 50 2Z" fill="currentColor"/><path d="M27.5 50Q46 54.6 50 82Q54 54.6 72.5 50" fill="none" stroke="currentColor" stroke-width="5" stroke-linejoin="round" stroke-linecap="round"/></svg><span class="brand-name">司序</span><span class="brand-dot">·</span><span class="brand-sub">知所先后</span></a>
-    <nav aria-label="辅助入口"><a href="./algorithm.html">计算说明</a><a href="https://udify.app/chat/Kj5b0eS5Bew0dRjU" target="_blank" rel="noreferrer">旧版对话<span class="sr-only">（新窗口，与当前清单独立）</span></a></nav>
+    <a class="brand-lockup brand-title" href="#/" aria-label="司序·知所先后，回到首页"><svg class="brand-mark" viewBox="0 0 100 100" width="32" height="32" aria-hidden="true"><path class="mark-ring" d="M92.06 58.94A43 43 0 0 1 58.94 92.06M41.06 92.06A43 43 0 0 1 7.94 58.94M7.94 41.06A43 43 0 0 1 41.06 7.94M58.94 7.94A43 43 0 0 1 92.06 41.06" fill="none" stroke="currentColor" stroke-width="6" stroke-linecap="round"/><path d="M50 2Q54.6 45.4 75 50H25Q45.4 45.4 50 2Z" fill="currentColor"/><path d="M27.5 50Q46 54.6 50 82Q54 54.6 72.5 50" fill="none" stroke="currentColor" stroke-width="5" stroke-linejoin="round" stroke-linecap="round"/></svg><span class="brand-name">司序</span><span class="brand-dot">·</span><span class="brand-sub">知所先后</span></a>
+    <nav class="page-tabs" aria-label="功能页面"><a href="#/import" data-tab="import"><span class="tab-no">1</span>导入通知</a><a href="#/review" data-tab="review"><span class="tab-no">2</span>核对事项<span class="tab-count" id="reviewCount" aria-label="件待核对"></span></a><a href="#/time" data-tab="time"><span class="tab-no">3</span>空闲时间</a><a href="#/plan" data-tab="plan"><span class="tab-no">4</span>生成安排</a></nav>
+    <nav class="aux-nav" aria-label="辅助入口"><a href="./algorithm.html">计算说明</a><a href="https://udify.app/chat/Kj5b0eS5Bew0dRjU" target="_blank" rel="noreferrer">旧版对话<span class="sr-only">（新窗口，与当前清单独立）</span></a></nav>
   </header>
   <main class="workspace">
-    <div class="page-heading">
-      <div><h1 id="workbenchHeading" tabindex="-1">先理清，再安排。</h1><p>核对通知里的每一件事，用自己的时间，排出一份做得到的安排。</p></div>
-      <p class="save-state" id="saveState" role="status">清单保存在当前浏览器</p>
-    </div>
-    <nav class="flow-nav" aria-label="操作步骤"><a href="#noticeSection">1 导入通知</a><a href="#taskSection">2 核对事项</a><a href="#timeSection">3 填写空闲</a><a href="#resultSection">4 查看安排</a></nav>
+    <div class="page-status"><h1 class="sr-only" id="workbenchHeading" tabindex="-1">司序工作台</h1><p class="save-state" id="saveState" role="status">清单保存在当前浏览器</p></div>
     <div id="appMessage" class="message" role="status" aria-live="polite" hidden></div>
     <div id="storageConflict" class="message warning" hidden><p>清单在另一个标签页发生了变化。为避免覆盖，请先导出当前内容，再载入最新清单。</p><button type="button" id="reloadLatest">载入最新清单</button></div>
-    <div class="workspace-grid">
-      <aside class="input-column" aria-label="通知输入与原文">
+    <div class="page page-import" data-page="import">
         <section class="surface" id="noticeSection" aria-labelledby="noticeHeading">
           <h2 id="noticeHeading">导入一份通知</h2>
           <p class="section-note">可以从群通知、课程要求，或你自己的安排开始。</p>
@@ -63,35 +75,43 @@
           <div class="example-actions"><button class="text-button" id="fillExample" type="button">填入虚构通知</button><button class="text-button" id="loadEveningPlan" type="button">试试一晚安排</button><button class="text-button" id="loadNineMinutes" type="button">试试九分钟缺口</button></div>
           <p class="privacy-note">提取或补全时间会发送对应原文；检查、生成安排或试算会向所选服务发送对应清单及原文依据，排程和试算不调用模型。模型提取还会将本次原文交给 Dify 与所选模型。清单保存在此浏览器，换设备不会同步。</p>
         </section>
+      <aside class="import-side" aria-label="原文与设置">
         <section class="source-section" aria-labelledby="sourceHeading"><div class="section-top"><h2 id="sourceHeading">保留的原文</h2><span id="sourceCount">0 份</span></div><div id="sourceList"><p class="empty-note">导入后可随时回来核对。</p></div></section>
         <details class="settings" id="settingsPanel"><summary>服务与备份</summary>
           <form id="apiForm"><label for="apiBase">解析与计算服务地址</label><input id="apiBase" type="url" inputmode="url" required><button type="submit">保存地址并检查连接</button><p class="field-help" id="connectionStatus" role="status">尚未检查连接</p></form>
           <div class="backup-actions"><button type="button" id="exportSnapshot">导出清单</button><button type="button" id="importSnapshot">导入清单</button><input type="file" id="importFile" accept="application/json,.json" hidden><button class="danger-text" type="button" id="clearSnapshot">清空清单</button></div>
           <p class="field-help">导出文件包含原文与个人安排，请妥善保存。旧版对话独立运行，不会写入此清单。</p>
-          <p class="field-help" id="uiVersion">界面版本 2026.11.01.5</p>
+          <p class="field-help" id="uiVersion">界面版本 2026.11.02.3</p>
         </details>
       </aside>
-      <div class="review-column">
+    </div>
+    <div class="page" data-page="review">
         <section class="surface task-section" id="taskSection" aria-labelledby="taskHeading">
           <div class="section-top"><div><h2 id="taskHeading">逐件核对</h2><p class="section-note" id="taskSummary">先确认要做什么，再计算需要多少时间。</p></div><button type="button" id="addTask">手动添加事项</button></div>
           <div id="taskList"><div class="empty-state"><h3>把模糊的安排，变成具体的一件事。</h3><p>导入左侧通知，或手动添加。核对截止、剩余时间和固定活动后，再确认事项。</p></div></div>
         </section>
+        <a class="next-step" href="#/time">下一步：填写空闲时间<svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><path d="M5 12h14M13 6l6 6-6 6" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></a>
+    </div>
+    <div class="page" data-page="time">
         <section class="surface" id="timeSection" aria-labelledby="timeHeading">
           <div class="section-top"><div><h2 id="timeHeading">你真正能用的时间</h2><p class="section-note">只填写愿意用来完成这些事项的时段，课程与会议会另行扣除。</p></div><button type="button" id="addAvailability">添加空闲时段</button></div>
           <label for="referenceTime">从什么时刻开始计算</label><div class="reference-row"><input type="datetime-local" id="referenceTime" aria-describedby="referenceTimeHelp referencePrecision" required><button type="button" id="useCurrentTime">使用当前时间</button></div><p class="field-help" id="referenceTimeHelp">所有日期和时间均按北京时间（UTC+8）解释。“使用当前时间”按整分钟起算，不足一分钟顺延。</p><p class="field-help" id="referencePrecision" role="status" hidden></p>
           <div id="availabilityList"></div><p class="field-help" id="availabilityHelp">未填写时不能推断个人容量。填完时段后点击保存，修改前请先删除原时段。</p>
           <form class="availability-form" id="availabilityForm" hidden><label>空闲开始<input type="datetime-local" id="availabilityStart" required></label><label>空闲结束<input type="datetime-local" id="availabilityEnd" required></label><div class="inline-actions"><button type="submit">保存时段</button><button type="button" class="text-button" id="cancelAvailability">取消</button></div><p class="field-error" id="availabilityError" role="status"></p></form>
         </section>
+        <a class="next-step" href="#/plan">下一步：生成安排<svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><path d="M5 12h14M13 6l6 6-6 6" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></a>
+    </div>
+    <div class="page" data-page="plan">
         <section class="surface result-section" id="resultSection" aria-labelledby="resultHeading">
           <div class="section-top"><div><h2 id="resultHeading">把事情放进时间里</h2><p class="section-note">先确认全部事项，再生成安排。最多40件未完成事项，最长31天。</p></div><div class="analysis-actions"><button class="primary-button" id="generatePlan" type="button">生成具体安排</button><button id="calculate" type="button">检查冲突与容量</button></div></div>
           <div id="resultOutput" aria-live="polite"><p class="empty-note">确认事项并填写空闲时段后，可以生成安排或检查容量。</p></div>
         </section>
-      </div>
     </div>
     <footer class="page-footer"><span>源自第7组课程作品“口述行动链” · 升级开发中</span><span>以确认后的信息计算，把取舍留给你。</span></footer>
   </main>
+  </div>
   <noscript>此页面需要启用JavaScript才能编辑和计算任务。</noscript>
-  <script type="importmap">{"imports":{"./task-state.js":"./task-state.js?v=2026.11.01.5","./snapshot-store.js":"./snapshot-store.js?v=2026.11.01.5","./model-candidates.js":"./model-candidates.js?v=2026.11.01.5","./time-review.js":"./time-review.js?v=2026.11.01.5","./planning-result.js":"./planning-result.js?v=2026.11.01.5","./scenario.js":"./scenario.js?v=2026.11.01.5","./screenshot-ocr.js":"./screenshot-ocr.js?v=2026.11.01.5"}}</script>
-  <script src="./welcome.js?v=2026.11.01.5"></script><script src="./api-config.js?v=2026.11.01.5"></script><script type="module" src="./agent.js?v=2026.11.01.5"></script>
+  <script type="importmap">{"imports":{"./task-state.js":"./task-state.js?v=2026.11.02.3","./snapshot-store.js":"./snapshot-store.js?v=2026.11.02.3","./model-candidates.js":"./model-candidates.js?v=2026.11.02.3","./time-review.js":"./time-review.js?v=2026.11.02.3","./planning-result.js":"./planning-result.js?v=2026.11.02.3","./scenario.js":"./scenario.js?v=2026.11.02.3","./screenshot-ocr.js":"./screenshot-ocr.js?v=2026.11.02.3"}}</script>
+  <script src="./router.js?v=2026.11.02.3"></script><script src="./landing.js?v=2026.11.02.3"></script><script src="./api-config.js?v=2026.11.02.3"></script><script type="module" src="./agent.js?v=2026.11.02.3"></script>
 </body>
 </html>
