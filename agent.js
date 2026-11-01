@@ -111,6 +111,15 @@ function showConfirmationErrors(id, messages, fields = []) {
   target.focus({ preventScroll: true });
   target.scrollIntoView({ behavior: scrollBehavior(), block: 'center' });
 }
+const FIELD_NAMES = { title: '事项名称', must_do: '是否必须完成', priority: '优先级', fixed_start_at: '固定开始', fixed_end_at: '固定结束', deadline_at: '截止日期与时刻', remaining_minutes: '还需要多少分钟', splittable: '能否拆开做', min_block_minutes: '每次至少连续几分钟' };
+function missingFields(task) {
+  if (isInactive(task)) return [];
+  const fields = ['title', 'must_do', 'priority'];
+  if (task.kind === 'fixed') fields.push('fixed_start_at', 'fixed_end_at');
+  else if (task.kind === 'milestone') fields.push('deadline_at');
+  else fields.push('deadline_at', 'remaining_minutes', 'splittable', ...(task.splittable ? ['min_block_minutes'] : []));
+  return fields.filter(field => task[field] === null || task[field] === '');
+}
 function needsReview(task) {
   if (isInactive(task)) return false;
   if (invalidEdits.has(task.id)) return true;
@@ -126,6 +135,22 @@ function busy(button, value, idle, working) {
   button.setAttribute('aria-busy', String(value));
   button.textContent = value ? working : idle;
 }
+let parseTimer = null;
+function showParseProgress(mode) {
+  const started = Date.now();
+  $('parseProgress').hidden = false;
+  $('parseStep').textContent = mode === 'dify' ? '正在连接服务，随后由模型阅读原文' : '正在按规则读取原文';
+  $('parseHint').textContent = mode === 'dify' ? '模型提取通常需要10到60秒，可以先浏览其他部分。' : '';
+  $('parseElapsed').textContent = '';
+  window.clearInterval(parseTimer);
+  parseTimer = window.setInterval(() => { $('parseElapsed').textContent = `已用 ${Math.round((Date.now() - started) / 1000)} 秒。`; }, 1000);
+}
+function stepParseProgress(text) { if (!$('parseProgress').hidden) $('parseStep').textContent = text; }
+function hideParseProgress() {
+  window.clearInterval(parseTimer);
+  parseTimer = null;
+  $('parseProgress').hidden = true;
+}
 function invalidateResults() {
   invalidateScenario();
   calculateGate.invalidate();
@@ -138,6 +163,7 @@ function invalidateResults() {
   busy($('calculate'), false, '检查冲突与容量');
   busy($('generatePlan'), false, '生成具体安排');
   busy($('parseNotice'), false, '提取待确认事项');
+  hideParseProgress();
   for (const button of $('taskList').querySelectorAll('[data-action="resolve-time"]')) busy(button, false, TIME_REVIEW_LABEL);
   renderResult();
 }
@@ -183,6 +209,11 @@ function option(value, label, selected) {
 function inputField(label, field, value, type = 'text', attributes = '') {
   return `<label>${label}<input data-task-field="${field}" type="${type}" value="${escapeHTML(value ?? '')}" ${attributes}></label>`;
 }
+function missingMarkup(task) {
+  const missing = missingFields(task);
+  if (!missing.length) return '';
+  return `<p class="task-missing" data-task-missing>还缺 ${missing.length} 项：${missing.map(field => `<button type="button" data-jump="${field}">${FIELD_NAMES[field]}</button>`).join('')}</p>`;
+}
 function taskMarkup(task) {
   const inactive = isInactive(task);
   const reviewed = !inactive && !needsReview(task);
@@ -211,6 +242,7 @@ function taskMarkup(task) {
   const dependence = snapshot.tasks.filter(item => item.id !== task.id);
   return `<article class="task-item" data-task-id="${escapeHTML(task.id)}">
     <div class="task-top"><div><h3 class="task-name" data-task-name>${title}</h3><p class="task-status ${needsReview(task) ? '' : 'confirmed'}" data-task-status>${escapeHTML(stateLabels[task.status])}${!isInactive(task) && needsReview(task) && task.status !== 'draft' ? ' · 需重新核对关键字段' : ''}</p></div><span class="field-help">${escapeHTML(kindNames[task.kind])}</span></div>
+    ${missingMarkup(task)}
     <details class="task-details" ${needsReview(task) ? 'open' : ''}><summary>查看与修改事项</summary>
       <fieldset ${disabled}><div class="field-grid">
         <label class="field-wide">事项名称<input data-task-field="title" maxlength="200" value="${escapeHTML(task.title)}" placeholder="写清楚具体要完成什么" required></label>
@@ -226,9 +258,9 @@ function taskMarkup(task) {
         ${task.visit_windows.length ? `<p class="field-help">导入的办理窗口：${task.visit_windows.map(item => `${escapeHTML(readableTime(item.start))} 至 ${escapeHTML(readableTime(item.end))}`).join('；')}。选择其他类型会清除窗口，请先核对原文。</p>` : ''}
       </details></fieldset>
       <details class="evidence" ${task.uncertainties.length ? 'open' : ''}><summary>原文依据与提取提醒</summary>${task.source_id ? `<button class="text-button" type="button" data-action="source" data-source-id="${escapeHTML(task.source_id)}">查看整份原文</button>` : '<p class="field-help">手动建立的事项，以你的输入为依据。</p>'}${quotes.map(quote => `<blockquote>${escapeHTML(quote)}</blockquote>`).join('')}${inferred.map(item => `<p class="field-help">${escapeHTML(item.quote)}</p>`).join('')}${task.uncertainties.length ? `<ul>${task.uncertainties.map(item => `<li>${escapeHTML(item)}</li>`).join('')}</ul>` : '<p class="field-help">如需修改，字段会重新转为待核对。</p>'}</details>
-      <p class="field-error" data-task-error role="alert" tabindex="-1"></p>
+      <div class="task-footer"><p class="field-error" data-task-error role="alert" tabindex="-1"></p>
       <p class="confirmation-status" data-task-confirmation role="status">${reviewed ? CONFIRMED_HELP : ''}</p>
-      <div class="task-actions">${inactive ? '<button type="button" data-action="reopen">恢复为待核对</button>' : `<button class="primary-button" type="button" data-action="confirm" aria-disabled="${reviewed}">${reviewed ? '已确认' : CONFIRM_LABEL}</button><button type="button" data-action="complete">标记完成</button>`}<button class="text-button danger-text" type="button" data-action="remove">删除事项</button></div>
+      <div class="task-actions">${inactive ? '<button type="button" data-action="reopen">恢复为待核对</button>' : `<button class="primary-button" type="button" data-action="confirm" aria-disabled="${reviewed}">${reviewed ? '已确认' : CONFIRM_LABEL}</button><button type="button" data-action="complete">标记完成</button>`}<button class="text-button danger-text" type="button" data-action="remove">删除事项</button></div></div>
     </details>
   </article>`;
 }
@@ -291,6 +323,11 @@ function updateTaskMeta(id) {
   card.querySelector('[data-task-status]').textContent = invalidEdits.has(id) ? '输入尚未保存，请先修正' : stateLabels[task.status];
   card.querySelector('[data-task-status]').className = `task-status ${needsReview(task) ? '' : 'confirmed'}`;
   card.querySelector('[data-priority-help]').textContent = priorityHelp(task);
+  const missing = card.querySelector('[data-task-missing]');
+  const nextMissing = missingMarkup(task);
+  if (missing && nextMissing) missing.outerHTML = nextMissing;
+  else if (missing) missing.remove();
+  else if (nextMissing) card.querySelector('.task-top').insertAdjacentHTML('afterend', nextMissing);
   const confirmButton = card.querySelector('[data-action="confirm"]');
   if (confirmButton) {
     const reviewed = !needsReview(task);
@@ -342,7 +379,7 @@ function renderResult() {
     ${excluded.length ? `<p class="field-error">以下事项未纳入计算，下面不是完整清单的总需求：${excluded.map(id => escapeHTML(taskTitle(snapshot.tasks.find(item => item.id === id) || { title: id }))).join('、')}。</p>` : ''}
     ${conflicts.map(item => `<div class="result-entry"><strong class="result-danger">${escapeHTML((item.tasks || []).join('、'))}</strong><p>${escapeHTML(item.reason)}</p></div>`).join('')}
     ${checks.length ? `<div class="result-table-wrap"><table><caption class="sr-only">各截止节点的累计工作量与可用时间</caption><thead><tr><th scope="col">截至</th><th scope="col">累计需要</th><th scope="col">实际可用</th><th scope="col">时长差额</th></tr></thead><tbody>${checks.map(check => `<tr><td>${escapeHTML(readableTime(check.deadline))}</td><td>${escapeHTML(minutes(check.known_required_minutes))}${check.unknown_workload_count ? '<br>另有未知工作量' : ''}</td><td>${escapeHTML(minutes(check.available_minutes))}</td><td class="${check.result === 'shortage' ? 'result-danger' : ''}">${check.result === 'shortage' ? '缺少 ' : '剩余 '}${escapeHTML(minutes(Math.abs(check.available_minutes - check.known_required_minutes)))}</td></tr>`).join('')}</tbody></table></div>` : ''}
-    ${missing.length ? `<div class="result-entry"><strong>本次还没有验证的部分</strong><ul class="result-list">${missing.map(item => `<li>${escapeHTML(item.name || '事项')}：${escapeHTML(item.reason || (item.fields || []).join('、'))}</li>`).join('')}</ul></div>` : ''}
+    ${missing.length ? `<div class="message warning result-unverified"><strong>本次还没有验证的部分</strong><ul>${missing.map(item => `<li>${escapeHTML(item.name || '事项')}：${escapeHTML(item.reason || (item.fields || []).join('、'))}</li>`).join('')}</ul></div>` : ''}
     <p class="result-caption">${capacityNote}</p>
     <details><summary>计算口径与具体空档</summary>${(result.warnings || []).map(warning => `<p class="field-help">${escapeHTML(warning)}</p>`).join('')}${(result.limitations || []).map(limit => `<p class="field-help">${escapeHTML(limit)}</p>`).join('')}${checks.map(check => `<div class="result-entry"><strong>${escapeHTML(readableTime(check.deadline))}前的空档</strong>${(check.free_intervals || []).map(interval => `<p>${escapeHTML(readableTime(interval.start))} 至 ${escapeHTML(readableTime(interval.end))}</p>`).join('') || '<p>没有可用空档。</p>'}</div>`).join('')}</details>`;
   output.removeAttribute('aria-busy');
@@ -392,12 +429,14 @@ $('noticeForm').addEventListener('submit', async event => {
   activeParse = ticket;
   const base = apiBase;
   busy($('parseNotice'), true, '提取待确认事项', '正在提取，请稍候…');
+  showParseProgress(mode);
   tell('');
   try {
     const health = await ensureCapabilities(base, { fresh: mode === 'dify' });
     if (!parseGate.accepts(ticket, snapshot.revision) || base !== apiBase) return;
     if (mode === 'dify' && (!health.capabilities.includes('model_notice_candidates_v1') || !health.model_extraction?.configured)) throw new Error('当前服务尚未启用模型提取。请先按接入说明配置本地 Dify 服务，或主动选择规则提取。');
     $('connectionStatus').textContent = '已连接支持任务确认与重算的服务';
+    stepParseProgress(mode === 'dify' ? '模型正在阅读原文，找出事项、时间和地点' : '正在整理事项与时间');
     const parsed = await request(mode === 'dify' ? '/api/v2/extract' : '/api/parse', { text, reference_date: referenceDate, timezone: snapshot.timezone }, base, mode === 'dify' ? 100000 : 30000);
     if (!parseGate.accepts(ticket, snapshot.revision) || text !== $('noticeText').value.trim() || referenceDate !== ($('noticeDate').value || null) || mode !== $('extractionMode').value || base !== apiBase) return;
     const source = existingSource || { id: sourceId(), kind: text.startsWith('【虚构示例】') ? 'synthetic' : 'pasted_notice', text, published_at: null };
@@ -416,9 +455,9 @@ $('noticeForm').addEventListener('submit', async event => {
     $('taskSection').scrollIntoView({ behavior: scrollBehavior(), block: 'start' });
   } catch (error) {
     if (activeParse === ticket) tell(`提取未完成：${error.message} 也可以先手动添加事项。`, 'error');
-  } finally { if (activeParse === ticket) { activeParse = null; busy($('parseNotice'), false, '提取待确认事项'); } }
+  } finally { if (activeParse === ticket) { activeParse = null; busy($('parseNotice'), false, '提取待确认事项'); hideParseProgress(); } }
 });
-for (const id of ['noticeText', 'noticeDate', 'extractionMode']) $(id).addEventListener('input', () => { parseGate.invalidate(); timeReviewGate.invalidate(); activeParse = null; busy($('parseNotice'), false, '提取待确认事项'); });
+for (const id of ['noticeText', 'noticeDate', 'extractionMode']) $(id).addEventListener('input', () => { parseGate.invalidate(); timeReviewGate.invalidate(); activeParse = null; busy($('parseNotice'), false, '提取待确认事项'); hideParseProgress(); });
 
 // Tests inject a fake engine the same way they inject the API base.
 const recognizeScreenshot = createRecognizer(...(window.SIXU_OCR_ENGINE ? [async () => window.SIXU_OCR_ENGINE] : []));
@@ -516,6 +555,15 @@ $('taskList').addEventListener('input', event => {
   }
 });
 $('taskList').addEventListener('click', async event => {
+  const jump = event.target.closest('[data-jump]');
+  if (jump) {
+    const field = jump.closest('[data-task-id]').querySelector(`[data-task-field="${jump.dataset.jump}"]`);
+    if (!field) return;
+    for (let detail = field.closest('details'); detail; detail = detail.parentElement.closest('details')) detail.open = true;
+    field.focus({ preventScroll: true });
+    field.scrollIntoView({ behavior: scrollBehavior(), block: 'center' });
+    return;
+  }
   const button = event.target.closest('[data-action]');
   const card = button?.closest('[data-task-id]');
   if (!button || !card) return;
@@ -865,7 +913,7 @@ $('fillExample').addEventListener('click', () => {
   const day = new Date(Date.parse(nowISO()) + 8 * 3600000 + 86400000).toISOString().slice(0, 10);
   $('noticeText').value = `【虚构示例】讲座与课程报告安排\n请于${day}15:00前完成讲座报名。讲座于${day}18:00-20:00举行，地点为主楼405。请于${day}23:59前提交课程报告。`;
   $('noticeDate').value = '';
-  parseGate.invalidate(); activeParse = null; busy($('parseNotice'), false, '提取待确认事项');
+  parseGate.invalidate(); activeParse = null; busy($('parseNotice'), false, '提取待确认事项'); hideParseProgress();
   tell('已填入虚构通知。点击提取后，仍需要逐项核对与补充剩余耗时。');
   $('noticeText').focus();
 });

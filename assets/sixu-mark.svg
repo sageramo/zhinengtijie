@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100" role="img" aria-labelledby="t">
+  <title id="t">司序·知所先后</title>
+  <!-- 先实后虚：罗盘针朝北的一半实心（先做的事），朝南的一半留白（后做的事）；圆环四段，留出四个方位 -->
+  <rect width="100" height="100" rx="22" fill="#0f1f26"/>
+  <g transform="translate(11 11) scale(.78)" color="#eef3f2">
+    <path d="M92.06 58.94A43 43 0 0 1 58.94 92.06M41.06 92.06A43 43 0 0 1 7.94 58.94M7.94 41.06A43 43 0 0 1 41.06 7.94M58.94 7.94A43 43 0 0 1 92.06 41.06" fill="none" stroke="currentColor" stroke-width="6" stroke-linecap="round"/>
+    <path d="M50 2Q54.6 45.4 75 50H25Q45.4 45.4 50 2Z" fill="currentColor"/><path d="M27.5 50Q46 54.6 50 82Q54 54.6 72.5 50" fill="none" stroke="currentColor" stroke-width="5" stroke-linejoin="round" stroke-linecap="round"/>
+  </g>
+</svg>

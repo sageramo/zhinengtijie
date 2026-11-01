@@ -4,19 +4,36 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="description" content="把校园通知整理成可核对的事项，用真实空闲生成经过校验的个人安排。">
-  <meta name="sixu-ui-version" content="2026.11.01.3">
+  <meta name="sixu-ui-version" content="2026.11.01.5">
   <title>司序·知所先后</title>
-  <link rel="stylesheet" href="./agent.css?v=2026.11.01.3">
+  <link rel="icon" href="./assets/sixu-mark.svg" type="image/svg+xml">
+  <script>document.documentElement.classList.add('has-js'); try { if (sessionStorage.getItem('sixu-entered') === '1' && location.hash !== '#welcome') document.documentElement.dataset.entered = '1'; } catch { /* Storage blocked: show the welcome. */ }</script>
+  <link rel="stylesheet" href="./agent.css?v=2026.11.01.5">
 </head>
 <body>
   <a class="skip-link" href="#taskSection">跳到任务清单</a>
+  <section class="welcome" id="welcome" aria-labelledby="welcomeTitle">
+    <canvas class="welcome-sky" id="welcomeSky" aria-hidden="true"></canvas>
+    <div class="welcome-stage">
+      <p class="welcome-title brand-lockup" id="welcomeTitle"><span class="brand-name">司序</span><span class="brand-dot">·</span><span class="brand-sub">知所先后</span></p>
+      <button class="welcome-dial" id="enterWorkbench" type="button" aria-describedby="welcomeTag">
+        <svg class="dial" viewBox="0 0 100 100" width="240" height="240" aria-hidden="true">
+          <path class="mark-ring" d="M92.06 58.94A43 43 0 0 1 58.94 92.06M41.06 92.06A43 43 0 0 1 7.94 58.94M7.94 41.06A43 43 0 0 1 41.06 7.94M58.94 7.94A43 43 0 0 1 92.06 41.06" fill="none" stroke="currentColor" stroke-width="6" stroke-linecap="round"/>
+          <g class="dial-needle"><path d="M50 2Q54.6 45.4 75 50H25Q45.4 45.4 50 2Z" fill="currentColor"/><path d="M27.5 50Q46 54.6 50 82Q54 54.6 72.5 50" fill="none" stroke="currentColor" stroke-width="5" stroke-linejoin="round" stroke-linecap="round"/></g>
+        </svg>
+        <span class="welcome-enter">开始安排</span>
+      </button>
+      <p class="welcome-tag" id="welcomeTag">整理校园通知的关键时间与任务，逐步建立基于个人可用时间的行动规划。</p>
+    </div>
+    <p class="welcome-foot">针北实南虚：先做的落到实处，后做的留出余地。</p>
+  </section>
   <header class="site-header">
-    <a class="brand-title" href="./">司序<span>·知所先后</span></a>
+    <a class="brand-lockup brand-title" href="./#welcome" aria-label="司序·知所先后，回到开场"><svg class="brand-mark" viewBox="0 0 100 100" width="36" height="36" aria-hidden="true"><path class="mark-ring" d="M92.06 58.94A43 43 0 0 1 58.94 92.06M41.06 92.06A43 43 0 0 1 7.94 58.94M7.94 41.06A43 43 0 0 1 41.06 7.94M58.94 7.94A43 43 0 0 1 92.06 41.06" fill="none" stroke="currentColor" stroke-width="6" stroke-linecap="round"/><path d="M50 2Q54.6 45.4 75 50H25Q45.4 45.4 50 2Z" fill="currentColor"/><path d="M27.5 50Q46 54.6 50 82Q54 54.6 72.5 50" fill="none" stroke="currentColor" stroke-width="5" stroke-linejoin="round" stroke-linecap="round"/></svg><span class="brand-name">司序</span><span class="brand-dot">·</span><span class="brand-sub">知所先后</span></a>
     <nav aria-label="辅助入口"><a href="./algorithm.html">计算说明</a><a href="https://udify.app/chat/Kj5b0eS5Bew0dRjU" target="_blank" rel="noreferrer">旧版对话<span class="sr-only">（新窗口，与当前清单独立）</span></a></nav>
   </header>
   <main class="workspace">
     <div class="page-heading">
-      <div><h1>先理清，再安排。</h1><p>核对通知里的每一件事，用自己的时间，排出一份做得到的安排。</p></div>
+      <div><h1 id="workbenchHeading" tabindex="-1">先理清，再安排。</h1><p>核对通知里的每一件事，用自己的时间，排出一份做得到的安排。</p></div>
       <p class="save-state" id="saveState" role="status">清单保存在当前浏览器</p>
     </div>
     <nav class="flow-nav" aria-label="操作步骤"><a href="#noticeSection">1 导入通知</a><a href="#taskSection">2 核对事项</a><a href="#timeSection">3 填写空闲</a><a href="#resultSection">4 查看安排</a></nav>
@@ -41,6 +58,7 @@
             <select id="extractionMode" aria-describedby="extractionModeHelp"><option value="rules">规则提取</option><option value="dify">模型提取 · Dify</option></select>
             <p class="field-help" id="extractionModeHelp">规则提取不调用模型；模型提取需要先配置本地服务，每次最多两万字，原文会发往 Dify 及所选模型。</p>
             <button class="primary-button full-width" type="submit" id="parseNotice">提取待确认事项</button>
+            <div class="parse-progress" id="parseProgress" hidden><svg class="progress-needle" viewBox="0 0 100 100" width="36" height="36" aria-hidden="true"><path class="mark-ring" d="M92.06 58.94A43 43 0 0 1 58.94 92.06M41.06 92.06A43 43 0 0 1 7.94 58.94M7.94 41.06A43 43 0 0 1 41.06 7.94M58.94 7.94A43 43 0 0 1 92.06 41.06" fill="none" stroke="currentColor" stroke-width="6" stroke-linecap="round"/><g class="spin"><path d="M50 2Q54.6 45.4 75 50H25Q45.4 45.4 50 2Z" fill="currentColor"/><path d="M27.5 50Q46 54.6 50 82Q54 54.6 72.5 50" fill="none" stroke="currentColor" stroke-width="5" stroke-linejoin="round" stroke-linecap="round"/></g></svg><div><p id="parseStep" role="status">正在提取</p><p class="field-help"><span id="parseElapsed" aria-hidden="true"></span><span id="parseHint"></span></p></div></div>
           </form>
           <div class="example-actions"><button class="text-button" id="fillExample" type="button">填入虚构通知</button><button class="text-button" id="loadEveningPlan" type="button">试试一晚安排</button><button class="text-button" id="loadNineMinutes" type="button">试试九分钟缺口</button></div>
           <p class="privacy-note">提取或补全时间会发送对应原文；检查、生成安排或试算会向所选服务发送对应清单及原文依据，排程和试算不调用模型。模型提取还会将本次原文交给 Dify 与所选模型。清单保存在此浏览器，换设备不会同步。</p>
@@ -50,7 +68,7 @@
           <form id="apiForm"><label for="apiBase">解析与计算服务地址</label><input id="apiBase" type="url" inputmode="url" required><button type="submit">保存地址并检查连接</button><p class="field-help" id="connectionStatus" role="status">尚未检查连接</p></form>
           <div class="backup-actions"><button type="button" id="exportSnapshot">导出清单</button><button type="button" id="importSnapshot">导入清单</button><input type="file" id="importFile" accept="application/json,.json" hidden><button class="danger-text" type="button" id="clearSnapshot">清空清单</button></div>
           <p class="field-help">导出文件包含原文与个人安排，请妥善保存。旧版对话独立运行，不会写入此清单。</p>
-          <p class="field-help" id="uiVersion">界面版本 2026.11.01.3</p>
+          <p class="field-help" id="uiVersion">界面版本 2026.11.01.5</p>
         </details>
       </aside>
       <div class="review-column">
@@ -73,7 +91,7 @@
     <footer class="page-footer"><span>源自第7组课程作品“口述行动链” · 升级开发中</span><span>以确认后的信息计算，把取舍留给你。</span></footer>
   </main>
   <noscript>此页面需要启用JavaScript才能编辑和计算任务。</noscript>
-  <script type="importmap">{"imports":{"./task-state.js":"./task-state.js?v=2026.11.01.3","./snapshot-store.js":"./snapshot-store.js?v=2026.11.01.3","./model-candidates.js":"./model-candidates.js?v=2026.11.01.3","./time-review.js":"./time-review.js?v=2026.11.01.3","./planning-result.js":"./planning-result.js?v=2026.11.01.3","./scenario.js":"./scenario.js?v=2026.11.01.3","./screenshot-ocr.js":"./screenshot-ocr.js?v=2026.11.01.3"}}</script>
-  <script src="./api-config.js?v=2026.11.01.3"></script><script type="module" src="./agent.js?v=2026.11.01.3"></script>
+  <script type="importmap">{"imports":{"./task-state.js":"./task-state.js?v=2026.11.01.5","./snapshot-store.js":"./snapshot-store.js?v=2026.11.01.5","./model-candidates.js":"./model-candidates.js?v=2026.11.01.5","./time-review.js":"./time-review.js?v=2026.11.01.5","./planning-result.js":"./planning-result.js?v=2026.11.01.5","./scenario.js":"./scenario.js?v=2026.11.01.5","./screenshot-ocr.js":"./screenshot-ocr.js?v=2026.11.01.5"}}</script>
+  <script src="./welcome.js?v=2026.11.01.5"></script><script src="./api-config.js?v=2026.11.01.5"></script><script type="module" src="./agent.js?v=2026.11.01.5"></script>
 </body>
 </html>
