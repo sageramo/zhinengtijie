@@ -9,6 +9,7 @@ import { modelCandidates } from './model-candidates.js';
 import { reviewTimePatch } from './time-review.js';
 import { readPlanResponse, planMarkup } from './planning-result.js';
 import { canCompare, buildScenario, adoptScenario, scenarioForm, comparisonMarkup } from './scenario.js';
+import { createRecognizer, imageProblem } from './screenshot-ocr.js';
 
 const $ = id => document.getElementById(id);
 const escapeHTML = value => String(value ?? '').replace(/[&<>"']/g, character => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[character]);
@@ -418,6 +419,48 @@ $('noticeForm').addEventListener('submit', async event => {
   } finally { if (activeParse === ticket) { activeParse = null; busy($('parseNotice'), false, '提取待确认事项'); } }
 });
 for (const id of ['noticeText', 'noticeDate', 'extractionMode']) $(id).addEventListener('input', () => { parseGate.invalidate(); timeReviewGate.invalidate(); activeParse = null; busy($('parseNotice'), false, '提取待确认事项'); });
+
+// Tests inject a fake engine the same way they inject the API base.
+const recognizeScreenshot = createRecognizer(...(window.SIXU_OCR_ENGINE ? [async () => window.SIXU_OCR_ENGINE] : []));
+let ocrSequence = 0;
+let ocrPreviewUrl = null;
+function ocrStatus(message) { $('ocrStatus').textContent = message; }
+async function recognizeNotice(file) {
+  const problem = imageProblem(file);
+  if (problem) return ocrStatus(problem);
+  const ticket = ++ocrSequence;
+  if (ocrPreviewUrl) window.URL.revokeObjectURL(ocrPreviewUrl);
+  ocrPreviewUrl = window.URL.createObjectURL(file);
+  $('ocrPreviewImage').src = ocrPreviewUrl;
+  $('ocrPreview').hidden = false;
+  $('chooseNoticeImage').disabled = true;
+  ocrStatus('正在本机识别截图…');
+  try {
+    const text = await recognizeScreenshot(file, progress => { if (ticket === ocrSequence) ocrStatus(`正在本机识别截图… ${Math.round(progress * 100)}%`); });
+    if (ticket !== ocrSequence) return;
+    if (!text) return ocrStatus('没有识别出文字。请换一张更清晰、只含通知部分的截图，或手动输入；输入框内容没有改动。');
+    const box = $('noticeText');
+    box.value = box.value.trim() ? `${box.value.trimEnd()}\n\n${text}` : text;
+    box.dispatchEvent(new window.Event('input', { bubbles: true }));
+    ocrStatus('已把识别出的文字放进输入框。请对照截图逐字核对时间、地点和数字，修改后再提取。');
+  } catch (error) {
+    if (ticket === ocrSequence) ocrStatus(`未能识别这张截图（${error.message}）。输入框内容没有改动，可以重试或手动输入。`);
+  } finally {
+    if (ticket === ocrSequence) $('chooseNoticeImage').disabled = false;
+  }
+}
+$('chooseNoticeImage').addEventListener('click', () => $('noticeImage').click());
+$('noticeImage').addEventListener('change', event => {
+  const [file] = event.target.files || [];
+  if (file) recognizeNotice(file);
+  event.target.value = '';
+});
+$('noticeText').addEventListener('paste', event => {
+  const item = Array.from(event.clipboardData?.items || []).find(entry => entry.kind === 'file' && entry.type.startsWith('image/'));
+  if (!item) return;
+  event.preventDefault();
+  recognizeNotice(item.getAsFile());
+});
 
 $('addTask').addEventListener('click', () => {
   try { const task = createTask(); commit(addTask(snapshot, task)); $('taskList').lastElementChild.querySelector('[data-task-field="title"]').focus(); }
