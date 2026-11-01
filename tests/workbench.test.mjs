@@ -30,11 +30,14 @@ function calculated(body, { required = 180, available = 9, warning = '' } = {}) 
   };
 }
 
-async function boot(t, { route, healthRoute, httpStatus, initialRaw = null, capabilities = ['snapshot_v2'] } = {}) {
+async function boot(t, { route, healthRoute, httpStatus, initialRaw = null, capabilities = ['snapshot_v2'], ocrEngine = null } = {}) {
   // No resources option: stylesheets/scripts/images are never fetched by jsdom.
   const dom = new JSDOM(HTML, { url: 'http://localhost:8873/', runScripts: 'outside-only' });
   const { window } = dom;
   window.CAMPUS_AGENT_API = BASE;
+  if (ocrEngine) window.SIXU_OCR_ENGINE = ocrEngine;
+  window.URL.createObjectURL = () => 'blob:preview';
+  window.URL.revokeObjectURL = () => {};
   window.HTMLElement.prototype.scrollIntoView = function () {};
   window.confirm = () => true;
   const data = new Map(initialRaw === null ? [] : [[STORAGE_KEY, initialRaw]]);
@@ -1160,4 +1163,77 @@ test('clearing the checklist starts the next snapshot at a whole minute and reta
   assert.equal(app.stored().tasks.length, 0);
   assert.equal(Date.parse(app.stored().reference_time) % 60000, 0);
   assert.deepEqual(app.calls, []);
+});
+
+function ocrEngine(result) {
+  const jobs = [];
+  return { jobs, async createWorker(lang, oem, options) {
+    return { async recognize(image) { jobs.push(image); options.logger({ status: 'recognizing text', progress: 1 }); return { data: { text: await result() } }; }, async terminate() {} };
+  } };
+}
+function chooseImage(app, file) {
+  const picker = app.find('#noticeImage');
+  Object.defineProperty(picker, 'files', { value: [file], configurable: true });
+  picker.dispatchEvent(new app.window.Event('change', { bubbles: true }));
+}
+const screenshot = () => ({ type: 'image/png', size: 2048, name: 'notice.png' });
+
+test('a screenshot is recognised locally into the notice box without any request or extraction', async t => {
+  const engine = ocrEngine(async () => '报 名 截 止 ： 2026 年 10 月 28 日 15:00');
+  const app = await boot(t, { ocrEngine: engine });
+  const before = app.calls.length;
+  chooseImage(app, screenshot()); await flush(); await flush();
+  assert.equal(app.find('#noticeText').value, '报名截止：2026年10月28日15:00');
+  assert.equal(engine.jobs.length, 1);
+  assert.equal(app.calls.length, before);
+  assert.equal(app.stored(), null);
+  assert.equal(app.find('#ocrPreview').hidden, false);
+  assert.match(app.find('#ocrStatus').textContent, /对照截图/);
+  assert.equal(app.find('#chooseNoticeImage').disabled, false);
+});
+
+test('recognised text is appended after existing notice text, never replacing it', async t => {
+  const app = await boot(t, { ocrEngine: ocrEngine(async () => '第二段') });
+  app.input('#noticeText', '第一段');
+  chooseImage(app, screenshot()); await flush(); await flush();
+  assert.equal(app.find('#noticeText').value, '第一段\n\n第二段');
+});
+
+test('a failed or empty recognition keeps the notice text and allows another try', async t => {
+  let attempt = 0;
+  const app = await boot(t, { ocrEngine: ocrEngine(async () => { attempt += 1; if (attempt === 1) throw new Error('wasm failed'); return '   '; }) });
+  app.input('#noticeText', '原有内容');
+  chooseImage(app, screenshot()); await flush(); await flush();
+  assert.equal(app.find('#noticeText').value, '原有内容');
+  assert.match(app.find('#ocrStatus').textContent, /未能识别/);
+  assert.equal(app.find('#chooseNoticeImage').disabled, false);
+  chooseImage(app, screenshot()); await flush(); await flush();
+  assert.equal(app.find('#noticeText').value, '原有内容');
+  assert.match(app.find('#ocrStatus').textContent, /没有识别出文字/);
+});
+
+test('a non-image file is rejected before recognition', async t => {
+  const engine = ocrEngine(async () => '不应出现');
+  const app = await boot(t, { ocrEngine: engine });
+  chooseImage(app, { type: 'application/pdf', size: 100, name: 'a.pdf' }); await flush();
+  assert.equal(engine.jobs.length, 0);
+  assert.match(app.find('#ocrStatus').textContent, /图片/);
+});
+
+test('pasting an image into the notice box recognises it; pasting text behaves normally', async t => {
+  const engine = ocrEngine(async () => '粘 贴 的 通 知');
+  const app = await boot(t, { ocrEngine: engine });
+  const paste = items => {
+    const event = new app.window.Event('paste', { bubbles: true, cancelable: true });
+    event.clipboardData = { items };
+    app.find('#noticeText').dispatchEvent(event);
+    return event;
+  };
+  const textPaste = paste([{ kind: 'string', type: 'text/plain', getAsFile: () => null }]);
+  assert.equal(textPaste.defaultPrevented, false);
+  assert.equal(engine.jobs.length, 0);
+  const imagePaste = paste([{ kind: 'file', type: 'image/png', getAsFile: () => screenshot() }]);
+  assert.equal(imagePaste.defaultPrevented, true);
+  await flush(); await flush();
+  assert.equal(app.find('#noticeText').value, '粘贴的通知');
 });

@@ -4,9 +4,9 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="description" content="把校园通知整理成可核对的事项，用真实空闲生成经过校验的个人安排。">
-  <meta name="sixu-ui-version" content="2026.11.01.1">
+  <meta name="sixu-ui-version" content="2026.11.01.3">
   <title>司序·知所先后</title>
-  <link rel="stylesheet" href="./agent.css?v=2026.11.01.1">
+  <link rel="stylesheet" href="./agent.css?v=2026.11.01.3">
 </head>
 <body>
   <a class="skip-link" href="#taskSection">跳到任务清单</a>
@@ -29,7 +29,11 @@
           <p class="section-note">可以从群通知、课程要求，或你自己的安排开始。</p>
           <form id="noticeForm">
             <label for="noticeText">通知原文</label>
-            <textarea id="noticeText" rows="9" maxlength="100000" placeholder="粘贴通知。时间、地点和材料要求尽量保留原样。" required></textarea>
+            <textarea id="noticeText" rows="9" maxlength="100000" placeholder="粘贴通知。时间、地点和材料要求尽量保留原样。" aria-describedby="ocrHelp" required></textarea>
+            <div class="ocr-row"><button type="button" id="chooseNoticeImage" aria-describedby="ocrHelp">从截图识别文字</button><input type="file" id="noticeImage" accept="image/png,image/jpeg,image/webp,image/gif,image/bmp" hidden></div>
+            <p class="field-help" id="ocrHelp">也可以直接把截图粘贴到上面的输入框。截图只在本机浏览器里识别，不会上传；首次识别需加载约6MB识别数据。识别结果可能有错字和漏字，请对照截图修改后再提取。</p>
+            <p class="field-help" id="ocrStatus" role="status"></p>
+            <figure class="ocr-preview" id="ocrPreview" hidden><img id="ocrPreviewImage" alt="正在识别或刚识别的通知截图"><figcaption>对照这张截图检查上面的文字。</figcaption></figure>
             <label for="noticeDate">通知的参照日期 <span class="optional">可选</span></label>
             <input id="noticeDate" type="date" aria-describedby="noticeDateHelp">
             <p class="field-help" id="noticeDateHelp">原文缺少年份或写“今天、明天”时，按通知语境选择；已有草稿可在时间旁补全，无需重复提取。</p>
@@ -46,7 +50,7 @@
           <form id="apiForm"><label for="apiBase">解析与计算服务地址</label><input id="apiBase" type="url" inputmode="url" required><button type="submit">保存地址并检查连接</button><p class="field-help" id="connectionStatus" role="status">尚未检查连接</p></form>
           <div class="backup-actions"><button type="button" id="exportSnapshot">导出清单</button><button type="button" id="importSnapshot">导入清单</button><input type="file" id="importFile" accept="application/json,.json" hidden><button class="danger-text" type="button" id="clearSnapshot">清空清单</button></div>
           <p class="field-help">导出文件包含原文与个人安排，请妥善保存。旧版对话独立运行，不会写入此清单。</p>
-          <p class="field-help" id="uiVersion">界面版本 2026.11.01.1</p>
+          <p class="field-help" id="uiVersion">界面版本 2026.11.01.3</p>
         </details>
       </aside>
       <div class="review-column">
@@ -69,7 +73,7 @@
     <footer class="page-footer"><span>源自第7组课程作品“口述行动链” · 升级开发中</span><span>以确认后的信息计算，把取舍留给你。</span></footer>
   </main>
   <noscript>此页面需要启用JavaScript才能编辑和计算任务。</noscript>
-  <script type="importmap">{"imports":{"./task-state.js":"./task-state.js?v=2026.11.01.1","./snapshot-store.js":"./snapshot-store.js?v=2026.11.01.1","./model-candidates.js":"./model-candidates.js?v=2026.11.01.1","./time-review.js":"./time-review.js?v=2026.11.01.1","./planning-result.js":"./planning-result.js?v=2026.11.01.1","./scenario.js":"./scenario.js?v=2026.11.01.1"}}</script>
-  <script src="./api-config.js?v=2026.11.01.1"></script><script type="module" src="./agent.js?v=2026.11.01.1"></script>
+  <script type="importmap">{"imports":{"./task-state.js":"./task-state.js?v=2026.11.01.3","./snapshot-store.js":"./snapshot-store.js?v=2026.11.01.3","./model-candidates.js":"./model-candidates.js?v=2026.11.01.3","./time-review.js":"./time-review.js?v=2026.11.01.3","./planning-result.js":"./planning-result.js?v=2026.11.01.3","./scenario.js":"./scenario.js?v=2026.11.01.3","./screenshot-ocr.js":"./screenshot-ocr.js?v=2026.11.01.3"}}</script>
+  <script src="./api-config.js?v=2026.11.01.3"></script><script type="module" src="./agent.js?v=2026.11.01.3"></script>
 </body>
 </html>
