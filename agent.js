@@ -197,8 +197,15 @@ function commit(next, { full = true, unlock = false } = {}) {
   if (full) renderAll();
   else renderSummary();
 }
+// Each section lives on its own page (router.js); switch to it before scrolling.
+function showOnPage(element, block = 'start') {
+  const page = element.closest('[data-page]')?.dataset.page;
+  if (page) window.SixuRouter?.go(page);
+  element.scrollIntoView({ behavior: scrollBehavior(), block });
+}
 function renderSummary() {
   const pending = snapshot.tasks.filter(needsReview).length;
+  if ($('reviewCount')) $('reviewCount').textContent = pending ? String(pending) : '';
   const active = snapshot.tasks.filter(task => !isInactive(task)).length;
   const inactive = snapshot.tasks.length - active;
   $('taskSummary').textContent = snapshot.tasks.length ? `${active} 件待处理，${pending} 件需要核对${inactive ? `，${inactive} 件已完成或取消` : ''}。` : '先确认要做什么，再计算需要多少时间。';
@@ -452,7 +459,7 @@ $('noticeForm').addEventListener('submit', async event => {
     for (const task of candidates) next = addTask(next, task);
     commit(next);
     tell(`通过${mode === 'dify' ? 'Dify 模型' : '规则'}提取整理出 ${candidates.length} 件待核对事项。请检查名称、时间与原文，再逐项确认。${mode === 'dify' ? '模型给出的名称、类型和原文对应关系都可能有误，原文片段存在不代表理解正确。' : ''}`);
-    $('taskSection').scrollIntoView({ behavior: scrollBehavior(), block: 'start' });
+    showOnPage($('taskSection'));
   } catch (error) {
     if (activeParse === ticket) tell(`提取未完成：${error.message} 也可以先手动添加事项。`, 'error');
   } finally { if (activeParse === ticket) { activeParse = null; busy($('parseNotice'), false, '提取待确认事项'); hideParseProgress(); } }
@@ -595,7 +602,7 @@ $('taskList').addEventListener('click', async event => {
     }
     if (button.dataset.action === 'source') {
       const source = Array.from($('sourceList').querySelectorAll('[data-source-id]')).find(item => item.dataset.sourceId === button.dataset.sourceId);
-      if (source) { source.open = true; source.scrollIntoView({ behavior: scrollBehavior(), block: 'center' }); source.querySelector('summary').focus(); }
+      if (source) { source.open = true; showOnPage(source, 'center'); source.querySelector('summary').focus(); }
       return;
     }
     if (button.dataset.action === 'confirm') {
@@ -669,7 +676,7 @@ async function runAnalysis(mode) {
   if (invalidReference || !fromLocalInput($('referenceTime').value)) return tell('请填写并保存有效的计算起始时刻。', 'warning');
   if (!snapshot.tasks.length) return tell('请先添加并确认至少一件事项。', 'warning');
   const pending = snapshot.tasks.filter(needsReview);
-  if (pending.length) { tell(`还有 ${pending.length} 件事项需要核对，不会将它们悄悄从计算中排除。`, 'warning'); $('taskSection').scrollIntoView({ behavior: scrollBehavior() }); return; }
+  if (pending.length) { tell(`还有 ${pending.length} 件事项需要核对，不会将它们悄悄从计算中排除。`, 'warning'); showOnPage($('taskSection')); return; }
   const active = snapshot.tasks.filter(task => !isInactive(task));
   const availabilityKnown = snapshot.availability_confirmed ?? (snapshot.availability.length > 0);
   if (active.length && !availabilityKnown) return tell('请先填写真实空闲时段，或明确确认目前没有可用时间；没有填写不代表全天可用或零空闲。', 'warning');
@@ -819,10 +826,10 @@ $('resultOutput').addEventListener('click', event => {
       const card = Array.from($('taskList').querySelectorAll('[data-task-id]')).find(node => node.dataset.taskId === preview.proposal.input.task_id);
       const confirm = card?.querySelector('[data-action="confirm"]');
       if (confirm) { confirm.closest('details').open = true; confirm.focus({ preventScroll: true }); }
-      $('taskSection').scrollIntoView({ behavior: scrollBehavior(), block: 'start' });
+      showOnPage($('taskSection'));
     } else {
       $('generatePlan').focus({ preventScroll: true });
-      $('resultSection').scrollIntoView({ behavior: scrollBehavior(), block: 'start' });
+      showOnPage($('resultSection'));
     }
   } catch (error) { tell(`未采用：${(error.errors || [error.message]).join('；')}`, 'error'); }
 });
@@ -947,7 +954,7 @@ $('loadEveningPlan').addEventListener('click', () => {
   hasCalculated = false; invalidEdits.clear(); commit(next, { unlock: !externalConflict && !storageLocked });
   $('availabilityForm').hidden = true;
   tell('已载入3件虚构事项，时间不是当前时刻。逐项核对并确认后，点击“生成具体安排”；这里的工时与优先级仅为演示设定。');
-  $('taskSection').scrollIntoView({ behavior: scrollBehavior(), block: 'start' });
+  showOnPage($('taskSection'));
 });
 
 renderAll();
