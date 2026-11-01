@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { modelCandidates } from '../model-candidates.js';
+import { modelCandidates, REVIEW_WARNING } from '../model-candidates.js';
 import { createSnapshot, addSource, addTask, serializeSnapshot, editTask, confirmTask } from '../task-state.js';
 const source = { id: 'notice-test', kind: 'pasted_notice', text: '2026年10月28日15:00前提交报告，交到主楼405，携带申请表。', published_at: null };
 function response() {
@@ -14,10 +14,16 @@ test('model extraction produces valid drafts with locally owned decisions and id
   assert.deepEqual(task.confirmed_fields, []);
   for (const field of ['remaining_minutes', 'priority', 'must_do', 'splittable']) assert.equal(task[field], null);
   assert.equal(task.evidence[0].source_id, source.id);
-  assert.match(task.uncertainties[0], /不代表理解一定正确/);
+  // The generic caveat is shown once with the extraction message, not copied onto each card.
+  assert.deepEqual(task.uncertainties, []);
   const snapshot = addTask(addSource(createSnapshot(), source), task);
   assert.equal(JSON.parse(serializeSnapshot(snapshot)).tasks[0].source_id, source.id);
   assert.deepEqual(original, before);
+});
+test('notice warnings stay on cards except the generic review caveat', () => {
+  const result = response(); result.warnings = [REVIEW_WARNING, '个人办理状态原文：仅办理“待办理”事项。'];
+  const [task] = modelCandidates(result, source);
+  assert.deepEqual(task.uncertainties, ['个人办理状态原文：仅办理“待办理”事项。']);
 });
 test('model cannot inject confirmation, priority, workload, or task identity', () => {
   for (const [key, value] of Object.entries({ status: 'confirmed', priority: 100, remaining_minutes: 60, id: 'existing', confirmed_fields: ['title'] })) {

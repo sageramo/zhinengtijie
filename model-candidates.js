@@ -2,7 +2,9 @@ import { createTask, isTimestamp } from './task-state.js';
 
 const fields = ['title', 'kind', 'deadline_at', 'fixed_start_at', 'fixed_end_at', 'visit_windows', 'location', 'materials', 'evidence', 'uncertainties'];
 const sourcedFields = new Set(['title', 'kind', 'deadline_at', 'fixed_start_at', 'fixed_end_at', 'visit_windows', 'location', 'materials']);
-const object = value => value !== null && typeof value === 'object' && !Array.isArray(value);
+// Must match REVIEW_WARNING in the backend candidates module.
+export const REVIEW_WARNING = '所有事项均为待核对候选；原文引文校验不能证明模型已正确理解事项边界、否定条件或地点与材料的归属。';
+const object = value =>value !== null && typeof value === 'object' && !Array.isArray(value);
 const text = (value, max) => typeof value === 'string' && value.trim() && Array.from(value).length <= max;
 const strings = (value, count, max) => Array.isArray(value) && value.length <= count && value.every(item => text(item, max));
 function requireShape(value, keys) {
@@ -39,7 +41,8 @@ export function modelCandidates(result, source) {
     const task = createTask(candidate.kind, source.id);
     for (const key of fields.filter(key => !['evidence', 'uncertainties'].includes(key))) task[key] = structuredClone(candidate[key]);
     task.evidence = candidate.evidence.map(item => ({ ...item, source_id: source.id }));
-    task.uncertainties = [...new Set([...candidate.uncertainties, ...result.warnings, '模型生成的事项名称、类型及原文关联均需核对；原文片段存在不代表理解一定正确。'])];
+    // The generic review caveat is shown once with the extraction result, not on every card.
+    task.uncertainties = [...new Set([...candidate.uncertainties, ...result.warnings.filter(note => note !== REVIEW_WARNING)])];
     return task;
   });
 }

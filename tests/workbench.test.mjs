@@ -606,6 +606,19 @@ test('missing fixed time shows the original fragment next to fields and no defau
   assert.match(app.find('[data-priority-help]').textContent, /尚未选择/);
 });
 
+test('priority help asks for review only until the task is confirmed', async t => {
+  const snapshot = JSON.parse(basketballSnapshot());
+  snapshot.tasks[0].fixed_start_at = '2026-10-26T18:00:00+08:00';
+  const app = await boot(t, { initialRaw: JSON.stringify(snapshot) });
+  app.input('[data-task-field="fixed_end_at"]', '2026-10-26T20:00');
+  app.input('[data-task-field="must_do"]', 'false');
+  app.input('[data-task-field="priority"]', '20');
+  assert.match(app.find('[data-priority-help]').textContent, /请核对这个数值/);
+  app.click('[data-action="confirm"]'); await flush();
+  assert.equal(app.stored().tasks[0].status, 'confirmed');
+  assert.equal(app.find('[data-priority-help]').textContent, '');
+});
+
 test('an extracted known start stays visible while only the missing end requires user input', async t => {
   const snapshot = JSON.parse(basketballSnapshot());
   snapshot.tasks[0].fixed_start_at = '2026-10-26T18:00:00+08:00';
@@ -703,7 +716,8 @@ test('configured model mode posts only the notice and imports unconfirmed source
   assert.equal(app.stored().tasks[0].status, 'draft');
   assert.equal(app.stored().tasks[0].priority, null);
   assert.match(app.find('#appMessage').textContent, /Dify 模型/);
-  assert.match(app.find('.evidence').textContent, /不代表理解一定正确/);
+  assert.match(app.find('#appMessage').textContent, /不代表理解正确/);
+  assert.doesNotMatch(app.find('.evidence').textContent, /不代表理解/);
 });
 test('switching extraction modes discards a late model response', async t => {
   const pending = deferred();

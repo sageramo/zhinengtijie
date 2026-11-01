@@ -217,7 +217,7 @@ function taskMarkup(task) {
         <label>这件事是否必须完成<select data-task-field="must_do" required>${option('', '由你选择', task.must_do === null)}${option('true', '必须完成', task.must_do === true)}${option('false', '可以调整，由我取舍', task.must_do === false)}</select></label>
         ${temporalFields}
         ${timeHelp}
-        <label>优先级（0–100，数字越大越优先）<input data-task-field="priority" type="text" inputmode="numeric" pattern="[0-9]{1,3}" maxlength="3" autocomplete="off" name="priority-${escapeHTML(task.id)}" value="${escapeHTML(task.priority ?? '')}" placeholder="尚未设置，请手动填写" required><span class="field-help" data-priority-help>${task.priority === null ? '尚未选择；0也需要由你明确填写。' : '请核对这个数值是否代表你的选择。'}</span></label>
+        <label>优先级（0–100，数字越大越优先）<input data-task-field="priority" type="text" inputmode="numeric" pattern="[0-9]{1,3}" maxlength="3" autocomplete="off" name="priority-${escapeHTML(task.id)}" value="${escapeHTML(task.priority ?? '')}" placeholder="尚未设置，请手动填写" required><span class="field-help" data-priority-help>${priorityHelp(task)}</span></label>
       </div>
       <p class="field-help">${task.kind === 'fixed' ? '这里仅记录固定占用；准备材料等工作请单独添加。' : task.kind === 'milestone' ? '这里只记录截止节点；如果还需要准备，请另建待安排工作。' : task.kind === 'visit_window' ? '办理窗口不能直接当成连续占用，请根据原文改成具体活动或截止节点后再确认。' : '按剩余工时安排；不能拆开的工作需要完整连续空档。可拆分时，每一段（包括最后一段）都须达到最小连续时长。'}</p>
       <details><summary>地点、材料与其他条件</summary><div class="field-grid">${inputField('对应地点（可选）', 'location', task.location, 'text', 'maxlength="500"')}<label>本事项所需材料（可选）<input data-task-field="materials" value="${escapeHTML(task.materials.join('、'))}" placeholder="用顿号或逗号分隔"></label>${task.kind === 'flexible' ? inputField('最早可开始的时刻（可选）', 'earliest_start_at', toLocalInput(task.earliest_start_at), 'datetime-local') : ''}</div>
@@ -278,6 +278,10 @@ function renderTasks() {
   }
   restoreTaskFocus(focus);
 }
+function priorityHelp(task) {
+  if (task.priority === null) return '尚未选择；0也需要由你明确填写。';
+  return needsReview(task) ? '请核对这个数值是否代表你的选择。' : '';
+}
 function updateTaskMeta(id) {
   const task = snapshot.tasks.find(item => item.id === id);
   const card = Array.from($('taskList').querySelectorAll('[data-task-id]')).find(element => element.dataset.taskId === id);
@@ -285,7 +289,7 @@ function updateTaskMeta(id) {
   card.querySelector('[data-task-name]').textContent = taskTitle(task);
   card.querySelector('[data-task-status]').textContent = invalidEdits.has(id) ? '输入尚未保存，请先修正' : stateLabels[task.status];
   card.querySelector('[data-task-status]').className = `task-status ${needsReview(task) ? '' : 'confirmed'}`;
-  card.querySelector('[data-priority-help]').textContent = task.priority === null ? '尚未选择；0也需要由你明确填写。' : '请核对这个数值是否代表你的选择。';
+  card.querySelector('[data-priority-help]').textContent = priorityHelp(task);
   const confirmButton = card.querySelector('[data-action="confirm"]');
   if (confirmButton) {
     const reviewed = !needsReview(task);
@@ -407,7 +411,7 @@ $('noticeForm').addEventListener('submit', async event => {
     let next = existingSource ? snapshot : addSource(snapshot, source);
     for (const task of candidates) next = addTask(next, task);
     commit(next);
-    tell(`通过${mode === 'dify' ? 'Dify 模型' : '规则'}提取整理出 ${candidates.length} 件待核对事项。请检查名称、时间与原文，再逐项确认。`);
+    tell(`通过${mode === 'dify' ? 'Dify 模型' : '规则'}提取整理出 ${candidates.length} 件待核对事项。请检查名称、时间与原文，再逐项确认。${mode === 'dify' ? '模型给出的名称、类型和原文对应关系都可能有误，原文片段存在不代表理解正确。' : ''}`);
     $('taskSection').scrollIntoView({ behavior: scrollBehavior(), block: 'start' });
   } catch (error) {
     if (activeParse === ticket) tell(`提取未完成：${error.message} 也可以先手动添加事项。`, 'error');
