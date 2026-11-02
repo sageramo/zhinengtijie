@@ -4,8 +4,17 @@
 (() => {
   const root = document.documentElement;
   const calm = window.matchMedia('(prefers-reduced-motion: reduce)');
+  // The light tunnel (light-tunnel.js) is the hero's background; the starfield is the fallback
+  // for browsers without WebGL2.
+  const tunnelBox = document.getElementById('heroTunnel');
+  const tunnel = window.SixuLightTunnel && tunnelBox ? window.SixuLightTunnel(tunnelBox, {
+    cableColor: '#eef3f2', pulseColor: '#e7c77d', tunnelColor: '#2f6f73', tunnelOpacity: 0.3,
+    cableCount: 56, pulseDensity: 0.5, flowDirection: 'inward', centerX: 0.22, centerY: 0.12,
+    brightness: 0.9, mouseInteraction: true, clickSurge: true,
+  }) : null;
   const canvas = document.getElementById('heroSky');
-  const ctx = canvas?.getContext('2d');
+  if (tunnel) canvas.hidden = true;
+  const ctx = tunnel ? null : canvas?.getContext('2d');
   let stars = [];
   let frame = 0;
   let started = 0;
@@ -106,8 +115,8 @@
   }
 
   window.addEventListener('scroll', updateReveal, { passive: true });
-  window.addEventListener('resize', () => { if (root.dataset.current === 'home') { resize(); if (calm.matches) draw(0); updateReveal(); } });
-  document.addEventListener('visibilitychange', () => { if (!document.hidden && !calm.matches && root.dataset.current === 'home') frame = requestAnimationFrame(draw); });
+  window.addEventListener('resize', () => { if (root.dataset.current !== 'home') return; if (ctx) { resize(); if (calm.matches) draw(0); } updateReveal(); });
+  document.addEventListener('visibilitychange', () => { if (ctx && !document.hidden && !calm.matches && root.dataset.current === 'home') frame = requestAnimationFrame(draw); });
   document.addEventListener('sixu:route', event => { if (event.detail === 'home') { startSky(); updateReveal(); } else cancelAnimationFrame(frame); });
   calm.addEventListener?.('change', startSky);
   startSky();
