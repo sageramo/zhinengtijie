@@ -4,11 +4,11 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="description" content="把校园通知整理成可核对的事项，用真实空闲生成经过校验的个人安排。">
-  <meta name="sixu-ui-version" content="2026.11.02.3">
+  <meta name="sixu-ui-version" content="2026.11.02.5">
   <title>司序·知所先后</title>
   <link rel="icon" href="./assets/sixu-mark.svg" type="image/svg+xml">
   <script>{ const h = location.hash; document.documentElement.dataset.current = h.startsWith('#/') && ['import', 'review', 'time', 'plan'].includes(h.slice(2)) ? h.slice(2) : 'home'; }</script>
-  <link rel="stylesheet" href="./agent.css?v=2026.11.02.3">
+  <link rel="stylesheet" href="./agent.css?v=2026.11.02.5">
 </head>
 <body>
   <a class="skip-link" href="#/review">跳到核对事项</a>
@@ -18,7 +18,7 @@
         <canvas class="hero-sky" id="heroSky" aria-hidden="true"></canvas>
         <div class="noise-overlay" aria-hidden="true"></div>
         <div class="hero-shade" aria-hidden="true"></div>
-        <nav class="hero-nav" aria-label="首页导航"><a href="#about">知所先后</a><a href="#features">四步</a><a href="#/import">开始安排</a><a href="./algorithm.html">计算说明</a><a href="https://udify.app/chat/Kj5b0eS5Bew0dRjU" target="_blank" rel="noreferrer">旧版对话<span class="sr-only">（新窗口，与当前清单独立）</span></a></nav>
+        <nav class="hero-nav" aria-label="首页导航"><a href="#about">知所先后</a><a href="#features">四步</a><a href="./algorithm.html">计算说明</a></nav>
         <div class="hero-content">
           <h1 class="hero-title" id="heroTitle" data-pull><span class="sr-only">司序·知所先后</span><span aria-hidden="true"><span class="w" style="--i:0">司</span><span class="w" style="--i:1">序</span><svg class="hero-star" viewBox="0 0 100 100" aria-hidden="true"><path class="mark-ring" d="M92.06 58.94A43 43 0 0 1 58.94 92.06M41.06 92.06A43 43 0 0 1 7.94 58.94M7.94 41.06A43 43 0 0 1 41.06 7.94M58.94 7.94A43 43 0 0 1 92.06 41.06" fill="none" stroke="currentColor" stroke-width="6" stroke-linecap="round"/><path d="M50 2Q54.6 45.4 75 50H25Q45.4 45.4 50 2Z" fill="currentColor"/><path d="M27.5 50Q46 54.6 50 82Q54 54.6 72.5 50" fill="none" stroke="currentColor" stroke-width="5" stroke-linejoin="round" stroke-linecap="round"/></svg></span></h1>
           <div class="hero-side">
@@ -39,7 +39,7 @@
       <div class="bg-noise" aria-hidden="true"></div>
       <h2 class="features-head" id="featuresTitle" data-pull><span class="w serif" style="--i:0">四</span><span class="w serif" style="--i:1">步</span><span class="w serif" style="--i:2">，</span><span class="w serif" style="--i:3">把</span><span class="w serif" style="--i:4">通</span><span class="w serif" style="--i:5">知</span><span class="w serif" style="--i:6">变</span><span class="w serif" style="--i:7">成</span><span class="w serif" style="--i:8">做</span><span class="w serif" style="--i:9">得</span><span class="w serif" style="--i:10">到</span><span class="w serif" style="--i:11">的</span><span class="w serif" style="--i:12">安</span><span class="w serif" style="--i:13">排</span><span class="w serif" style="--i:14">。</span><br><span class="w serif muted" style="--i:0">先</span><span class="w serif muted" style="--i:1">理</span><span class="w serif muted" style="--i:2">清</span><span class="w serif muted" style="--i:3">，</span><span class="w serif muted" style="--i:4">再</span><span class="w serif muted" style="--i:5">安</span><span class="w serif muted" style="--i:6">排</span><span class="w serif muted" style="--i:7">。</span></h2>
       <div class="feature-grid" data-rise><a class="feature-card" href="#/import" style="--i:0"><span class="feature-no">01</span><h3 class="feature-title">导入通知</h3><ul><li><svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 7.5" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg><span>粘贴群通知、课程要求，或直接贴截图</span></li><li><svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 7.5" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg><span>规则提取在本机即时完成</span></li><li><svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 7.5" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg><span>保留原文，随时回来对照</span></li></ul><span class="feature-link">进入<svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true"><path d="M5 12h14M13 6l6 6-6 6" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></span></a><a class="feature-card" href="#/review" style="--i:1"><span class="feature-no">02</span><h3 class="feature-title">核对事项</h3><ul><li><svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 7.5" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg><span>逐件确认要做什么、何时截止</span></li><li><svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 7.5" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg><span>缺什么一眼可见，点一下就跳到字段</span></li><li><svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 7.5" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg><span>每个字段都能回看原文依据</span></li></ul><span class="feature-link">进入<svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true"><path d="M5 12h14M13 6l6 6-6 6" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></span></a><a class="feature-card" href="#/time" style="--i:2"><span class="feature-no">03</span><h3 class="feature-title">空闲时间</h3><ul><li><svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 7.5" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg><span>只填你愿意用来做事的时段</span></li><li><svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 7.5" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg><span>课程与会议另行扣除</span></li><li><svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 7.5" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg><span>按北京时间、整分钟起算</span></li></ul><span class="feature-link">进入<svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true"><path d="M5 12h14M13 6l6 6-6 6" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></span></a><a class="feature-card" href="#/plan" style="--i:3"><span class="feature-no">04</span><h3 class="feature-title">生成安排</h3><ul><li><svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 7.5" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg><span>把事项放进真实空档</span></li><li><svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 7.5" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg><span>独立校验截止、连续块与前后顺序</span></li><li><svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 7.5" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg><span>改动任何一处，旧安排即失效</span></li></ul><span class="feature-link">进入<svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true"><path d="M5 12h14M13 6l6 6-6 6" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></span></a></div>
-      <footer class="landing-foot"><span>源自第7组课程作品“口述行动链”</span><span>以确认后的信息计算，把取舍留给你。</span></footer>
+      <footer class="landing-foot"><span>以确认后的信息计算，把取舍留给你。</span></footer>
     </section>
   </div>
   <div class="app" data-app>
@@ -81,7 +81,7 @@
           <form id="apiForm"><label for="apiBase">解析与计算服务地址</label><input id="apiBase" type="url" inputmode="url" required><button type="submit">保存地址并检查连接</button><p class="field-help" id="connectionStatus" role="status">尚未检查连接</p></form>
           <div class="backup-actions"><button type="button" id="exportSnapshot">导出清单</button><button type="button" id="importSnapshot">导入清单</button><input type="file" id="importFile" accept="application/json,.json" hidden><button class="danger-text" type="button" id="clearSnapshot">清空清单</button></div>
           <p class="field-help">导出文件包含原文与个人安排，请妥善保存。旧版对话独立运行，不会写入此清单。</p>
-          <p class="field-help" id="uiVersion">界面版本 2026.11.02.3</p>
+          <p class="field-help" id="uiVersion">界面版本 2026.11.02.5</p>
         </details>
       </aside>
     </div>
@@ -107,11 +107,12 @@
           <div id="resultOutput" aria-live="polite"><p class="empty-note">确认事项并填写空闲时段后，可以生成安排或检查容量。</p></div>
         </section>
     </div>
-    <footer class="page-footer"><span>源自第7组课程作品“口述行动链” · 升级开发中</span><span>以确认后的信息计算，把取舍留给你。</span></footer>
+    <footer class="page-footer"><span>以确认后的信息计算，把取舍留给你。</span></footer>
   </main>
   </div>
+  <div class="route-veil" id="routeVeil" aria-hidden="true"><svg class="veil-mark" viewBox="0 0 100 100"><path class="mark-ring" d="M92.06 58.94A43 43 0 0 1 58.94 92.06M41.06 92.06A43 43 0 0 1 7.94 58.94M7.94 41.06A43 43 0 0 1 41.06 7.94M58.94 7.94A43 43 0 0 1 92.06 41.06" fill="none" stroke="currentColor" stroke-width="5" stroke-linecap="round"/><g class="veil-needle"><path d="M50 2Q54.6 45.4 75 50H25Q45.4 45.4 50 2Z" fill="currentColor"/><path d="M27.5 50Q46 54.6 50 82Q54 54.6 72.5 50" fill="none" stroke="currentColor" stroke-width="5" stroke-linejoin="round" stroke-linecap="round"/></g></svg></div>
   <noscript>此页面需要启用JavaScript才能编辑和计算任务。</noscript>
-  <script type="importmap">{"imports":{"./task-state.js":"./task-state.js?v=2026.11.02.3","./snapshot-store.js":"./snapshot-store.js?v=2026.11.02.3","./model-candidates.js":"./model-candidates.js?v=2026.11.02.3","./time-review.js":"./time-review.js?v=2026.11.02.3","./planning-result.js":"./planning-result.js?v=2026.11.02.3","./scenario.js":"./scenario.js?v=2026.11.02.3","./screenshot-ocr.js":"./screenshot-ocr.js?v=2026.11.02.3"}}</script>
-  <script src="./router.js?v=2026.11.02.3"></script><script src="./landing.js?v=2026.11.02.3"></script><script src="./api-config.js?v=2026.11.02.3"></script><script type="module" src="./agent.js?v=2026.11.02.3"></script>
+  <script type="importmap">{"imports":{"./task-state.js":"./task-state.js?v=2026.11.02.5","./snapshot-store.js":"./snapshot-store.js?v=2026.11.02.5","./model-candidates.js":"./model-candidates.js?v=2026.11.02.5","./time-review.js":"./time-review.js?v=2026.11.02.5","./planning-result.js":"./planning-result.js?v=2026.11.02.5","./scenario.js":"./scenario.js?v=2026.11.02.5","./screenshot-ocr.js":"./screenshot-ocr.js?v=2026.11.02.5"}}</script>
+  <script src="./router.js?v=2026.11.02.5"></script><script src="./landing.js?v=2026.11.02.5"></script><script src="./api-config.js?v=2026.11.02.5"></script><script type="module" src="./agent.js?v=2026.11.02.5"></script>
 </body>
 </html>

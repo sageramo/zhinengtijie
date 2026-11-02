@@ -335,3 +335,22 @@ html[data-current="home"], html[data-current="home"] body { background: var(--ni
   .site-header .page-tabs a { padding: 7px 10px; }
   .tab-no { display: none; }
 }
+
+/* Landing → workbench: a night circle grows from the click, the needle settles on north, then the
+   night wipes upward to reveal the page (router.js). Skipped for direct links and reduced motion. */
+.route-veil { position: fixed; inset: 0; z-index: 50; display: none; place-items: center; background: var(--night); color: var(--gold-soft); pointer-events: none; }
+.route-veil.is-on { display: grid; animation: veil-grow 450ms cubic-bezier(.65, 0, .35, 1) both; }
+.route-veil.is-out { animation: veil-wipe 520ms cubic-bezier(.7, 0, .2, 1) both; }
+.veil-mark { width: 112px; height: 112px; }
+.veil-mark .mark-ring { color: var(--moon); }
+.veil-needle { transform-box: view-box; transform-origin: 50px 50px; }
+.route-veil.is-on .veil-needle { animation: needle-settle 900ms cubic-bezier(.2, .7, .2, 1) 120ms both; }
+@keyframes veil-grow { from { clip-path: circle(0 at var(--x, 50%) var(--y, 50%)); } to { clip-path: circle(150vmax at var(--x, 50%) var(--y, 50%)); } }
+@keyframes veil-wipe { from { clip-path: inset(0 0 0 0); } to { clip-path: inset(0 0 100% 0); } }
+@keyframes needle-settle {
+  0% { transform: rotate(200deg); }
+  55% { transform: rotate(-14deg); }
+  75% { transform: rotate(7deg); }
+  90% { transform: rotate(-3deg); }
+  100% { transform: rotate(0deg); }
+}
