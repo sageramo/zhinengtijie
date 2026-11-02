@@ -9,7 +9,34 @@
     return Object.hasOwn(titles, name) && name ? name : 'home';
   };
 
-  function apply(route, { focus = false } = {}) {
+  const veil = document.getElementById('routeVeil');
+  const calm = window.matchMedia('(prefers-reduced-motion: reduce)');
+  let pointer = null;
+  let ready = false;
+  document.addEventListener('pointerdown', event => { pointer = [event.clientX, event.clientY]; }, true);
+
+  // Timers rather than animationend: the page must switch even if the veil's animation never runs.
+  function playVeil(done) {
+    veil.style.setProperty('--x', pointer ? `${pointer[0]}px` : '50%');
+    veil.style.setProperty('--y', pointer ? `${pointer[1]}px` : '50%');
+    veil.className = 'route-veil is-on';
+    window.setTimeout(done, 450);
+    window.setTimeout(() => { veil.className = 'route-veil is-on is-out'; }, 1000);
+    window.setTimeout(() => { veil.className = 'route-veil'; }, 1540);
+  }
+
+  // A link click fires both hashchange and popstate; the veil already on its way absorbs the second.
+  let pending = null;
+  function apply(route, options = {}) {
+    if (pending === route) return;
+    if (ready && veil && !calm.matches && root.dataset.current === 'home' && route !== 'home') {
+      pending = route;
+      playVeil(() => { pending = null; show(route, options); });
+    } else show(route, options);
+    ready = true;
+  }
+
+  function show(route, { focus = false } = {}) {
     const changed = root.dataset.current !== route;
     root.dataset.current = route;
     document.title = titles[route];
