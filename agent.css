@@ -251,10 +251,10 @@ html[data-current="home"], html[data-current="home"] body { background: var(--ni
 .landing { color: var(--moon); }
 .landing :focus-visible { outline-color: var(--gold-soft); }
 .hero { height: 100vh; height: 100svh; min-height: 560px; padding: 16px; }
-.hero-frame { position: relative; height: 100%; overflow: hidden; border-radius: 16px; background: var(--night); }
+.hero-frame { position: relative; height: 100%; overflow: hidden; border-radius: 16px; background: #031218; }
 .hero-sky { position: absolute; inset: 0; width: 100%; height: 100%; }
-.noise-overlay { position: absolute; inset: 0; opacity: .7; mix-blend-mode: overlay; pointer-events: none; background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='220' height='220'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E"); }
-.hero-shade { position: absolute; inset: 0; pointer-events: none; background: linear-gradient(to bottom, rgba(0, 0, 0, .3), rgba(0, 0, 0, 0) 40%, rgba(0, 0, 0, .78)); }
+.noise-overlay { position: absolute; inset: 0; opacity: .35; mix-blend-mode: overlay; pointer-events: none; background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='220' height='220'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E"); }
+.hero-shade { position: absolute; inset: 0; pointer-events: none; background: linear-gradient(to bottom, rgba(0, 0, 0, .2), rgba(0, 0, 0, 0) 30%, rgba(0, 0, 0, 0) 55%, rgba(0, 0, 0, .6)); }
 .hero-nav { position: absolute; top: 0; left: 50%; z-index: 2; transform: translateX(-50%); display: flex; gap: 12px; padding: 8px 16px; border-radius: 0 0 16px 16px; background: var(--night-deep); font-size: .6875rem; white-space: nowrap; }
 .hero-nav a { color: rgba(238, 243, 242, .8); text-decoration: none; }
 .hero-nav a:hover { color: var(--moon); }
@@ -272,8 +272,12 @@ html[data-current="home"], html[data-current="home"] body { background: var(--ni
 [data-pull].is-in .w { opacity: 1; transform: none; }
 [data-rise] { opacity: 0; transform: translateY(20px); transition: transform 800ms cubic-bezier(.16, 1, .3, 1), opacity 800ms ease; transition-delay: var(--d, 0s); }
 [data-rise].is-in { opacity: 1; transform: none; }
-.about { padding: 64px 16px; }
-.about-card { max-width: 72rem; margin: 0 auto; padding: 56px 20px; border-radius: 24px; background: #0c1a20; text-align: center; }
+.about { position: relative; padding: 64px 16px; overflow: hidden; }
+/* The night around the card (about-sky.js); the card is a touch see-through so it shows faintly. */
+.about-night { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; }
+.about-card { position: relative; max-width: 72rem; margin: 0 auto; padding: 56px 20px; overflow: hidden; border: 1px solid rgba(231, 199, 125, .1); border-radius: 24px; background: rgba(12, 26, 32, .8); box-shadow: 0 30px 80px rgba(0, 0, 0, .35); text-align: center; isolation: isolate; }
+/* Star chart behind the 《大学》 lines (about-sky.js). */
+.about-sky { position: absolute; inset: 0; z-index: -1; width: 100%; height: 100%; pointer-events: none; }
 .about-label { margin: 0 0 22px; color: var(--gold-soft); font-size: .75rem; letter-spacing: .2em; }
 .about-title { display: flex; flex-wrap: wrap; justify-content: center; max-width: 11em; margin: 0 auto; font-size: clamp(2rem, 6.4vw, 4.75rem); font-weight: 700; line-height: 1.2; letter-spacing: .04em; color: var(--moon); }
 .about-title .serif { font-family: var(--font-serif); }
@@ -338,6 +342,34 @@ html[data-current="home"], html[data-current="home"] body { background: var(--ni
 
 /* Landing → workbench: a night circle grows from the click, the needle settles on north, then the
    night wipes upward to reveal the page (router.js). Skipped for direct links and reduced motion. */
+/* Opening: on a fresh visit to the landing the mark draws itself, its needle swings round and settles
+   north, the name rises beneath it, then an iris opens onto the hero (landing.js times and skips it). */
+@property --iris { syntax: '<length>'; inherits: false; initial-value: 0px; }
+html:not(.intro) .intro { display: none; }
+html.intro { overflow: hidden; }
+html.intro .intro { position: fixed; inset: 0; z-index: 60; display: grid; place-items: center; background: radial-gradient(circle at 50% 46%, rgba(47, 111, 115, .3), rgba(47, 111, 115, 0) 38%), var(--night-deep); color: var(--moon); cursor: pointer; -webkit-mask-image: radial-gradient(circle at 50% 46%, transparent var(--iris), #000 calc(var(--iris) + 1px)); mask-image: radial-gradient(circle at 50% 46%, transparent var(--iris), #000 calc(var(--iris) + 1px)); }
+.intro-stage { display: grid; justify-items: center; gap: 28px; }
+.intro-mark { width: clamp(88px, 16vmin, 140px); height: auto; overflow: visible; filter: drop-shadow(0 0 18px rgba(231, 199, 125, .25)); }
+/* A faint track under the ring, for the segments to draw along. */
+.intro-ghost { opacity: .1; }
+.intro-ring path { stroke-dasharray: 1; stroke-dashoffset: 1; animation: intro-draw 700ms cubic-bezier(.6, 0, .2, 1) forwards; }
+.intro-ring path:nth-child(2) { animation-delay: 120ms; }
+.intro-ring path:nth-child(3) { animation-delay: 240ms; }
+.intro-ring path:nth-child(4) { animation-delay: 360ms; }
+.intro-needle { transform-box: view-box; transform-origin: 50px 50px; opacity: 0; animation: intro-spin 1500ms cubic-bezier(.25, .8, .3, 1) 320ms forwards; }
+.intro-north { fill: var(--gold-soft); }
+.intro-south { stroke-dasharray: 1; stroke-dashoffset: 1; animation: intro-draw 600ms ease-out 700ms forwards; }
+.intro-word { display: grid; justify-items: center; gap: 10px; margin: 0; }
+.intro-name { font-family: var(--font-serif); font-size: clamp(1.75rem, 4.4vmin, 2.5rem); font-weight: 700; letter-spacing: .5em; margin-right: -.5em; opacity: 0; animation: intro-rise 700ms cubic-bezier(.2, .8, .2, 1) 1050ms forwards; }
+.intro-motto { font-family: var(--font-kai); color: var(--gold-soft); font-size: clamp(.875rem, 2vmin, 1.0625rem); letter-spacing: .8em; margin-right: -.8em; opacity: 0; animation: intro-rise 700ms cubic-bezier(.2, .8, .2, 1) 1300ms forwards; }
+html.intro-out .intro { animation: intro-iris 800ms cubic-bezier(.7, 0, .2, 1) forwards; }
+html.intro-out .intro-stage { animation: intro-lift 520ms cubic-bezier(.5, 0, .2, 1) forwards; }
+@keyframes intro-draw { to { stroke-dashoffset: 0; } }
+@keyframes intro-spin { 0% { opacity: 0; transform: rotate(-540deg) scale(.6); } 18% { opacity: 1; } 72% { transform: rotate(14deg) scale(1); } 86% { transform: rotate(-6deg); } 100% { opacity: 1; transform: rotate(0deg); } }
+@keyframes intro-rise { from { opacity: 0; transform: translateY(14px); } to { opacity: 1; transform: none; } }
+@keyframes intro-lift { to { opacity: 0; transform: scale(1.18); } }
+@keyframes intro-iris { to { --iris: 150vmax; } }
+
 .route-veil { position: fixed; inset: 0; z-index: 50; display: none; place-items: center; background: var(--night); color: var(--gold-soft); pointer-events: none; }
 .route-veil.is-on { display: grid; animation: veil-grow 450ms cubic-bezier(.65, 0, .35, 1) both; }
 .route-veil.is-out { animation: veil-wipe 520ms cubic-bezier(.7, 0, .2, 1) both; }
@@ -355,7 +387,3 @@ html[data-current="home"], html[data-current="home"] body { background: var(--ni
   100% { transform: rotate(0deg); }
 }
 
-/* Light tunnel (light-tunnel.js): fills the hero frame behind the shade and the text. */
-.hero-tunnel { position: absolute; inset: 0; }
-.light-tunnel-container { overflow: hidden; }
-.light-tunnel-canvas { position: absolute; inset: 0; display: block; width: 100%; height: 100%; }
