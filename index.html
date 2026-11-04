@@ -4,19 +4,25 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="description" content="把校园通知整理成可核对的事项，用真实空闲生成经过校验的个人安排。">
-  <meta name="sixu-ui-version" content="2026.11.02.8">
+  <meta name="sixu-ui-version" content="2026.11.03.13">
   <title>司序·知所先后</title>
   <link rel="icon" href="./assets/sixu-mark.svg" type="image/svg+xml">
-  <script>{ const h = location.hash; document.documentElement.dataset.current = h.startsWith('#/') && ['import', 'review', 'time', 'plan'].includes(h.slice(2)) ? h.slice(2) : 'home'; }</script>
-  <link rel="stylesheet" href="./agent.css?v=2026.11.02.8">
+  <script>{ const h = location.hash; document.documentElement.dataset.current = h.startsWith('#/') && ['import', 'review', 'time', 'plan'].includes(h.slice(2)) ? h.slice(2) : 'home'; if (document.documentElement.dataset.current === 'home' && !matchMedia('(prefers-reduced-motion: reduce)').matches) document.documentElement.classList.add('intro'); }</script>
+  <link rel="preload" as="image" href="./assets/hero-astrolabe.webp">
+  <link rel="stylesheet" href="./agent.css?v=2026.11.03.13">
 </head>
 <body>
+  <div class="intro" id="intro" aria-hidden="true">
+    <div class="intro-stage">
+      <svg class="intro-mark" viewBox="0 0 100 100"><circle class="intro-ghost" cx="50" cy="50" r="43" fill="none" stroke="currentColor" stroke-width="5"/><g class="intro-ring" fill="none" stroke="currentColor" stroke-width="5" stroke-linecap="round"><path pathLength="1" d="M58.94 7.94A43 43 0 0 1 92.06 41.06"/><path pathLength="1" d="M92.06 58.94A43 43 0 0 1 58.94 92.06"/><path pathLength="1" d="M41.06 92.06A43 43 0 0 1 7.94 58.94"/><path pathLength="1" d="M7.94 41.06A43 43 0 0 1 41.06 7.94"/></g><g class="intro-needle"><path class="intro-north" d="M50 2Q54.6 45.4 75 50H25Q45.4 45.4 50 2Z"/><path class="intro-south" pathLength="1" d="M27.5 50Q46 54.6 50 82Q54 54.6 72.5 50" fill="none" stroke="currentColor" stroke-width="4.5" stroke-linejoin="round" stroke-linecap="round"/></g></svg>
+      <p class="intro-word"><span class="intro-name">司序</span><span class="intro-motto">知所先后</span></p>
+    </div>
+  </div>
   <a class="skip-link" href="#/review">跳到核对事项</a>
   <div class="landing" id="home" data-page="home">
     <section class="hero" aria-labelledby="heroTitle">
       <div class="hero-frame">
-        <canvas class="hero-sky" id="heroSky" aria-hidden="true"></canvas>
-        <div class="hero-tunnel" id="heroTunnel" aria-hidden="true"></div>
+        <canvas class="hero-sky" id="heroSky" data-src="./assets/hero-astrolabe.webp" data-clean-src="./assets/hero-astrolabe-clean.webp" data-flow-src="./assets/hero-astrolabe-flow.webp" aria-hidden="true"></canvas>
         <div class="noise-overlay" aria-hidden="true"></div>
         <div class="hero-shade" aria-hidden="true"></div>
         <nav class="hero-nav" aria-label="首页导航"><a href="#about">知所先后</a><a href="#features">四步</a><a href="./algorithm.html">计算说明</a></nav>
@@ -30,7 +36,9 @@
       </div>
     </section>
     <section class="about" id="about" aria-labelledby="aboutTitle">
+      <canvas class="about-night" id="aboutNight" aria-hidden="true"></canvas>
       <div class="about-card">
+        <canvas class="about-sky" id="aboutSky" aria-hidden="true"></canvas>
         <p class="about-label">出自《大学》</p>
         <h2 class="about-title" id="aboutTitle" data-pull><span class="w serif" style="--i:0">物</span><span class="w serif" style="--i:1">有</span><span class="w serif" style="--i:2">本</span><span class="w serif" style="--i:3">末</span><span class="w serif" style="--i:4">，</span><span class="w serif" style="--i:5">事</span><span class="w serif" style="--i:6">有</span><span class="w serif" style="--i:7">终</span><span class="w serif" style="--i:8">始</span><span class="w serif" style="--i:9">。</span><span class="w kai" style="--i:10">知</span><span class="w kai" style="--i:11">所</span><span class="w kai" style="--i:12">先</span><span class="w kai" style="--i:13">后</span><span class="w kai" style="--i:14">，</span><span class="w serif" style="--i:15">则</span><span class="w serif" style="--i:16">近</span><span class="w serif" style="--i:17">道</span><span class="w serif" style="--i:18">矣</span><span class="w serif" style="--i:19">。</span></h2>
         <p class="about-body" data-reveal>司序不替你做决定。它把通知里的每一件事拆成可以核对的字段：要做什么、何时截止、还需要多久、能不能拆开做；再把这些事放进你亲手填写的空闲时段里。先做的落到实处，后做的留出余地。每一步都能回看原文依据，改动任何一处，旧的安排就作废、重新计算。</p>
@@ -82,7 +90,7 @@
           <form id="apiForm"><label for="apiBase">解析与计算服务地址</label><input id="apiBase" type="url" inputmode="url" required><button type="submit">保存地址并检查连接</button><p class="field-help" id="connectionStatus" role="status">尚未检查连接</p></form>
           <div class="backup-actions"><button type="button" id="exportSnapshot">导出清单</button><button type="button" id="importSnapshot">导入清单</button><input type="file" id="importFile" accept="application/json,.json" hidden><button class="danger-text" type="button" id="clearSnapshot">清空清单</button></div>
           <p class="field-help">导出文件包含原文与个人安排，请妥善保存。</p>
-          <p class="field-help" id="uiVersion">界面版本 2026.11.02.8</p>
+          <p class="field-help" id="uiVersion">界面版本 2026.11.03.13</p>
         </details>
       </aside>
     </div>
@@ -113,7 +121,7 @@
   </div>
   <div class="route-veil" id="routeVeil" aria-hidden="true"><svg class="veil-mark" viewBox="0 0 100 100"><path class="mark-ring" d="M92.06 58.94A43 43 0 0 1 58.94 92.06M41.06 92.06A43 43 0 0 1 7.94 58.94M7.94 41.06A43 43 0 0 1 41.06 7.94M58.94 7.94A43 43 0 0 1 92.06 41.06" fill="none" stroke="currentColor" stroke-width="5" stroke-linecap="round"/><g class="veil-needle"><path d="M50 2Q54.6 45.4 75 50H25Q45.4 45.4 50 2Z" fill="currentColor"/><path d="M27.5 50Q46 54.6 50 82Q54 54.6 72.5 50" fill="none" stroke="currentColor" stroke-width="5" stroke-linejoin="round" stroke-linecap="round"/></g></svg></div>
   <noscript>此页面需要启用JavaScript才能编辑和计算任务。</noscript>
-  <script type="importmap">{"imports":{"./task-state.js":"./task-state.js?v=2026.11.02.8","./snapshot-store.js":"./snapshot-store.js?v=2026.11.02.8","./model-candidates.js":"./model-candidates.js?v=2026.11.02.8","./time-review.js":"./time-review.js?v=2026.11.02.8","./planning-result.js":"./planning-result.js?v=2026.11.02.8","./scenario.js":"./scenario.js?v=2026.11.02.8","./screenshot-ocr.js":"./screenshot-ocr.js?v=2026.11.02.8"}}</script>
-  <script src="./router.js?v=2026.11.02.8"></script><script src="./light-tunnel.js?v=2026.11.02.8"></script><script src="./landing.js?v=2026.11.02.8"></script><script src="./api-config.js?v=2026.11.02.8"></script><script type="module" src="./agent.js?v=2026.11.02.8"></script>
+  <script type="importmap">{"imports":{"./task-state.js":"./task-state.js?v=2026.11.03.13","./snapshot-store.js":"./snapshot-store.js?v=2026.11.03.13","./model-candidates.js":"./model-candidates.js?v=2026.11.03.13","./time-review.js":"./time-review.js?v=2026.11.03.13","./planning-result.js":"./planning-result.js?v=2026.11.03.13","./scenario.js":"./scenario.js?v=2026.11.03.13","./screenshot-ocr.js":"./screenshot-ocr.js?v=2026.11.03.13"}}</script>
+  <script src="./router.js?v=2026.11.03.13"></script><script src="./hero-scene.js?v=2026.11.03.13"></script><script src="./about-sky.js?v=2026.11.03.13"></script><script src="./landing.js?v=2026.11.03.13"></script><script src="./api-config.js?v=2026.11.03.13"></script><script type="module" src="./agent.js?v=2026.11.03.13"></script>
 </body>
 </html>
