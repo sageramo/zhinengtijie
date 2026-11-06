@@ -15,13 +15,15 @@ export class SnapshotStore {
   #key;
   #expectedRaw;
   #intent = 0;
+  #serialize;
 
-  constructor(storage, { lockManager = globalThis.navigator?.locks, key = STORAGE_KEY, initialRaw = null } = {}) {
+  constructor(storage, { lockManager = globalThis.navigator?.locks, key = STORAGE_KEY, initialRaw = null, serialize = serializeSnapshot } = {}) {
     if (typeof key !== 'string' || !key) throw new TypeError('存储键必须是非空文本');
     this.#requireRaw(initialRaw);
     this.#storage = storage;
     this.#locks = lockManager;
     this.#key = key;
+    this.#serialize = serialize;
     // The caller passes readSnapshot.raw and must gate malformed/failed reads;
     // no constructor read can silently turn unreadable data into an empty save.
     this.#expectedRaw = initialRaw;
@@ -54,7 +56,7 @@ export class SnapshotStore {
     try {
       // Serialize immediately, so later mutations of the caller's object cannot
       // change the queued intent or bypass the snapshot structure/byte checks.
-      raw = serializeSnapshot(snapshot);
+      raw = this.#serialize(snapshot);
     } catch (error) {
       return { saved: false, error: error?.message || '任务清单格式无效，未保存' };
     }
