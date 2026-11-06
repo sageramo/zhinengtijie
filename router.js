@@ -1,11 +1,13 @@
-// One page per function, addressed by hash: #/ (landing), #/import, #/review, #/time, #/plan.
+// One page per function, addressed by hash: #/ (landing), #/import, #/items, #/time, #/calendar.
+// Old links #/review and #/plan open their replacements.
 // The current page is html[data-current]; CSS shows only that page, so back/forward and reload all work.
 (() => {
   const root = document.documentElement;
-  const titles = { home: '司序·知所先后', import: '导入通知 · 司序', review: '核对事项 · 司序', time: '空闲时间 · 司序', plan: '生成安排 · 司序', calendar: '日历 · 司序' };
+  const titles = { home: '司序·知所先后', import: '导入 · 司序', items: '事项 · 司序', time: '时间 · 司序', calendar: '日历 · 司序' };
+  const aliases = { review: 'items', plan: 'calendar' };
   const routeOf = hash => {
     if (!hash.startsWith('#/')) return hash && root.dataset.current ? root.dataset.current : 'home';
-    const name = hash.slice(2);
+    const name = aliases[hash.slice(2)] || hash.slice(2);
     return Object.hasOwn(titles, name) && name ? name : 'home';
   };
 
