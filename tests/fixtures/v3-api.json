@@ -1,0 +1,292 @@
+{
+ "notice": "【虚构示例】讲座与课程报告安排\n请于2026年11月10日15:00前完成讲座报名。讲座于2026年11月10日18:00-20:00举行，地点为主楼405。请于2026年11月10日23:59前提交课程报告。",
+ "extract": {
+  "source": {
+   "id": "s-42ab43c0b07d",
+   "kind": "pasted_notice",
+   "text": "【虚构示例】讲座与课程报告安排\n请于2026年11月10日15:00前完成讲座报名。讲座于2026年11月10日18:00-20:00举行，地点为主楼405。请于2026年11月10日23:59前提交课程报告。",
+   "published_at": null
+  },
+  "events": [
+   {
+    "id": "e-906405cc402d",
+    "title": "参加讲座",
+    "start_at": "2026-11-10T18:00:00+08:00",
+    "end_at": "2026-11-10T20:00:00+08:00",
+    "location": "主楼405",
+    "status": "active",
+    "source_id": "s-42ab43c0b07d",
+    "evidence": [
+     {
+      "field": "title",
+      "origin": "source_text",
+      "source_id": "s-42ab43c0b07d",
+      "quote": "讲座于2026年11月10日18:00-20:00举行，地点为主楼405"
+     },
+     {
+      "field": "start_at",
+      "origin": "source_text",
+      "source_id": "s-42ab43c0b07d",
+      "quote": "2026年11月10日18:00-20:00"
+     },
+     {
+      "field": "end_at",
+      "origin": "source_text",
+      "source_id": "s-42ab43c0b07d",
+      "quote": "2026年11月10日18:00-20:00"
+     },
+     {
+      "field": "location",
+      "origin": "source_text",
+      "source_id": "s-42ab43c0b07d",
+      "quote": "主楼405"
+     }
+    ],
+    "notes": []
+   }
+  ],
+  "tasks": [
+   {
+    "id": "t-7562582f16e2",
+    "title": "完成讲座报名",
+    "deadline_at": "2026-11-10T15:00:00+08:00",
+    "estimate_minutes": null,
+    "splittable": true,
+    "min_block_minutes": null,
+    "earliest_start_at": null,
+    "priority": null,
+    "status": "active",
+    "location": null,
+    "materials": [],
+    "source_id": "s-42ab43c0b07d",
+    "evidence": [
+     {
+      "field": "title",
+      "origin": "source_text",
+      "source_id": "s-42ab43c0b07d",
+      "quote": "请于2026年11月10日15:00前完成讲座报名"
+     },
+     {
+      "field": "deadline_at",
+      "origin": "source_text",
+      "source_id": "s-42ab43c0b07d",
+      "quote": "2026年11月10日15:00"
+     }
+    ],
+    "notes": []
+   },
+   {
+    "id": "t-8880502566ea",
+    "title": "提交课程报告",
+    "deadline_at": "2026-11-10T23:59:00+08:00",
+    "estimate_minutes": null,
+    "splittable": true,
+    "min_block_minutes": null,
+    "earliest_start_at": null,
+    "priority": null,
+    "status": "active",
+    "location": null,
+    "materials": [],
+    "source_id": "s-42ab43c0b07d",
+    "evidence": [
+     {
+      "field": "title",
+      "origin": "source_text",
+      "source_id": "s-42ab43c0b07d",
+      "quote": "请于2026年11月10日23:59前提交课程报告"
+     },
+     {
+      "field": "deadline_at",
+      "origin": "source_text",
+      "source_id": "s-42ab43c0b07d",
+      "quote": "2026年11月10日23:59"
+     }
+    ],
+    "notes": []
+   }
+  ],
+  "warnings": [],
+  "mode": "rules"
+ },
+ "timetable_text": "高等数学 周一 第1-2节 1-16周 主楼301\n体育 周五 14:00-15:40 2-16周 东操场",
+ "timetable": {
+  "source": {
+   "id": "s-63644ccd7a23",
+   "kind": "timetable",
+   "text": "高等数学 周一 第1-2节 1-16周 主楼301\n体育 周五 14:00-15:40 2-16周 东操场",
+   "published_at": null
+  },
+  "courses": [
+   {
+    "title": "高等数学",
+    "quote": "高等数学 周一 第1-2节 1-16周 主楼301",
+    "weekdays": [
+     1
+    ],
+    "start_period": 1,
+    "end_period": 2,
+    "start_time": null,
+    "end_time": null,
+    "weeks": [
+     [
+      1,
+      16
+     ]
+    ],
+    "parity": "all",
+    "location": "主楼301"
+   },
+   {
+    "title": "体育",
+    "quote": "体育 周五 14:00-15:40 2-16周 东操场",
+    "weekdays": [
+     5
+    ],
+    "start_period": null,
+    "end_period": null,
+    "start_time": "14:00",
+    "end_time": "15:40",
+    "weeks": [
+     [
+      2,
+      16
+     ]
+    ],
+    "parity": "all",
+    "location": "东操场"
+   }
+  ],
+  "routines": [
+   {
+    "id": "r-9182481cb744",
+    "title": "高等数学",
+    "weekdays": [
+     1
+    ],
+    "start": "08:00",
+    "end": "09:40",
+    "from": "2026-09-07",
+    "until": "2026-12-27",
+    "week_interval": 1,
+    "skip_dates": [],
+    "location": "主楼301",
+    "source_id": "s-63644ccd7a23"
+   },
+   {
+    "id": "r-94f2d5373eec",
+    "title": "体育",
+    "weekdays": [
+     5
+    ],
+    "start": "14:00",
+    "end": "15:40",
+    "from": "2026-09-14",
+    "until": "2026-12-27",
+    "week_interval": 1,
+    "skip_dates": [],
+    "location": "东操场",
+    "source_id": "s-63644ccd7a23"
+   }
+  ],
+  "drafts": [],
+  "warnings": [],
+  "mode": "model"
+ },
+ "timetable_draft": {
+  "source": {
+   "id": "s-c87767673212",
+   "kind": "timetable",
+   "text": "高等数学 周一 第1-2节 1-16周 主楼301\n体育 周五 14:00-15:40 2-16周 东操场",
+   "published_at": null
+  },
+  "courses": [
+   {
+    "title": "高等数学",
+    "quote": "高等数学 周一 第1-2节 1-16周 主楼301",
+    "weekdays": [
+     1
+    ],
+    "start_period": 1,
+    "end_period": 2,
+    "start_time": null,
+    "end_time": null,
+    "weeks": [
+     [
+      1,
+      16
+     ]
+    ],
+    "parity": "all",
+    "location": "主楼301"
+   },
+   {
+    "title": "体育",
+    "quote": "体育 周五 14:00-15:40 2-16周 东操场",
+    "weekdays": [
+     5
+    ],
+    "start_period": null,
+    "end_period": null,
+    "start_time": "14:00",
+    "end_time": "15:40",
+    "weeks": [
+     [
+      2,
+      16
+     ]
+    ],
+    "parity": "all",
+    "location": "东操场"
+   }
+  ],
+  "routines": [],
+  "drafts": [
+   {
+    "course": {
+     "title": "高等数学",
+     "quote": "高等数学 周一 第1-2节 1-16周 主楼301",
+     "weekdays": [
+      1
+     ],
+     "start_period": 1,
+     "end_period": 2,
+     "start_time": null,
+     "end_time": null,
+     "weeks": [
+      [
+       1,
+       16
+      ]
+     ],
+     "parity": "all",
+     "location": "主楼301"
+    },
+    "problem": "第1-2节的上课时刻未定义，请补全节次时间表。"
+   },
+   {
+    "course": {
+     "title": "体育",
+     "quote": "体育 周五 14:00-15:40 2-16周 东操场",
+     "weekdays": [
+      5
+     ],
+     "start_period": null,
+     "end_period": null,
+     "start_time": "14:00",
+     "end_time": "15:40",
+     "weeks": [
+      [
+       2,
+       16
+      ]
+     ],
+     "parity": "all",
+     "location": "东操场"
+    },
+    "problem": "还不知道第1周周一是哪天，无法换算上课日期。"
+   }
+  ],
+  "warnings": [],
+  "mode": "convert"
+ }
+}

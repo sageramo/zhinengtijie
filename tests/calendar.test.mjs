@@ -1,46 +1,61 @@
-// Pure markup checks for the week calendar; no layout or visual verification.
+// Pure markup checks for the four-layer week calendar; no layout or visual verification.
+// The fixture is real /api/v3/calendar output from the backend, so both sides share one contract.
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { createSnapshot, createTask, addTask, setAvailability } from '../task-state.js';
-import { weekStart, calendarItems, calendarMarkup } from '../calendar.js';
+import { readFileSync } from 'node:fs';
+import { weekStart, weekRange, calendarItems, calendarMarkup } from '../calendar.js';
 
-const at = value => `2026-11-${value}:00+08:00`;
-function sample() {
-  let snapshot = createSnapshot({ referenceTime: at('04T18:00') });
-  const prep = Object.assign(createTask('flexible'), { title: '准备材料', deadline_at: at('04T19:00'), remaining_minutes: 30 });
-  const talk = Object.assign(createTask('fixed'), { title: '小组汇报', fixed_start_at: at('04T19:00'), fixed_end_at: at('04T20:00'), location: '主楼405' });
-  const loose = Object.assign(createTask('fixed'), { title: '时间未定的讲座' });
-  for (const task of [prep, talk, loose]) snapshot = addTask(snapshot, task);
-  snapshot = setAvailability(snapshot, [{ start: at('04T18:00'), end: at('04T22:00') }]);
-  const plan = { status: 'feasible_found', schedule: [{ task_id: prep.id, kind: 'work', start: at('04T18:00'), end: at('04T18:30') }, { task_id: talk.id, kind: 'fixed', start: at('04T19:00'), end: at('04T20:00') }] };
-  return { snapshot, plan, prep, talk, loose };
-}
+const { result } = JSON.parse(readFileSync(new URL('./fixtures/calendar-v3.json', import.meta.url), 'utf8'));
+const monday = Date.parse('2026-11-09T00:00:00+08:00');
 
-test('weeks start on Monday 00:00 Beijing time', () => {
-  // 2026-11-04 is a Wednesday; the week starts 2026-11-02 00:00 +08:00.
-  assert.equal(weekStart(Date.parse(at('04T18:00'))), Date.parse(at('02T00:00')));
-  assert.equal(weekStart(Date.parse('2026-11-01T17:00:00Z')), Date.parse(at('02T00:00')));
+test('weeks start on Monday 00:00 Beijing time and map to the API range', () => {
+  assert.equal(weekStart(Date.parse('2026-11-11T18:00:00+08:00')), monday);
+  assert.equal(weekStart(Date.parse('2026-11-08T17:00:00Z')), monday);
+  assert.deepEqual(weekRange(monday), { from: '2026-11-09', to: '2026-11-15' });
 });
 
-test('items come from free time, fixed activities, deadlines and planned work; the rest is pending', () => {
-  const { snapshot, plan, prep, talk, loose } = sample();
-  const { items, undated } = calendarItems(snapshot, plan);
-  assert.deepEqual(items.map(item => item.type).sort(), ['deadline', 'fixed', 'free', 'work']);
-  assert.equal(items.find(item => item.type === 'work').id, prep.id);
-  assert.equal(items.find(item => item.type === 'fixed').id, talk.id);
-  assert.deepEqual(undated.map(item => item.id), [loose.id]);
-  // Without a plan, the flexible task waits under 待定 too.
-  assert.deepEqual(calendarItems(snapshot, null).undated.map(item => item.id).sort(), [prep.id, loose.id].sort());
+test('items come from the four layers and markers; conflicting items are flagged', () => {
+  const items = calendarItems(result);
+  const types = new Set(items.map(item => item.type));
+  for (const type of ['free', 'routine', 'temporary', 'work', 'deadline', 'start']) assert.ok(types.has(type), type);
+  assert.ok(items.find(item => item.type === 'temporary' && item.id === 'e1').conflict);
+  assert.ok(items.find(item => item.type === 'routine' && item.key === 'r1@2026-11-09').conflict);
+  assert.equal(items.find(item => item.type === 'routine' && item.key === 'r1@2026-11-11').conflict, false);
+  assert.deepEqual(calendarItems(null), []);
 });
 
-test('markup places each item in its day and links blocks to their tasks', () => {
-  const { snapshot, plan, prep, talk, loose } = sample();
-  const html = calendarMarkup({ snapshot, plan, start: weekStart(Date.parse(snapshot.reference_time)), now: Date.parse(at('04T18:45')) });
-  assert.match(html, new RegExp(`class="cal-block cal-work[^"]*" data-cal-task="${prep.id}"`));
-  assert.match(html, new RegExp(`class="cal-block cal-fixed[^"]*" data-cal-task="${talk.id}"`));
-  assert.match(html, /class="cal-deadline"/);
-  assert.match(html, /class="cal-free"/);
+test('markup draws each layer, links blocks to their entries and lists conflicts and undefined items', () => {
+  const html = calendarMarkup({ result, start: monday, now: Date.parse('2026-11-09T10:00:00+08:00') });
+  assert.match(html, /class="cal-block cal-routine[^"]*is-conflict" data-cal-item="r1" data-cal-layer="routine"/);
+  assert.match(html, /class="cal-block cal-temporary[^"]*is-conflict" data-cal-item="e1" data-cal-layer="event"/);
+  assert.match(html, /class="cal-block cal-work[^"]*" data-cal-item="t1" data-cal-layer="task"/);
+  assert.match(html, /class="cal-deadline[^"]*" data-cal-item="t2"/);
+  assert.match(html, /class="cal-deadline is-start" data-cal-item="e2"/);
+  assert.match(html, /class="cal-free" data-cal-goto="time"/);
   assert.match(html, /class="cal-now"/);
-  assert.match(html, new RegExp(`data-cal-task="${loose.id}"[^>]*><strong>时间未定的讲座`));
-  assert.match(html, /11月2日 — 8日/);
+  assert.match(html, /冲突 <span>1<\/span>/);
+  assert.match(html, /临时占用撞上例行占用 · 40分钟/);
+  assert.match(html, /未定义 <span>2<\/span>/);
+  assert.match(html, /预计用时未定义/);
+  assert.match(html, /11月9日 — 15日/);
+});
+
+test('loading, error and no-result states are explained', () => {
+  assert.match(calendarMarkup({ result: null, start: monday, now: monday, loading: true }), /正在计算这一周/);
+  assert.match(calendarMarkup({ result: null, start: monday, now: monday, error: '连接失败' }), /连接失败/);
+  assert.match(calendarMarkup({ result: null, start: monday, now: monday }), /计算完成后/);
+});
+
+test('titles are escaped', () => {
+  const unsafe = structuredClone(result);
+  unsafe.layers.temporary[0].title = '<img src=x>';
+  assert.doesNotMatch(calendarMarkup({ result: unsafe, start: monday, now: monday }), /<img src=x>/);
+});
+
+test('a deadline just before midnight does not stretch the next day to 00:00', () => {
+  const late = structuredClone(result);
+  late.markers = [{ type: 'deadline', id: 't1', title: '课程报告', at: '2026-11-13T23:59:00+08:00', state: 'scheduled' }];
+  const html = calendarMarkup({ result: late, start: monday, now: monday });
+  assert.doesNotMatch(html, />00:00</);
+  assert.match(html, />08:00</);
 });

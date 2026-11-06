@@ -1,0 +1,300 @@
+{
+ "snapshot": {
+  "schema_version": 3,
+  "revision": 4,
+  "timezone": "Asia/Shanghai",
+  "reference_time": "2026-11-09T08:00:00+08:00",
+  "sources": [],
+  "daily_window": [
+   {
+    "start": "08:00",
+    "end": "23:00"
+   },
+   {
+    "start": "08:00",
+    "end": "23:00"
+   },
+   {
+    "start": "08:00",
+    "end": "23:00"
+   },
+   {
+    "start": "08:00",
+    "end": "23:00"
+   },
+   {
+    "start": "08:00",
+    "end": "23:00"
+   },
+   {
+    "start": "08:00",
+    "end": "23:00"
+   },
+   {
+    "start": "08:00",
+    "end": "23:00"
+   }
+  ],
+  "routines_confirmed": true,
+  "routines": [
+   {
+    "id": "r1",
+    "title": "高等数学",
+    "weekdays": [
+     1,
+     3
+    ],
+    "start": "08:00",
+    "end": "09:40",
+    "from": "2026-09-07",
+    "until": null,
+    "week_interval": 1,
+    "skip_dates": [],
+    "location": "主楼301",
+    "source_id": null
+   }
+  ],
+  "free_adjustments": [],
+  "events": [
+   {
+    "id": "e1",
+    "title": "讲座",
+    "start_at": "2026-11-09T09:00:00+08:00",
+    "end_at": "2026-11-09T11:00:00+08:00",
+    "location": "主楼405",
+    "status": "active",
+    "source_id": null,
+    "evidence": [],
+    "notes": []
+   },
+   {
+    "id": "e2",
+    "title": "比赛",
+    "start_at": "2026-11-12T14:00:00+08:00",
+    "end_at": null,
+    "location": null,
+    "status": "active",
+    "source_id": null,
+    "evidence": [],
+    "notes": []
+   }
+  ],
+  "tasks": [
+   {
+    "id": "t1",
+    "title": "课程报告",
+    "deadline_at": "2026-11-10T23:59:00+08:00",
+    "estimate_minutes": 120,
+    "splittable": true,
+    "min_block_minutes": null,
+    "earliest_start_at": null,
+    "priority": null,
+    "status": "active",
+    "location": null,
+    "materials": [],
+    "source_id": null,
+    "evidence": [],
+    "notes": []
+   },
+   {
+    "id": "t2",
+    "title": "报名",
+    "deadline_at": "2026-11-11T15:00:00+08:00",
+    "estimate_minutes": null,
+    "splittable": true,
+    "min_block_minutes": null,
+    "earliest_start_at": null,
+    "priority": null,
+    "status": "active",
+    "location": null,
+    "materials": [],
+    "source_id": null,
+    "evidence": [],
+    "notes": []
+   }
+  ]
+ },
+ "result": {
+  "schema_version": 3,
+  "revision": 4,
+  "status": "conflicts",
+  "range": {
+   "from": "2026-11-09",
+   "to": "2026-11-15"
+  },
+  "definition": {
+   "free_time": "defined",
+   "routines": "confirmed"
+  },
+  "layers": {
+   "routine": [
+    {
+     "id": "r1@2026-11-09",
+     "routine_id": "r1",
+     "title": "高等数学",
+     "start": "2026-11-09T08:00:00+08:00",
+     "end": "2026-11-09T09:40:00+08:00",
+     "location": "主楼301"
+    },
+    {
+     "id": "r1@2026-11-11",
+     "routine_id": "r1",
+     "title": "高等数学",
+     "start": "2026-11-11T08:00:00+08:00",
+     "end": "2026-11-11T09:40:00+08:00",
+     "location": "主楼301"
+    }
+   ],
+   "free": [
+    {
+     "start": "2026-11-09T11:00:00+08:00",
+     "end": "2026-11-09T23:00:00+08:00",
+     "origin": "daily_window"
+    },
+    {
+     "start": "2026-11-10T08:00:00+08:00",
+     "end": "2026-11-10T23:00:00+08:00",
+     "origin": "daily_window"
+    },
+    {
+     "start": "2026-11-11T09:40:00+08:00",
+     "end": "2026-11-11T23:00:00+08:00",
+     "origin": "daily_window"
+    },
+    {
+     "start": "2026-11-12T08:00:00+08:00",
+     "end": "2026-11-12T23:00:00+08:00",
+     "origin": "daily_window"
+    },
+    {
+     "start": "2026-11-13T08:00:00+08:00",
+     "end": "2026-11-13T23:00:00+08:00",
+     "origin": "daily_window"
+    },
+    {
+     "start": "2026-11-14T08:00:00+08:00",
+     "end": "2026-11-14T23:00:00+08:00",
+     "origin": "daily_window"
+    },
+    {
+     "start": "2026-11-15T08:00:00+08:00",
+     "end": "2026-11-15T23:00:00+08:00",
+     "origin": "daily_window"
+    }
+   ],
+   "work": [
+    {
+     "task_id": "t1",
+     "title": "课程报告",
+     "start": "2026-11-09T11:00:00+08:00",
+     "end": "2026-11-09T13:00:00+08:00",
+     "deadline_at": "2026-11-10T23:59:00+08:00"
+    }
+   ],
+   "temporary": [
+    {
+     "id": "e1",
+     "title": "讲座",
+     "start": "2026-11-09T09:00:00+08:00",
+     "end": "2026-11-09T11:00:00+08:00",
+     "location": "主楼405"
+    }
+   ]
+  },
+  "markers": [
+   {
+    "type": "deadline",
+    "id": "t1",
+    "title": "课程报告",
+    "at": "2026-11-10T23:59:00+08:00",
+    "state": "scheduled"
+   },
+   {
+    "type": "deadline",
+    "id": "t2",
+    "title": "报名",
+    "at": "2026-11-11T15:00:00+08:00",
+    "state": "estimate_undefined"
+   },
+   {
+    "type": "event_start_only",
+    "id": "e2",
+    "title": "比赛",
+    "at": "2026-11-12T14:00:00+08:00",
+    "state": "end_undefined"
+   }
+  ],
+  "tasks": [
+   {
+    "id": "t1",
+    "state": "scheduled",
+    "estimate_minutes": 120,
+    "scheduled_minutes": 120,
+    "assumptions": [
+     "优先级未填，按50计。",
+     "最小连续时长未填，按30分钟计。"
+    ]
+   },
+   {
+    "id": "t2",
+    "state": "estimate_undefined",
+    "estimate_minutes": null,
+    "scheduled_minutes": 0,
+    "assumptions": []
+   }
+  ],
+  "conflicts": [
+   {
+    "type": "temporary_routine_overlap",
+    "layers": [
+     "routine",
+     "temporary"
+    ],
+    "items": [
+     {
+      "layer": "temporary",
+      "id": "e1",
+      "title": "讲座",
+      "start": "2026-11-09T09:00:00+08:00",
+      "end": "2026-11-09T11:00:00+08:00"
+     },
+     {
+      "layer": "routine",
+      "id": "r1@2026-11-09",
+      "title": "高等数学",
+      "start": "2026-11-09T08:00:00+08:00",
+      "end": "2026-11-09T09:40:00+08:00"
+     }
+    ],
+    "start": "2026-11-09T09:00:00+08:00",
+    "end": "2026-11-09T09:40:00+08:00",
+    "minutes": 40,
+    "reason": "临时占用与例行占用重叠，需要请假、调课或放弃其中之一。"
+   }
+  ],
+  "undefined": [
+   {
+    "type": "estimate_undefined",
+    "id": "t2",
+    "title": "报名",
+    "reason": "预计用时未定义，只显示截止，不划工作时间。"
+   },
+   {
+    "type": "event_end_undefined",
+    "id": "e2",
+    "title": "比赛",
+    "reason": "只有开始时间，结束未定义，暂不计入占用。"
+   }
+  ],
+  "validation": {
+   "passed": true,
+   "errors": []
+  },
+  "warnings": [],
+  "limitations": [
+   "工作时间按截止从早到晚逐件放入自由时间，每次都由独立校验器核对；排不下的单独报缺口，不保证全局最优。",
+   "自由时间 = 作息范围 − 例行占用 − 临时占用 ± 手动调整；未自动预留路程、吃饭和休息，请用手动调整扣除。",
+   "本版不含事项之间的前置依赖，也不在办理窗口内自动择时。"
+  ]
+ }
+}

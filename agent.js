@@ -1,173 +1,79 @@
-import {
-  STORAGE_KEY, createSnapshot, createTask, addSource, addTask, editTask,
-  removeTask, setAvailability, setReferenceTime, confirmTask, completeTask,
-  reopenTask, noticeCandidates, parseSnapshot, serializeSnapshot,
-  readSnapshot, RevisionGate, isTimestamp, MAX_SNAPSHOT_BYTES, applyTimeReview,
-} from './task-state.js';
+import { isTimestamp } from './task-state.js';
 import { SnapshotStore } from './snapshot-store.js';
-import { modelCandidates } from './model-candidates.js';
-import { reviewTimePatch } from './time-review.js';
-import { readPlanResponse, planMarkup } from './planning-result.js';
-import { calendarMarkup, weekStart } from './calendar.js';
-import { canCompare, buildScenario, adoptScenario, scenarioForm, comparisonMarkup } from './scenario.js';
+import {
+  TIME_STORAGE_KEY, ESTIMATE_PRESETS, createTimeSnapshot, serializeTimeSnapshot, parseTimeSnapshot, readTimeSnapshot,
+  addImported, updateTask, updateEvent, addTask, addEvent, removeItem, setDailyWindow, addRoutine, setRoutinesConfirmed,
+  addAdjustment, addTimetable, setReferenceTime,
+} from './time-state.js';
+import { calendarMarkup, weekStart, weekRange } from './calendar.js';
 import { createRecognizer, imageProblem } from './screenshot-ocr.js';
 
+/*
+ * Workbench for the four time layers (backend docs/time_layers_v3.md):
+ * 导入 adds notice items at once, 事项 edits temporary occupancy and work,
+ * 时间 sets the daily window, routines (manual or timetable) and free-time
+ * adjustments, 日历 shows what /api/v3/calendar computes. Missing values stay
+ * "undefined" and never block other items.
+ */
 const $ = id => document.getElementById(id);
 const escapeHTML = value => String(value ?? '').replace(/[&<>"']/g, character => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[character]);
-const clone = value => structuredClone(value);
-const nowISO = () => new Date().toISOString();
-const currentMinuteISO = () => new Date(Math.ceil(Date.now() / 60000) * 60000).toISOString();
-const toLocalInput = iso => isTimestamp(iso) ? new Date(Date.parse(iso) + 8 * 3600000).toISOString().slice(0, 16) : '';
+const DAY = 86400000;
+const OFFSET = 8 * 3600000;
+const WEEKDAY_NAMES = ['周一', '周二', '周三', '周四', '周五', '周六', '周日'];
+const DEFAULT_WINDOW = [...Array(5).fill({ start: '08:00', end: '23:00' }), ...Array(2).fill({ start: '09:00', end: '23:00' })];
+const DEFAULT_PERIODS = ['1 08:00-08:45', '2 08:55-09:40', '3 10:00-10:45', '4 10:55-11:40', '5 14:00-14:45', '6 14:55-15:40',
+  '7 16:00-16:45', '8 16:55-17:40', '9 19:00-19:45', '10 19:55-20:40', '11 20:50-21:35', '12 21:45-22:30'].join('\n');
+const TASK_STATE = { scheduled: ['已排进工作时间', 'ok'], estimate_undefined: ['预计用时未定义', 'undefined'], deadline_undefined: ['截止未定义', 'undefined'],
+  free_time_undefined: ['自由时间未定义', 'undefined'], short: ['工作时间不足', 'conflict'], overdue: ['已过截止', 'conflict'],
+  beyond_horizon: ['截止超出31天，临近再排', 'undefined'], not_attempted: ['暂未安排', 'undefined'], completed: ['已完成', 'done'], cancelled: ['不做了', 'done'] };
+const currentMinuteISO = () => new Date(Math.ceil(Date.now() / 60000) * 60000).toISOString().replace(/\.\d{3}Z$/, 'Z');
+const toLocalInput = iso => isTimestamp(iso) ? new Date(Date.parse(iso) + OFFSET).toISOString().slice(0, 16) : '';
+const localDate = ms => new Date(ms + OFFSET).toISOString().slice(0, 10);
 function fromLocalInput(value) {
   if (!/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/.test(value || '')) return null;
   const iso = `${value}:00+08:00`;
   return isTimestamp(iso) ? iso : null;
 }
-function readableTime(value) {
-  if (!isTimestamp(value)) return '';
-  const local = new Date(Date.parse(value) + 8 * 3600000).toISOString().slice(0, 19);
-  const fraction = (/\.(\d+)(?:Z|[+-]\d{2}:\d{2})$/.exec(value)?.[1] || '').replace(/0+$/, '');
-  const displayed = !fraction && local.endsWith(':00') ? local.slice(0, 16) : `${local}${fraction ? `.${fraction}` : ''}`;
-  return displayed.replace('T', ' ');
+function readable(iso) {
+  if (!isTimestamp(iso)) return '';
+  const local = new Date(Date.parse(iso) + OFFSET);
+  return `${local.getUTCMonth() + 1}月${local.getUTCDate()}日 ${local.toISOString().slice(11, 16)}`;
 }
-const minutes = value => `${Number(value).toLocaleString('zh-CN', { maximumFractionDigits: 2 })} 分钟`;
-const taskTitle = task => task.title.trim() || '未命名事项';
-const isInactive = task => ['completed', 'cancelled'].includes(task.status);
-const sourceId = () => `notice-${globalThis.crypto?.randomUUID?.() || `${Date.now()}-${Math.random().toString(36).slice(2)}`}`;
 const scrollBehavior = () => window.matchMedia?.('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth';
-const stateLabels = { draft: '待核对', confirmed: '已确认', scheduled: '已确认', in_progress: '进行中', completed: '已完成，不计剩余量', cancelled: '已取消，不计剩余量' };
-const TIME_REVIEW_LABEL = '按参照日期补全原文时间';
-const CONFIRM_LABEL = '已逐项核对，确认事项';
-const CONFIRMED_HELP = '事项已确认。继续核对其他事项，或填写空闲时段后生成具体安排。';
-let confirmationErrorSequence = 0;
 
 let storage;
 try { storage = window.localStorage; } catch { storage = null; }
-const recovered = readSnapshot(storage);
-const snapshotStore = new SnapshotStore(storage, { initialRaw: recovered.raw });
-let snapshot = recovered.snapshot || createSnapshot({ referenceTime: currentMinuteISO() });
+const recovered = readTimeSnapshot(storage);
+const snapshotStore = new SnapshotStore(storage, { key: TIME_STORAGE_KEY, initialRaw: recovered.raw, serialize: serializeTimeSnapshot });
+let snapshot = recovered.snapshot || createTimeSnapshot({ referenceTime: currentMinuteISO() });
 let storageLocked = Boolean(recovered.error);
 let externalConflict = false;
 let apiBase = window.CAMPUS_AGENT_API || 'http://127.0.0.1:8765';
 try { apiBase = storage?.getItem('sixu.api-base') || apiBase; } catch { /* Data can still be edited in memory. */ }
-let capabilityBase = null;
-let capabilityHealth = null;
-let result = null;
-let planResult = null;
-let hasCalculated = false;
-let activeParse = null;
-let activeCalculation = null;
-let activeScenario = null;
-let scenarioPreview = null;
-let importSequence = 0;
+let healthBase = null;
+let health = null;
+let calendarResult = null;
+let calendarError = '';
+let calendarLoading = false;
+let calendarSequence = 0;
+let calendarTimer = null;
+let calendarWeek = null;
+let parseSequence = 0;
 let connectionSequence = 0;
-let invalidReference = false;
-const invalidEdits = new Map();
-const parseGate = new RevisionGate();
-const calculateGate = new RevisionGate();
-const timeReviewGate = new RevisionGate();
-const scenarioGate = new RevisionGate();
+let timetableSequence = 0;
+let lastTimetable = null;
 
 function tell(message, type = '') {
   $('appMessage').textContent = message;
   $('appMessage').className = `message ${type}`.trim();
   $('appMessage').hidden = !message;
 }
-function taskError(id, message) {
-  const card = Array.from($('taskList').querySelectorAll('[data-task-id]')).find(element => element.dataset.taskId === id);
-  if (card) card.querySelector('[data-task-error]').textContent = message;
-}
-function clearConfirmationErrors(card) {
-  const ids = new Set(Array.from(card.querySelectorAll('[data-confirmation-error]'), node => node.id));
-  for (const input of card.querySelectorAll('[data-task-field]')) {
-    const descriptions = (input.getAttribute('aria-describedby') || '').split(/\s+/).filter(id => id && !ids.has(id));
-    if (descriptions.length) input.setAttribute('aria-describedby', descriptions.join(' '));
-    else input.removeAttribute('aria-describedby');
-    input.setAttribute('aria-invalid', String(invalidEdits.get(card.dataset.taskId)?.has(input.dataset.taskField) || false));
-  }
-  for (const node of card.querySelectorAll('[data-confirmation-error]')) node.remove();
-}
-function showConfirmationErrors(id, messages, fields = []) {
-  const card = Array.from($('taskList').querySelectorAll('[data-task-id]')).find(element => element.dataset.taskId === id);
-  if (!card) return;
-  clearConfirmationErrors(card);
-  taskError(id, `尚未确认：${messages.join('；')}。补充后再次确认，已填内容会保留。`);
-  let first;
-  const controls = Array.from(card.querySelectorAll('[data-task-field]'));
-  for (let index = 0; index < messages.length; index += 1) {
-    const input = controls.find(control => control.dataset.taskField === fields[index]);
-    if (!input) continue;
-    const hint = document.createElement('span');
-    hint.id = `confirmation-error-${++confirmationErrorSequence}`;
-    hint.className = 'field-error confirmation-error';
-    hint.dataset.confirmationError = '';
-    hint.textContent = messages[index];
-    input.after(hint);
-    input.setAttribute('aria-invalid', 'true');
-    input.setAttribute('aria-describedby', [input.getAttribute('aria-describedby'), hint.id].filter(Boolean).join(' '));
-    first ||= input;
-  }
-  const target = first || card.querySelector('[data-task-error]');
-  for (let detail = target.closest('details'); detail && card.contains(detail); detail = detail.parentElement.closest('details')) detail.open = true;
-  target.focus({ preventScroll: true });
-  target.scrollIntoView({ behavior: scrollBehavior(), block: 'center' });
-}
-const FIELD_NAMES = { title: '事项名称', must_do: '是否必须完成', priority: '优先级', fixed_start_at: '固定开始', fixed_end_at: '固定结束', deadline_at: '截止日期与时刻', remaining_minutes: '还需要多少分钟', splittable: '能否拆开做', min_block_minutes: '每次至少连续几分钟' };
-function missingFields(task) {
-  if (isInactive(task)) return [];
-  const fields = ['title', 'must_do', 'priority'];
-  if (task.kind === 'fixed') fields.push('fixed_start_at', 'fixed_end_at');
-  else if (task.kind === 'milestone') fields.push('deadline_at');
-  else fields.push('deadline_at', 'remaining_minutes', 'splittable', ...(task.splittable ? ['min_block_minutes'] : []));
-  return fields.filter(field => task[field] === null || task[field] === '');
-}
-function needsReview(task) {
-  if (isInactive(task)) return false;
-  if (invalidEdits.has(task.id)) return true;
-  if (task.status === 'draft') return true;
-  const fields = ['title', 'kind', 'must_do', 'priority'];
-  if (task.kind === 'fixed') fields.push('fixed_start_at', 'fixed_end_at');
-  else if (task.kind === 'milestone') fields.push('deadline_at');
-  else fields.push('deadline_at', 'remaining_minutes', 'splittable', ...(task.splittable ? ['min_block_minutes'] : []));
-  return fields.some(field => task[field] === null || !task.confirmed_fields.includes(field));
-}
 function busy(button, value, idle, working) {
   button.disabled = value;
   button.setAttribute('aria-busy', String(value));
   button.textContent = value ? working : idle;
 }
-let parseTimer = null;
-function showParseProgress(mode) {
-  const started = Date.now();
-  $('parseProgress').hidden = false;
-  $('parseStep').textContent = mode === 'dify' ? '正在连接服务，随后由模型阅读原文' : '正在按规则读取原文';
-  $('parseHint').textContent = mode === 'dify' ? '模型提取通常需要10到60秒，可以先浏览其他部分。' : '';
-  $('parseElapsed').textContent = '';
-  window.clearInterval(parseTimer);
-  parseTimer = window.setInterval(() => { $('parseElapsed').textContent = `已用 ${Math.round((Date.now() - started) / 1000)} 秒。`; }, 1000);
-}
-function stepParseProgress(text) { if (!$('parseProgress').hidden) $('parseStep').textContent = text; }
-function hideParseProgress() {
-  window.clearInterval(parseTimer);
-  parseTimer = null;
-  $('parseProgress').hidden = true;
-}
-function invalidateResults() {
-  invalidateScenario();
-  calculateGate.invalidate();
-  parseGate.invalidate();
-  timeReviewGate.invalidate();
-  activeParse = null;
-  activeCalculation = null;
-  result = null;
-  planResult = null;
-  busy($('calculate'), false, '检查冲突与容量');
-  busy($('generatePlan'), false, '生成具体安排');
-  busy($('parseNotice'), false, '提取待确认事项');
-  hideParseProgress();
-  for (const button of $('taskList').querySelectorAll('[data-action="resolve-time"]')) busy(button, false, TIME_REVIEW_LABEL);
-  renderResult();
-}
+
 async function save() {
   if (storageLocked || externalConflict) {
     $('saveState').textContent = '当前修改尚未保存，请先导出备份';
@@ -178,234 +84,35 @@ async function save() {
   if (saved.superseded) return;
   if (saved.conflict) {
     externalConflict = true;
-    invalidateResults();
     $('storageConflict').hidden = false;
     $('saveState').textContent = '保存遇到版本变化，请先导出当前内容';
     return;
   }
-  $('saveState').textContent = saved.saved ? (invalidEdits.size ? '存在未保存的无效输入，请先修正' : '已保存在当前浏览器') : '浏览器保存失败，请导出清单备份';
+  $('saveState').textContent = saved.saved ? '已保存在当前浏览器' : '浏览器保存失败，请导出清单备份';
   if (!saved.saved) $('saveState').title = saved.error;
 }
-function commit(next, { full = true, unlock = false } = {}) {
+/** render: 'all' re-draws every list; 'none' keeps the inputs the user is typing in. */
+function commit(next, { render = 'all', unlock = false } = {}) {
   snapshot = next;
   if (unlock) {
     storageLocked = false; externalConflict = false; $('storageConflict').hidden = true;
-    try { snapshotStore.adoptRaw(storage?.getItem(STORAGE_KEY) ?? null); } catch { snapshotStore.invalidate(); }
+    try { snapshotStore.adoptRaw(storage?.getItem(TIME_STORAGE_KEY) ?? null); } catch { snapshotStore.invalidate(); }
   }
-  importSequence += 1;
-  invalidateResults();
+  calendarResult = null;
   save();
-  if (full) renderAll();
-  else renderSummary();
+  if (render === 'all') renderAll(); else { renderBadges(); renderItemStates(); }
+  scheduleCalendar();
 }
-// Each section lives on its own page (router.js); switch to it before scrolling.
 function showOnPage(element, block = 'start') {
   const page = element.closest('[data-page]')?.dataset.page;
   if (page) window.SixuRouter?.go(page);
   element.scrollIntoView({ behavior: scrollBehavior(), block });
+  element.classList.remove('is-flash');
+  void element.offsetWidth;
+  element.classList.add('is-flash');
 }
-function renderSummary() {
-  const pending = snapshot.tasks.filter(needsReview).length;
-  if ($('reviewCount')) $('reviewCount').textContent = pending ? String(pending) : '';
-  const active = snapshot.tasks.filter(task => !isInactive(task)).length;
-  const inactive = snapshot.tasks.length - active;
-  $('taskSummary').textContent = snapshot.tasks.length ? `${active} 件待处理，${pending} 件需要核对${inactive ? `，${inactive} 件已完成或取消` : ''}。` : '先确认要做什么，再计算需要多少时间。';
-}
-function option(value, label, selected) {
-  return `<option value="${escapeHTML(value)}"${selected ? ' selected' : ''}>${escapeHTML(label)}</option>`;
-}
-function inputField(label, field, value, type = 'text', attributes = '') {
-  return `<label>${label}<input data-task-field="${field}" type="${type}" value="${escapeHTML(value ?? '')}" ${attributes}></label>`;
-}
-function missingMarkup(task) {
-  const missing = missingFields(task);
-  if (!missing.length) return '';
-  return `<p class="task-missing" data-task-missing>还缺 ${missing.length} 项：${missing.map(field => `<button type="button" data-jump="${field}">${FIELD_NAMES[field]}</button>`).join('')}</p>`;
-}
-function taskMarkup(task) {
-  const inactive = isInactive(task);
-  const reviewed = !inactive && !needsReview(task);
-  const title = escapeHTML(taskTitle(task));
-  const disabled = inactive ? 'disabled' : '';
-  const kindNames = { flexible: '待安排工作', fixed: '固定活动', milestone: '截止节点', visit_window: '办理窗口（本轮待支持）' };
-  let temporalFields = '';
-  if (task.kind === 'fixed') {
-    temporalFields = inputField('固定开始', 'fixed_start_at', toLocalInput(task.fixed_start_at), 'datetime-local', 'required') + inputField('固定结束', 'fixed_end_at', toLocalInput(task.fixed_end_at), 'datetime-local', 'required');
-  } else {
-    temporalFields = inputField('截止日期与时刻', 'deadline_at', toLocalInput(task.deadline_at), 'datetime-local', 'required');
-    if (task.kind !== 'milestone') temporalFields += inputField('还需要多少分钟', 'remaining_minutes', task.remaining_minutes, 'number', 'min="1" max="10000000" step="1" placeholder="按剩余工作量填写" required');
-  }
-  if (task.kind === 'flexible') {
-    temporalFields += `<label>这项工作能否拆开做<select data-task-field="splittable" required>${option('', '请选择', task.splittable === null)}${option('true', '可以分几次完成', task.splittable === true)}${option('false', '需要连续完成', task.splittable === false)}</select></label>`;
-    if (task.splittable === true) temporalFields += inputField('每次至少连续几分钟', 'min_block_minutes', task.min_block_minutes, 'number', 'min="1" max="10000000" step="1" required');
-  }
-  const evidence = task.evidence.filter(item => item.origin === 'source_text');
-  const inferred = task.evidence.filter(item => item.origin === 'inferred');
-  const quotes = [...new Set(evidence.map(item => item.quote).filter(Boolean))];
-  const timeFields = task.kind === 'fixed' ? ['fixed_start_at', 'fixed_end_at'] : ['deadline_at'];
-  const timeQuotes = [...new Set(evidence.filter(item => timeFields.includes(item.field)).map(item => item.quote).filter(Boolean))];
-  const missingTime = task.status === 'draft' && timeFields.some(field => task[field] === null);
-  const canResolveTime = task.source_id && timeQuotes.length && task.kind !== 'visit_window' && (task.kind !== 'fixed' || task.fixed_start_at === null || evidence.some(item => item.field === 'fixed_end_at'));
-  const timeHelp = missingTime ? `<div class="field-wide time-review"><p class="field-help">${timeQuotes.length ? `已识别时间原文：${timeQuotes.map(escapeHTML).join('；')}。` : ''}${task.kind === 'fixed' ? '开始需要完整日期；结束按你计划的离场时间填写，原文未给出时不会自动估计。' : '截止需要完整日期与时刻，原文未给出的部分请核实后填写。'}</p>${canResolveTime ? `<button type="button" class="text-button" data-action="resolve-time">${TIME_REVIEW_LABEL}</button><p class="field-help">先在左侧选择通知参照日期；仅补全空白时间，不调用模型、不增加事项。</p>` : ''}</div>` : '';
-  const dependence = snapshot.tasks.filter(item => item.id !== task.id);
-  return `<article class="task-item" data-task-id="${escapeHTML(task.id)}">
-    <div class="task-top"><div><h3 class="task-name" data-task-name>${title}</h3><p class="task-status ${needsReview(task) ? '' : 'confirmed'}" data-task-status>${escapeHTML(stateLabels[task.status])}${!isInactive(task) && needsReview(task) && task.status !== 'draft' ? ' · 需重新核对关键字段' : ''}</p></div><span class="field-help">${escapeHTML(kindNames[task.kind])}</span></div>
-    ${missingMarkup(task)}
-    <details class="task-details" ${needsReview(task) ? 'open' : ''}><summary>查看与修改事项</summary>
-      <fieldset ${disabled}><div class="field-grid">
-        <label class="field-wide">事项名称<input data-task-field="title" maxlength="200" value="${escapeHTML(task.title)}" placeholder="写清楚具体要完成什么" required></label>
-        <label>事项类型<select data-task-field="kind">${Object.entries(kindNames).map(([key, name]) => key !== 'visit_window' || task.kind === 'visit_window' ? option(key, name, key === task.kind) : '').join('')}</select></label>
-        <label>这件事是否必须完成<select data-task-field="must_do" required>${option('', '由你选择', task.must_do === null)}${option('true', '必须完成', task.must_do === true)}${option('false', '可以调整，由我取舍', task.must_do === false)}</select></label>
-        ${temporalFields}
-        ${timeHelp}
-        <label>优先级（0–100，数字越大越优先）<input data-task-field="priority" type="text" inputmode="numeric" pattern="[0-9]{1,3}" maxlength="3" autocomplete="off" name="priority-${escapeHTML(task.id)}" value="${escapeHTML(task.priority ?? '')}" placeholder="尚未设置，请手动填写" required><span class="field-help" data-priority-help>${priorityHelp(task)}</span></label>
-      </div>
-      <p class="field-help">${task.kind === 'fixed' ? '这里仅记录固定占用；准备材料等工作请单独添加。' : task.kind === 'milestone' ? '这里只记录截止节点；如果还需要准备，请另建待安排工作。' : task.kind === 'visit_window' ? '办理窗口不能直接当成连续占用，请根据原文改成具体活动或截止节点后再确认。' : '按剩余工时安排；不能拆开的工作需要完整连续空档。可拆分时，每一段（包括最后一段）都须达到最小连续时长。'}</p>
-      <details><summary>地点、材料与其他条件</summary><div class="field-grid">${inputField('对应地点（可选）', 'location', task.location, 'text', 'maxlength="500"')}<label>本事项所需材料（可选）<input data-task-field="materials" value="${escapeHTML(task.materials.join('、'))}" placeholder="用顿号或逗号分隔"></label>${task.kind === 'flexible' ? inputField('最早可开始的时刻（可选）', 'earliest_start_at', toLocalInput(task.earliest_start_at), 'datetime-local') : ''}</div>
-        ${dependence.length ? `<fieldset class="dependencies"><legend class="field-help">前置事项（可选，生成安排时须先完成）</legend>${dependence.map(other => `<label class="check-label"><input type="checkbox" data-dependency="${escapeHTML(other.id)}" ${task.depends_on.includes(other.id) ? 'checked' : ''}>${escapeHTML(taskTitle(other))}</label>`).join('')}</fieldset>` : ''}
-        ${task.visit_windows.length ? `<p class="field-help">导入的办理窗口：${task.visit_windows.map(item => `${escapeHTML(readableTime(item.start))} 至 ${escapeHTML(readableTime(item.end))}`).join('；')}。选择其他类型会清除窗口，请先核对原文。</p>` : ''}
-      </details></fieldset>
-      <details class="evidence" ${task.uncertainties.length ? 'open' : ''}><summary>原文依据与提取提醒</summary>${task.source_id ? `<button class="text-button" type="button" data-action="source" data-source-id="${escapeHTML(task.source_id)}">查看整份原文</button>` : '<p class="field-help">手动建立的事项，以你的输入为依据。</p>'}${quotes.map(quote => `<blockquote>${escapeHTML(quote)}</blockquote>`).join('')}${inferred.map(item => `<p class="field-help">${escapeHTML(item.quote)}</p>`).join('')}${task.uncertainties.length ? `<ul>${task.uncertainties.map(item => `<li>${escapeHTML(item)}</li>`).join('')}</ul>` : '<p class="field-help">如需修改，字段会重新转为待核对。</p>'}</details>
-      <div class="task-footer"><p class="field-error" data-task-error role="alert" tabindex="-1"></p>
-      <p class="confirmation-status" data-task-confirmation role="status">${reviewed ? CONFIRMED_HELP : ''}</p>
-      <div class="task-actions">${inactive ? '<button type="button" data-action="reopen">恢复为待核对</button>' : `<button class="primary-button" type="button" data-action="confirm" aria-disabled="${reviewed}">${reviewed ? '已确认' : CONFIRM_LABEL}</button><button type="button" data-action="complete">标记完成</button>`}<button class="text-button danger-text" type="button" data-action="remove">删除事项</button></div></div>
-    </details>
-  </article>`;
-}
-function captureTaskFocus() {
-  const active = document.activeElement;
-  const card = active?.closest?.('[data-task-id]');
-  if (!card) return null;
-  let selection = null;
-  try { if (typeof active.selectionStart === 'number') selection = [active.selectionStart, active.selectionEnd]; } catch { /* Number/date controls have no selection API. */ }
-  return { id: card.dataset.taskId, field: active.dataset.taskField, action: active.dataset.action, dependency: active.dataset.dependency, selection };
-}
-function restoreTaskFocus(focus) {
-  if (!focus) return;
-  const card = Array.from($('taskList').querySelectorAll('[data-task-id]')).find(item => item.dataset.taskId === focus.id);
-  if (!card) { $('addTask').focus({ preventScroll: true }); return; }
-  const controls = Array.from(card.querySelectorAll('input,select,textarea,button'));
-  const target = controls.find(item => focus.field ? item.dataset.taskField === focus.field : focus.action ? item.dataset.action === focus.action : focus.dependency ? item.dataset.dependency === focus.dependency : false) || card.querySelector('summary');
-  const disclosure = target.closest('details');
-  if (disclosure) disclosure.open = true;
-  target.focus({ preventScroll: true });
-  if (focus.selection && target.setSelectionRange) try { target.setSelectionRange(...focus.selection); } catch { /* Not a text field. */ }
-}
-function recordInvalidEdit(id, field, raw, message) {
-  if (!invalidEdits.has(id)) invalidEdits.set(id, new Map());
-  invalidEdits.get(id).set(field, { raw, message });
-}
-function clearInvalidEdit(id, field) {
-  invalidEdits.get(id)?.delete(field);
-  if (invalidEdits.get(id)?.size === 0) invalidEdits.delete(id);
-}
-function renderTaskErrors(id) {
-  const errors = invalidEdits.get(id);
-  taskError(id, errors ? [...errors.values()].map(item => item.message).join('；') : '');
-}
-function renderTasks() {
-  const focus = captureTaskFocus();
-  const disclosures = new Map(Array.from($('taskList').querySelectorAll('.task-item')).map(card => [card.dataset.taskId, card.querySelector('.task-details').open]));
-  $('taskList').innerHTML = snapshot.tasks.length ? snapshot.tasks.map(taskMarkup).join('') : '<div class="empty-state"><h3>把模糊的安排，变成具体的一件事。</h3><p>导入左侧通知，或手动添加。核对截止、剩余时间和固定活动后，再确认事项。</p></div>';
-  for (const card of $('taskList').querySelectorAll('[data-task-id]')) {
-    const id = card.dataset.taskId;
-    if (disclosures.has(id)) card.querySelector('.task-details').open = disclosures.get(id);
-    for (const [field, entry] of invalidEdits.get(id) || []) {
-      const input = Array.from(card.querySelectorAll('[data-task-field]')).find(item => item.dataset.taskField === field);
-      if (input) { input.value = entry.raw; input.setAttribute('aria-invalid', 'true'); }
-      else clearInvalidEdit(id, field);
-    }
-    renderTaskErrors(id);
-  }
-  restoreTaskFocus(focus);
-}
-function priorityHelp(task) {
-  if (task.priority === null) return '尚未选择；0也需要由你明确填写。';
-  return needsReview(task) ? '请核对这个数值是否代表你的选择。' : '';
-}
-function updateTaskMeta(id) {
-  const task = snapshot.tasks.find(item => item.id === id);
-  const card = Array.from($('taskList').querySelectorAll('[data-task-id]')).find(element => element.dataset.taskId === id);
-  if (!task || !card) return;
-  card.querySelector('[data-task-name]').textContent = taskTitle(task);
-  card.querySelector('[data-task-status]').textContent = invalidEdits.has(id) ? '输入尚未保存，请先修正' : stateLabels[task.status];
-  card.querySelector('[data-task-status]').className = `task-status ${needsReview(task) ? '' : 'confirmed'}`;
-  card.querySelector('[data-priority-help]').textContent = priorityHelp(task);
-  const missing = card.querySelector('[data-task-missing]');
-  const nextMissing = missingMarkup(task);
-  if (missing && nextMissing) missing.outerHTML = nextMissing;
-  else if (missing) missing.remove();
-  else if (nextMissing) card.querySelector('.task-top').insertAdjacentHTML('afterend', nextMissing);
-  const confirmButton = card.querySelector('[data-action="confirm"]');
-  if (confirmButton) {
-    const reviewed = !needsReview(task);
-    confirmButton.textContent = reviewed ? '已确认' : CONFIRM_LABEL;
-    confirmButton.setAttribute('aria-disabled', String(reviewed));
-    card.querySelector('[data-task-confirmation]').textContent = reviewed ? CONFIRMED_HELP : '';
-  }
-}
-function renderSources() {
-  $('sourceCount').textContent = `${snapshot.sources.length} 份`;
-  $('sourceList').innerHTML = snapshot.sources.length ? snapshot.sources.map((source, index) => `<details data-source-id="${escapeHTML(source.id)}"><summary>${index + 1}. ${escapeHTML(source.text.split('\n')[0].slice(0, 40))}${source.kind === 'synthetic' ? '（虚构示例）' : ''}</summary><pre>${escapeHTML(source.text)}</pre></details>`).join('') : '<p class="empty-note">导入后可随时回来核对。</p>';
-}
-function renderAvailability() {
-  $('referenceTime').value = toLocalInput(snapshot.reference_time);
-  $('referenceTime').setAttribute('aria-invalid', 'false');
-  invalidReference = false;
-  renderReferencePrecision();
-  $('availabilityList').innerHTML = snapshot.availability.length ? snapshot.availability.map((interval, index) => `<div class="availability-item"><span>${escapeHTML(readableTime(interval.start))}<br>至 ${escapeHTML(readableTime(interval.end))}</span><button class="text-button danger-text" type="button" data-remove-availability="${index}" aria-label="删除第${index + 1}个空闲时段">删除</button></div>`).join('') : `<p class="empty-note">${snapshot.availability_confirmed ? '你已确认当前没有可用时段，计算时按0分钟处理。' : '还没有填写个人空闲时段。'}</p><button class="text-button" id="confirmNoAvailability" type="button">确认目前没有可用时间</button>`;
-}
-function renderReferencePrecision() {
-  const precise = readableTime(snapshot.reference_time);
-  const hasSeconds = precise !== toLocalInput(snapshot.reference_time).replace('T', ' ');
-  $('referencePrecision').textContent = hasSeconds ? `当前清单保存的实际计算起点：${precise}。如需从整分钟起算，可点击“使用当前时间”。` : '';
-  $('referencePrecision').hidden = !hasSeconds;
-}
-function renderResult() {
-  renderPlanResult();
-  renderCalendar();
-}
-function renderPlanResult() {
-  const output = $('resultOutput');
-  if (planResult) {
-    output.innerHTML = planMarkup(planResult, snapshot, readableTime) + (canCompare(planResult) ? scenarioForm(snapshot, toLocalInput) : '');
-    output.removeAttribute('aria-busy');
-    return;
-  }
-  if (!result) {
-    output.removeAttribute('aria-busy');
-    output.innerHTML = `<p class="empty-note">${hasCalculated ? '清单或时间已修改，原结果已失效，请重新生成安排或检查。' : '确认事项并填写空闲时段后，可以生成安排或检查容量。'}</p>`;
-    return;
-  }
-  const labels = { conflicts_detected: '发现需要处理的冲突', information_needed: '还有条件需要核对', no_conflict_detected: '本次检查未发现冲突' };
-  const statusClass = result.status === 'conflicts_detected' ? 'result-danger' : result.status === 'information_needed' ? 'result-warning' : '';
-  const missing = Array.isArray(result.missing_information) ? result.missing_information : [];
-  const conflicts = Array.isArray(result.conflicts) ? result.conflicts : [];
-  const checks = Array.isArray(result.capacity_checks) ? result.capacity_checks : [];
-  const excluded = Array.isArray(result.excluded_task_ids) ? result.excluded_task_ids : [];
-  const capacityNote = checks.some(check => check.result === 'shortage')
-    ? '累计需求已超过对应截止前的可用时长，需要减少工作量、增加空闲或调整安排后重新检查。'
-    : checks.length ? '容量没有超出，只说明累计时长这一必要条件通过，尚不能保证每件事都能排进具体空档。'
-      : '本次没有可列出的工作量容量节点；请结合上方冲突或待核对条件判断，不能据此确认整个计划可行。';
-  output.innerHTML = `<h3 class="result-heading ${statusClass}">${escapeHTML(labels[result.status] || '结果需要核对')}</h3><p class="result-caption">按当前清单，从 ${escapeHTML(readableTime(snapshot.reference_time))} 开始检查。修改任意事项或时间后，需要重新计算。</p>
-    ${excluded.length ? `<p class="field-error">以下事项未纳入计算，下面不是完整清单的总需求：${excluded.map(id => escapeHTML(taskTitle(snapshot.tasks.find(item => item.id === id) || { title: id }))).join('、')}。</p>` : ''}
-    ${conflicts.map(item => `<div class="result-entry"><strong class="result-danger">${escapeHTML((item.tasks || []).join('、'))}</strong><p>${escapeHTML(item.reason)}</p></div>`).join('')}
-    ${checks.length ? `<div class="result-table-wrap"><table><caption class="sr-only">各截止节点的累计工作量与可用时间</caption><thead><tr><th scope="col">截至</th><th scope="col">累计需要</th><th scope="col">实际可用</th><th scope="col">时长差额</th></tr></thead><tbody>${checks.map(check => `<tr><td>${escapeHTML(readableTime(check.deadline))}</td><td>${escapeHTML(minutes(check.known_required_minutes))}${check.unknown_workload_count ? '<br>另有未知工作量' : ''}</td><td>${escapeHTML(minutes(check.available_minutes))}</td><td class="${check.result === 'shortage' ? 'result-danger' : ''}">${check.result === 'shortage' ? '缺少 ' : '剩余 '}${escapeHTML(minutes(Math.abs(check.available_minutes - check.known_required_minutes)))}</td></tr>`).join('')}</tbody></table></div>` : ''}
-    ${missing.length ? `<div class="message warning result-unverified"><strong>本次还没有验证的部分</strong><ul>${missing.map(item => `<li>${escapeHTML(item.name || '事项')}：${escapeHTML(item.reason || (item.fields || []).join('、'))}</li>`).join('')}</ul></div>` : ''}
-    <p class="result-caption">${capacityNote}</p>
-    <details><summary>计算口径与具体空档</summary>${(result.warnings || []).map(warning => `<p class="field-help">${escapeHTML(warning)}</p>`).join('')}${(result.limitations || []).map(limit => `<p class="field-help">${escapeHTML(limit)}</p>`).join('')}${checks.map(check => `<div class="result-entry"><strong>${escapeHTML(readableTime(check.deadline))}前的空档</strong>${(check.free_intervals || []).map(interval => `<p>${escapeHTML(readableTime(interval.start))} 至 ${escapeHTML(readableTime(interval.end))}</p>`).join('') || '<p>没有可用空档。</p>'}</div>`).join('')}</details>`;
-  output.removeAttribute('aria-busy');
-}
-// Calendar page: the week shown is chosen with the arrows; by default the week of the reference time.
-let calendarWeek = null;
-function renderCalendar() {
-  const view = $('calendarView');
-  if (!view) return;
-  const anchor = weekStart(Date.parse(snapshot.reference_time) || Date.now());
-  view.innerHTML = calendarMarkup({ snapshot, plan: planResult, start: calendarWeek ?? anchor, now: Date.now() });
-}
-function renderAll() { renderSummary(); renderTasks(); renderSources(); renderAvailability(); renderResult(); }
 
+// ---- Service -------------------------------------------------------------
 function normalizeApiBase(value) {
   const url = new URL(value);
   if (!['http:', 'https:'].includes(url.protocol) || url.username || url.password || url.search || url.hash) throw new Error('请填写不含账号、查询参数或片段的HTTP/HTTPS服务地址。');
@@ -426,14 +133,179 @@ async function request(path, body, base, timeoutMs = 30000) {
     throw error;
   } finally { window.clearTimeout(timeout); }
 }
-async function ensureCapabilities(base, { fresh = false } = {}) {
-  if (!fresh && capabilityBase === base) return capabilityHealth;
-  const health = await request('/api/health', undefined, base);
-  if (!Array.isArray(health.capabilities) || !health.capabilities.includes('snapshot_v2')) throw new Error('该服务尚未升级，暂不能处理这份新清单。请在“服务与备份”中连接本地新版服务；清单没有提交给旧算法。');
-  if (base === apiBase) { capabilityBase = base; capabilityHealth = health; }
-  return health;
+async function ensureHealth(base, { fresh = false } = {}) {
+  if (!fresh && healthBase === base) return health;
+  const result = await request('/api/health', undefined, base);
+  if (!Array.isArray(result.capabilities) || !result.capabilities.includes('time_layers_v3')) throw new Error('计算服务还不是四层时间版本（需要后端1.12或更新），请重启本地服务后再试。');
+  if (base === apiBase) { healthBase = base; health = result; }
+  $('connectionStatus').textContent = `已连接计算服务 ${result.version}`;
+  return result;
 }
 
+// ---- Calendar -----------------------------------------------------------
+const shownWeek = () => calendarWeek ?? weekStart(Date.parse(snapshot.reference_time));
+function scheduleCalendar() {
+  window.clearTimeout(calendarTimer);
+  calendarTimer = window.setTimeout(computeCalendar, 250);
+}
+async function computeCalendar() {
+  window.clearTimeout(calendarTimer);
+  const ticket = ++calendarSequence;
+  const revision = snapshot.revision;
+  const base = apiBase;
+  calendarLoading = true;
+  renderCalendar();
+  try {
+    await ensureHealth(base);
+    const result = await request('/api/v3/calendar', { snapshot, range: weekRange(shownWeek()) }, base);
+    if (ticket !== calendarSequence || revision !== snapshot.revision || base !== apiBase) return;
+    calendarResult = result;
+    calendarError = '';
+  } catch (error) {
+    if (ticket !== calendarSequence) return;
+    calendarResult = null;
+    calendarError = `日历暂时算不出来：${error.message}`;
+  } finally {
+    if (ticket === calendarSequence) { calendarLoading = false; renderCalendar(); renderItemStates(); renderBadges(); }
+  }
+}
+function renderCalendar() {
+  $('calendarView').innerHTML = calendarMarkup({ result: calendarResult, start: shownWeek(), now: Date.now(), loading: calendarLoading && !calendarResult, error: calendarError });
+}
+
+// ---- Rendering ----------------------------------------------------------
+function renderSources() {
+  $('sourceCount').textContent = `${snapshot.sources.length} 份`;
+  $('sourceList').innerHTML = snapshot.sources.length ? snapshot.sources.map((source, index) => `<details data-source-id="${escapeHTML(source.id)}"><summary>${index + 1}. ${escapeHTML(source.text.split('\n')[0].slice(0, 40))}${source.kind === 'synthetic' ? '（虚构示例）' : source.kind === 'timetable' ? '（课表）' : ''}</summary><pre>${escapeHTML(source.text)}</pre></details>`).join('') : '<p class="empty-note">导入后可随时回来核对。</p>';
+}
+function undefinedCount() {
+  const tasks = snapshot.tasks.filter(task => task.status === 'active' && (task.deadline_at === null || task.estimate_minutes === null)).length;
+  const events = snapshot.events.filter(event => event.status === 'active' && (!event.start_at || !event.end_at)).length;
+  return tasks + events;
+}
+function renderBadges() {
+  const count = undefinedCount();
+  $('itemsCount').textContent = count ? String(count) : '';
+  $('conflictCount').textContent = calendarResult?.conflicts.length ? String(calendarResult.conflicts.length) : '';
+}
+function evidenceMarkup(item) {
+  const quotes = item.evidence.filter(entry => entry.origin === 'source_text' && entry.quote).map(entry => `<blockquote>${escapeHTML(entry.quote)}</blockquote>`);
+  const edits = item.evidence.some(entry => entry.origin === 'user_input') ? '<p class="evidence-label">部分字段已由你修改。</p>' : '';
+  const notes = item.notes.length ? `<ul>${item.notes.map(note => `<li>${escapeHTML(note)}</li>`).join('')}</ul>` : '';
+  const extra = [item.location ? `地点：${escapeHTML(item.location)}` : '', item.materials?.length ? `材料：${escapeHTML(item.materials.join('、'))}` : ''].filter(Boolean).map(text => `<p class="evidence-label">${text}</p>`).join('');
+  if (!quotes.length && !edits && !notes && !extra) return '';
+  return `<details class="item-more evidence"><summary>原文依据与提醒</summary>${extra}${quotes.join('')}${edits}${notes}</details>`;
+}
+function taskState(task) {
+  if (task.status !== 'active') return TASK_STATE[task.status];
+  const computed = calendarResult?.tasks.find(entry => entry.id === task.id)?.state;
+  if (computed) return TASK_STATE[computed] || ['', ''];
+  if (task.deadline_at === null) return TASK_STATE.deadline_undefined;
+  if (task.estimate_minutes === null) return TASK_STATE.estimate_undefined;
+  return ['等待日历计算', ''];
+}
+function eventState(event) {
+  if (event.status === 'cancelled') return ['不参加了', 'done'];
+  if (!event.start_at) return ['时间待定', 'undefined'];
+  if (!event.end_at) return ['结束未定义', 'undefined'];
+  if (calendarResult?.conflicts.some(conflict => conflict.items.some(item => item.id === event.id))) return ['与其他占用冲突', 'conflict'];
+  return ['已放进日历', 'ok'];
+}
+const stateBadge = ([text, kind]) => `<span class="item-state${kind ? ` is-${kind}` : ''}" data-item-state>${escapeHTML(text)}</span>`;
+function taskMarkup(task) {
+  const active = task.status === 'active';
+  const chips = ESTIMATE_PRESETS.map(preset => `<button type="button" class="chip" data-estimate="${preset.minutes}" aria-pressed="${task.estimate_minutes === preset.minutes}">${preset.label}</button>`).join('');
+  return `<article class="item-card${active ? '' : ' is-inactive'}" data-item-id="${escapeHTML(task.id)}" data-kind="task" id="item-${escapeHTML(task.id)}">
+    <div class="item-top"><input class="item-title" data-field="title" value="${escapeHTML(task.title)}" aria-label="工作名称" maxlength="200">${stateBadge(taskState(task))}</div>
+    <div class="field-grid">
+      <label>截止<input type="datetime-local" data-field="deadline_at" value="${toLocalInput(task.deadline_at)}"></label>
+      <label>预计用时（分钟）<input type="number" inputmode="numeric" min="1" max="20160" data-field="estimate_minutes" value="${task.estimate_minutes ?? ''}" placeholder="未定义"></label>
+      <div class="field-wide chips" role="group" aria-label="预计用时快捷选择">${chips}</div>
+      <label>能否拆开做<select data-field="splittable"><option value="true"${task.splittable ? ' selected' : ''}>可以分几次做</option><option value="false"${task.splittable ? '' : ' selected'}>需要一次做完</option></select></label>
+      <label>优先级 <span class="optional">可选，0–100</span><input type="number" inputmode="numeric" min="0" max="100" data-field="priority" value="${task.priority ?? ''}" placeholder="未填按50"></label>
+    </div>
+    ${evidenceMarkup(task)}
+    <div class="item-actions"><button type="button" data-action="complete">${task.status === 'completed' ? '恢复' : '完成了'}</button><button type="button" data-action="cancel">${task.status === 'cancelled' ? '恢复' : '不做了'}</button><button type="button" class="danger-text" data-action="delete">删除</button></div>
+    <p class="field-error" data-item-error role="status"></p>
+  </article>`;
+}
+function eventMarkup(event) {
+  return `<article class="item-card${event.status === 'active' ? '' : ' is-inactive'}" data-item-id="${escapeHTML(event.id)}" data-kind="event" id="item-${escapeHTML(event.id)}">
+    <div class="item-top"><input class="item-title" data-field="title" value="${escapeHTML(event.title)}" aria-label="临时占用名称" maxlength="200">${stateBadge(eventState(event))}</div>
+    <div class="field-grid">
+      <label>开始<input type="datetime-local" data-field="start_at" value="${toLocalInput(event.start_at)}"></label>
+      <label>结束<input type="datetime-local" data-field="end_at" value="${toLocalInput(event.end_at)}"></label>
+      <label class="field-wide">地点 <span class="optional">可选</span><input data-field="location" value="${escapeHTML(event.location ?? '')}" maxlength="500"></label>
+    </div>
+    ${evidenceMarkup(event)}
+    <div class="item-actions"><button type="button" data-action="cancel">${event.status === 'cancelled' ? '恢复' : '不参加了'}</button><button type="button" class="danger-text" data-action="delete">删除</button></div>
+    <p class="field-error" data-item-error role="status"></p>
+  </article>`;
+}
+function renderItems() {
+  $('eventList').innerHTML = snapshot.events.length ? snapshot.events.map(eventMarkup).join('') : '<p class="empty-note">还没有临时占用。导入通知或手动添加。</p>';
+  $('taskList').innerHTML = snapshot.tasks.length ? snapshot.tasks.map(taskMarkup).join('') : '<p class="empty-note">还没有工作。导入通知或手动添加。</p>';
+}
+function renderItemStates() {
+  for (const card of document.querySelectorAll('[data-item-id]')) {
+    const id = card.dataset.itemId;
+    const item = card.dataset.kind === 'task' ? snapshot.tasks.find(entry => entry.id === id) : snapshot.events.find(entry => entry.id === id);
+    if (!item) continue;
+    card.querySelector('[data-item-state]').outerHTML = stateBadge(card.dataset.kind === 'task' ? taskState(item) : eventState(item));
+    for (const chip of card.querySelectorAll('[data-estimate]')) chip.setAttribute('aria-pressed', String(item.estimate_minutes === Number(chip.dataset.estimate)));
+  }
+}
+function renderDayGrid() {
+  const windows = snapshot.daily_window || DEFAULT_WINDOW;
+  $('dayGrid').innerHTML = WEEKDAY_NAMES.map((name, index) => {
+    const window = windows[index];
+    const on = snapshot.daily_window ? Boolean(window) : true;
+    const value = window || DEFAULT_WINDOW[index];
+    return `<div class="day-row"><label class="check-row"><input type="checkbox" data-day-on="${index}"${on ? ' checked' : ''}>${name}</label><label class="sr-only" for="day-start-${index}">${name}开始</label><input type="time" id="day-start-${index}" data-day-start="${index}" value="${value.start}"><span aria-hidden="true">至</span><label class="sr-only" for="day-end-${index}">${name}结束</label><input type="time" id="day-end-${index}" data-day-end="${index}" value="${value.end === '24:00' ? '23:59' : value.end}"></div>`;
+  }).join('') + `<p class="field-help" id="windowState">${snapshot.daily_window ? '已保存。改动后再点保存。' : '还没有保存，自由时间暂为“未定义”。下面是常用作息，确认后点保存。'}</p>`;
+}
+const weekdayText = days => days.map(day => WEEKDAY_NAMES[day - 1].slice(1)).join('、');
+const dateText = value => { const [, month, day] = value.split('-').map(Number); return `${month}月${day}日`; };
+function renderRoutines() {
+  $('routinesConfirmed').checked = snapshot.routines_confirmed;
+  $('routineList').innerHTML = snapshot.routines.length ? `<ul class="plain-list">${snapshot.routines.map(routine => `<li id="routine-${escapeHTML(routine.id)}"><div><strong>${escapeHTML(routine.title)}</strong><span>每周${weekdayText(routine.weekdays)} ${routine.start}–${routine.end}${routine.week_interval === 2 ? '（隔周）' : ''} · ${dateText(routine.from)}起${routine.until ? `至${dateText(routine.until)}` : ''}${routine.location ? ` · ${escapeHTML(routine.location)}` : ''}</span></div><button type="button" class="danger-text" data-remove="${escapeHTML(routine.id)}">删除</button></li>`).join('')}</ul>` : `<p class="empty-note">${snapshot.routines_confirmed ? '已确认没有例行占用。' : '还没有填写。没填时，自由时间可能偏多。'}</p>`;
+  $('routineWeekdays').innerHTML = WEEKDAY_NAMES.map((name, index) => `<label class="check-row"><input type="checkbox" value="${index + 1}">${name}</label>`).join('');
+}
+function renderAdjustments() {
+  $('adjustmentList').innerHTML = snapshot.free_adjustments.length ? `<ul class="plain-list">${snapshot.free_adjustments.map(item => `<li><div><strong>${item.kind === 'add' ? '增加' : '扣除'}${item.note ? ` · ${escapeHTML(item.note)}` : ''}</strong><span>${readable(item.start_at)} 至 ${readable(item.end_at)}</span></div><button type="button" class="danger-text" data-remove="${escapeHTML(item.id)}">删除</button></li>`).join('')}</ul>` : '<p class="empty-note">没有调整。</p>';
+}
+function renderTime() {
+  renderDayGrid();
+  renderRoutines();
+  renderAdjustments();
+  $('referenceTime').value = toLocalInput(snapshot.reference_time);
+}
+function renderAll() { renderSources(); renderItems(); renderTime(); renderCalendar(); renderBadges(); }
+
+// ---- Import -------------------------------------------------------------
+let parseTimer = null;
+function showParseProgress(mode) {
+  const started = Date.now();
+  $('parseProgress').hidden = false;
+  $('parseStep').textContent = mode === 'model' ? '正在连接服务，随后由模型阅读原文' : '正在按规则读取原文';
+  $('parseHint').textContent = mode === 'model' ? '模型提取通常需要几秒到一分钟。' : '';
+  $('parseElapsed').textContent = '';
+  window.clearInterval(parseTimer);
+  parseTimer = window.setInterval(() => { $('parseElapsed').textContent = `已用 ${Math.round((Date.now() - started) / 1000)} 秒。`; }, 1000);
+}
+function hideParseProgress() { window.clearInterval(parseTimer); parseTimer = null; $('parseProgress').hidden = true; }
+function importSummary(imported) {
+  const pending = imported.tasks.filter(task => task.estimate_minutes === null && task.deadline_at !== null).length;
+  const noDeadline = imported.tasks.filter(task => task.deadline_at === null).length;
+  const openEvents = imported.events.filter(event => !event.start_at || !event.end_at).length;
+  const parts = [];
+  if (imported.events.length) parts.push(`${imported.events.length} 个临时占用`);
+  if (imported.tasks.length) parts.push(`${imported.tasks.length} 件工作`);
+  const missing = [pending && `${pending} 件工作的预计用时`, noDeadline && `${noDeadline} 件工作的截止`, openEvents && `${openEvents} 个临时占用的时间`].filter(Boolean);
+  const warnings = (imported.warnings || []).map(note => `<li>${escapeHTML(note)}</li>`).join('');
+  return `<p><strong>已加入 ${parts.join('、') || '0 项'}。</strong>${missing.length ? `${missing.join('、')}还未定义，可以随时补；没补之前它们不会挡住其他事项。` : '时间信息都已齐全。'}</p>
+    ${warnings ? `<ul>${warnings}</ul>` : ''}<p class="inline-links"><a href="#/items">去事项页补充</a><a href="#/calendar">看日历</a></p>`;
+}
 $('noticeForm').addEventListener('submit', async event => {
   event.preventDefault();
   if (externalConflict) return tell('请先处理另一个标签页的清单变化。', 'warning');
@@ -441,45 +313,33 @@ $('noticeForm').addEventListener('submit', async event => {
   const referenceDate = $('noticeDate').value || null;
   const mode = $('extractionMode').value;
   if (!text) return tell('请先粘贴通知原文。', 'warning');
-  if (!['rules', 'dify'].includes(mode)) return tell('请选择有效的提取方式。', 'warning');
-  if (mode === 'dify' && [...text].length > 20000) return tell('模型提取每次最多两万字，请拆分通知后重试；原文尚未发送。', 'warning');
-  const existingSource = snapshot.sources.find(source => source.text === text);
-  if (existingSource && snapshot.tasks.some(task => task.source_id === existingSource.id)) return tell('这份通知已导入，不会重复增加事项。补日期时请先选择通知参照日期，再点击对应事项旁的“按参照日期补全原文时间”；也可以直接修改已有事项。', 'warning');
-  const ticket = parseGate.begin(snapshot);
-  activeParse = ticket;
+  if (mode === 'model' && [...text].length > 20000) return tell('模型提取每次最多两万字，请拆分通知后重试；原文尚未发送。', 'warning');
+  if (snapshot.sources.some(source => source.text === text)) return tell('这份通知已经导入过了，可以在“事项”页直接修改。', 'warning');
+  const ticket = ++parseSequence;
   const base = apiBase;
-  busy($('parseNotice'), true, '提取待确认事项', '正在提取，请稍候…');
+  busy($('parseNotice'), true, '导入', '正在导入…');
   showParseProgress(mode);
+  $('importSummary').hidden = true;
   tell('');
   try {
-    const health = await ensureCapabilities(base, { fresh: mode === 'dify' });
-    if (!parseGate.accepts(ticket, snapshot.revision) || base !== apiBase) return;
-    if (mode === 'dify' && (!health.capabilities.includes('model_notice_candidates_v1') || !health.model_extraction?.configured)) throw new Error('当前服务尚未启用模型提取。请先按接入说明配置本地 Dify 服务，或主动选择规则提取。');
-    $('connectionStatus').textContent = '已连接支持任务确认与重算的服务';
-    stepParseProgress(mode === 'dify' ? '模型正在阅读原文，找出事项、时间和地点' : '正在整理事项与时间');
-    const parsed = await request(mode === 'dify' ? '/api/v2/extract' : '/api/parse', { text, reference_date: referenceDate, timezone: snapshot.timezone }, base, mode === 'dify' ? 100000 : 30000);
-    if (!parseGate.accepts(ticket, snapshot.revision) || text !== $('noticeText').value.trim() || referenceDate !== ($('noticeDate').value || null) || mode !== $('extractionMode').value || base !== apiBase) return;
-    const source = existingSource || { id: sourceId(), kind: text.startsWith('【虚构示例】') ? 'synthetic' : 'pasted_notice', text, published_at: null };
-    const candidates = mode === 'dify' ? modelCandidates(parsed, source) : noticeCandidates(parsed, source.id);
-    if (!candidates.length) {
-      tell(`本次${mode === 'dify' ? '模型' : '规则'}提取没有识别到行动事项；原文与清单均保留。请核对通知，必要时手动添加。${(parsed.warnings || []).join(' ')}`, 'warning');
-      return;
-    }
-    if (referenceDate && /今天|明天|后天|昨日|昨天|本周|这周|下周|今年|明年|去年/.test(text)) {
-      for (const task of candidates) for (const field of ['deadline_at', 'fixed_start_at', 'fixed_end_at'].filter(field => task[field])) task.evidence.push({ field, origin: 'inferred', source_id: null, quote: `日期解释使用本次选择的参照日 ${referenceDate}；通知实际发布时间仍未知，请核对原语境。` });
-    }
-    let next = existingSource ? snapshot : addSource(snapshot, source);
-    for (const task of candidates) next = addTask(next, task);
-    commit(next);
-    tell(`通过${mode === 'dify' ? 'Dify 模型' : '规则'}提取整理出 ${candidates.length} 件待核对事项。请检查名称、时间与原文，再逐项确认。${mode === 'dify' ? '模型给出的名称、类型和原文对应关系都可能有误，原文片段存在不代表理解正确。' : ''}`);
-    showOnPage($('taskSection'));
+    const result = await ensureHealth(base, { fresh: mode === 'model' });
+    if (mode === 'model' && !result.model_extraction?.configured) throw new Error('当前服务没有启用模型提取。请用本地模型服务启动后端，或改用规则提取。');
+    $('parseStep').textContent = mode === 'model' ? '模型正在阅读原文，找出事项、时间和地点' : '正在整理事项与时间';
+    const imported = await request('/api/v3/extract', { text, reference_date: referenceDate, mode }, base, mode === 'model' ? 100000 : 30000);
+    if (ticket !== parseSequence || base !== apiBase) return;
+    if (text.startsWith('【虚构示例】')) imported.source.kind = 'synthetic';
+    commit(addImported(snapshot, imported));
+    $('importSummary').innerHTML = importSummary(imported);
+    $('importSummary').hidden = false;
+    $('noticeText').value = '';
   } catch (error) {
-    if (activeParse === ticket) tell(`提取未完成：${error.message} 也可以先手动添加事项。`, 'error');
-  } finally { if (activeParse === ticket) { activeParse = null; busy($('parseNotice'), false, '提取待确认事项'); hideParseProgress(); } }
+    if (ticket === parseSequence) tell(`导入未完成：${error.message} 原文仍在输入框里。`, 'error');
+  } finally {
+    if (ticket === parseSequence) { busy($('parseNotice'), false, '导入'); hideParseProgress(); }
+  }
 });
-for (const id of ['noticeText', 'noticeDate', 'extractionMode']) $(id).addEventListener('input', () => { parseGate.invalidate(); timeReviewGate.invalidate(); activeParse = null; busy($('parseNotice'), false, '提取待确认事项'); hideParseProgress(); });
+for (const id of ['noticeText', 'noticeDate', 'extractionMode']) $(id).addEventListener('input', () => { parseSequence += 1; busy($('parseNotice'), false, '导入'); hideParseProgress(); });
 
-// Tests inject a fake engine the same way they inject the API base.
 const recognizeScreenshot = createRecognizer(...(window.SIXU_OCR_ENGINE ? [async () => window.SIXU_OCR_ENGINE] : []));
 let ocrSequence = 0;
 let ocrPreviewUrl = null;
@@ -501,7 +361,7 @@ async function recognizeNotice(file) {
     const box = $('noticeText');
     box.value = box.value.trim() ? `${box.value.trimEnd()}\n\n${text}` : text;
     box.dispatchEvent(new window.Event('input', { bubbles: true }));
-    ocrStatus('已把识别出的文字放进输入框。请对照截图逐字核对时间、地点和数字，修改后再提取。');
+    ocrStatus('已把识别出的文字放进输入框。请对照截图逐字核对时间、地点和数字，修改后再导入。');
   } catch (error) {
     if (ticket === ocrSequence) ocrStatus(`未能识别这张截图（${error.message}）。输入框内容没有改动，可以重试或手动输入。`);
   } finally {
@@ -521,360 +381,260 @@ $('noticeText').addEventListener('paste', event => {
   recognizeNotice(item.getAsFile());
 });
 
-$('addTask').addEventListener('click', () => {
-  try { const task = createTask(); commit(addTask(snapshot, task)); $('taskList').lastElementChild.querySelector('[data-task-field="title"]').focus(); }
-  catch (error) { tell(error.message, 'error'); }
-});
-$('taskList').addEventListener('input', event => {
-  const input = event.target;
-  const card = input.closest('[data-task-id]');
-  if (!card || (!input.dataset.taskField && !input.dataset.dependency)) return;
-  const id = card.dataset.taskId;
-  const task = snapshot.tasks.find(item => item.id === id);
-  if (!task || isInactive(task)) return;
-  clearConfirmationErrors(card);
-  invalidateResults();
-  const field = input.dataset.taskField;
-  let inputError = '';
-  let patch;
-  if (input.dataset.dependency) {
-    patch = { depends_on: Array.from(card.querySelectorAll('[data-dependency]:checked')).map(item => item.dataset.dependency) };
-  } else {
-    let value = input.value;
-    if (['must_do', 'splittable'].includes(field)) value = value === '' ? null : value === 'true';
-    if (['remaining_minutes', 'min_block_minutes', 'priority'].includes(field)) {
-      const lower = field === 'priority' ? 0 : 1;
-      const upper = field === 'priority' ? 100 : 10000000;
-      const valid = value !== '' && (field !== 'priority' || /^[0-9]{1,3}$/.test(value)) && Number.isSafeInteger(Number(value)) && Number(value) >= lower && Number(value) <= upper;
-      if (!valid && (value !== '' || input.validity?.badInput)) inputError = `请将${field === 'priority' ? '优先级' : field === 'remaining_minutes' ? '剩余分钟' : '最小连续分钟'}填写为${lower}至${upper}的整数；此输入尚未保存。`;
-      value = valid ? Number(value) : null;
-    }
-    if (['deadline_at', 'fixed_start_at', 'fixed_end_at', 'earliest_start_at'].includes(field)) value = fromLocalInput(value);
-    if (field === 'location') value = value.trim() || null;
-    if (field === 'materials') value = [...new Set(value.split(/[、，,\n]/).map(item => item.trim()).filter(Boolean))];
-    patch = { [field]: value };
-    if (field === 'kind') {
-      Object.assign(patch, { fixed_start_at: null, fixed_end_at: null, visit_windows: [], earliest_start_at: null, splittable: null, min_block_minutes: null, remaining_minutes: ['fixed', 'milestone'].includes(value) ? 0 : null });
-      if (value === 'fixed') patch.deadline_at = null;
-    }
-    if (field === 'splittable' && value === false) patch.min_block_minutes = null;
+// ---- Items --------------------------------------------------------------
+function itemError(card, message) { card.querySelector('[data-item-error]').textContent = message; }
+function fieldValue(input) {
+  const field = input.dataset.field;
+  const raw = input.value.trim();
+  if (['deadline_at', 'start_at', 'end_at'].includes(field)) {
+    if (!raw) return null;
+    const value = fromLocalInput(raw);
+    if (!value) throw new Error('请填写完整的日期和时刻');
+    return value;
   }
+  if (['estimate_minutes', 'priority'].includes(field)) {
+    if (!raw) return null;
+    if (!/^\d+$/.test(raw)) throw new Error('请填写整数');
+    return Number(raw);
+  }
+  if (field === 'splittable') return raw === 'true';
+  if (field === 'location') return raw || null;
+  return raw;
+}
+function editItem(card, patch) {
+  const id = card.dataset.itemId;
+  return card.dataset.kind === 'task' ? updateTask(snapshot, id, patch) : updateEvent(snapshot, id, patch);
+}
+function onItemChange(event) {
+  const input = event.target.closest('[data-field]');
+  const card = event.target.closest('[data-item-id]');
+  if (!input || !card) return;
   try {
-    commit(editTask(snapshot, id, patch), { full: false });
-    if (inputError) recordInvalidEdit(id, field, input.value, inputError);
-    else clearInvalidEdit(id, field || 'depends_on');
-    input.setAttribute('aria-invalid', String(Boolean(inputError)));
-    renderTaskErrors(id);
-    renderSummary();
-    if (['kind', 'splittable'].includes(field)) renderTasks(); else updateTaskMeta(id);
+    const next = editItem(card, { [input.dataset.field]: fieldValue(input) });
+    input.setAttribute('aria-invalid', 'false');
+    itemError(card, '');
+    commit(next, { render: 'none' });
   } catch (error) {
-    recordInvalidEdit(id, field || 'depends_on', input.value, `输入尚未保存：${(error.errors || [error.message]).join('；')}`);
     input.setAttribute('aria-invalid', 'true');
-    $('saveState').textContent = '存在未保存的无效输入，请先修正';
-    renderTaskErrors(id); updateTaskMeta(id); renderSummary();
+    itemError(card, `没有保存：${error.message}。`);
   }
-});
-$('taskList').addEventListener('click', async event => {
-  const jump = event.target.closest('[data-jump]');
-  if (jump) {
-    const field = jump.closest('[data-task-id]').querySelector(`[data-task-field="${jump.dataset.jump}"]`);
-    if (!field) return;
-    for (let detail = field.closest('details'); detail; detail = detail.parentElement.closest('details')) detail.open = true;
-    field.focus({ preventScroll: true });
-    field.scrollIntoView({ behavior: scrollBehavior(), block: 'center' });
-    return;
-  }
-  const button = event.target.closest('[data-action]');
-  const card = button?.closest('[data-task-id]');
-  if (!button || !card) return;
-  const id = card.dataset.taskId;
-  const task = snapshot.tasks.find(item => item.id === id);
+}
+function onItemClick(event) {
+  const card = event.target.closest('[data-item-id]');
+  if (!card) return;
+  const id = card.dataset.itemId;
+  const isTask = card.dataset.kind === 'task';
+  const item = isTask ? snapshot.tasks.find(entry => entry.id === id) : snapshot.events.find(entry => entry.id === id);
   try {
-    if (button.dataset.action === 'resolve-time') {
-      if (externalConflict) throw new Error('请先处理另一个标签页的清单变化。');
-      if (invalidEdits.has(id)) throw new Error('请先修正此事项尚未保存的无效输入。');
-      const referenceDate = $('noticeDate').value;
-      if (!referenceDate) throw new Error('请先在左侧“通知的参照日期”选择原通知语境日期，再点击补全。');
-      const source = snapshot.sources.find(item => item.id === task.source_id);
-      if (!source) throw new Error('找不到本事项的原通知，请手动核对时间。');
-      const ticket = timeReviewGate.begin(snapshot);
-      const base = apiBase;
-      busy(button, true, TIME_REVIEW_LABEL, '正在读取原文时间…');
-      try {
-        await ensureCapabilities(base);
-        if (!timeReviewGate.accepts(ticket, snapshot.revision) || base !== apiBase) return;
-        const parsed = await request('/api/parse', { text: source.text, reference_date: referenceDate, timezone: snapshot.timezone }, base);
-        if (!timeReviewGate.accepts(ticket, snapshot.revision) || base !== apiBase || referenceDate !== $('noticeDate').value) return;
-        const patch = reviewTimePatch(parsed, task, source);
-        commit(applyTimeReview(snapshot, id, patch, referenceDate));
-        tell(`已按参照日期 ${referenceDate} 补全原文支持的空白时间，事项仍待核对。${task.kind === 'fixed' && !(patch.fixed_end_at || task.fixed_end_at) ? '原文缺少结束时间，请按你的计划填写离场时间。' : ''}`);
-      } catch (error) {
-        if (timeReviewGate.accepts(ticket, snapshot.revision) && base === apiBase && referenceDate === $('noticeDate').value) throw error;
-      } finally { if (button.isConnected) busy(button, false, TIME_REVIEW_LABEL); }
+    const chip = event.target.closest('[data-estimate]');
+    if (chip) {
+      const minutes = Number(chip.dataset.estimate);
+      card.querySelector('[data-field="estimate_minutes"]').value = String(minutes);
+      commit(updateTask(snapshot, id, { estimate_minutes: minutes }), { render: 'none' });
       return;
     }
-    if (button.dataset.action === 'source') {
-      const source = Array.from($('sourceList').querySelectorAll('[data-source-id]')).find(item => item.dataset.sourceId === button.dataset.sourceId);
-      if (source) { source.open = true; showOnPage(source, 'center'); source.querySelector('summary').focus(); }
-      return;
+    const action = event.target.closest('[data-action]')?.dataset.action;
+    if (!action) return;
+    if (action === 'delete') {
+      if (!window.confirm(`删除「${item.title}」？`)) return;
+      commit(removeItem(snapshot, id));
+    } else if (action === 'complete') {
+      commit(updateTask(snapshot, id, { status: item.status === 'completed' ? 'active' : 'completed' }));
+    } else if (action === 'cancel') {
+      const status = item.status === 'cancelled' ? 'active' : 'cancelled';
+      commit(isTask ? updateTask(snapshot, id, { status }) : updateEvent(snapshot, id, { status }));
     }
-    if (button.dataset.action === 'confirm') {
-      if (invalidEdits.has(id)) {
-        const entries = [...invalidEdits.get(id)];
-        showConfirmationErrors(id, entries.map(([, entry]) => entry.message), entries.map(([field]) => field));
-        return;
-      }
-      if (!needsReview(task)) return;
-      const priorityInput = card.querySelector('[data-task-field="priority"]');
-      if (task.priority === null && priorityInput.value !== '') { priorityInput.value = ''; showConfirmationErrors(id, ['页面显示的优先级尚未保存为你的选择，请手动填写后再确认'], ['priority']); return; }
-      commit(confirmTask(snapshot, id));
-    }
-    if (button.dataset.action === 'complete') { invalidEdits.delete(id); commit(completeTask(snapshot, id)); }
-    if (button.dataset.action === 'reopen') commit(reopenTask(snapshot, id));
-    if (button.dataset.action === 'remove' && window.confirm(`删除“${taskTitle(task)}”？该事项会从当前清单移除。`)) { const next = removeTask(snapshot, id); invalidEdits.delete(id); commit(next); }
-  } catch (error) {
-    if (button.dataset.action === 'confirm') showConfirmationErrors(id, error.errors || [error.message], error.fields);
-    else taskError(id, (error.errors || [error.message]).join('；'));
-  }
+  } catch (error) { itemError(card, error.message); }
+}
+for (const list of ['eventList', 'taskList']) {
+  $(list).addEventListener('change', onItemChange);
+  $(list).addEventListener('click', onItemClick);
+}
+$('addTask').addEventListener('click', () => {
+  commit(addTask(snapshot, { title: '新的工作' }));
+  const title = $('taskList').lastElementChild.querySelector('[data-field="title"]');
+  title.focus(); title.select();
+});
+$('addEvent').addEventListener('click', () => {
+  commit(addEvent(snapshot, { title: '新的临时占用' }));
+  const title = $('eventList').lastElementChild.querySelector('[data-field="title"]');
+  title.focus(); title.select();
 });
 
-$('referenceTime').addEventListener('input', event => {
-  invalidateResults();
+// ---- Time ---------------------------------------------------------------
+function readDayGrid() {
+  return WEEKDAY_NAMES.map((_, index) => {
+    if (!document.querySelector(`[data-day-on="${index}"]`).checked) return null;
+    return { start: document.querySelector(`[data-day-start="${index}"]`).value, end: document.querySelector(`[data-day-end="${index}"]`).value };
+  });
+}
+$('windowForm').addEventListener('submit', event => {
+  event.preventDefault();
+  try { commit(setDailyWindow(snapshot, readDayGrid())); $('windowError').textContent = ''; tell('作息范围已保存，自由时间会按它推算。'); }
+  catch (error) { $('windowError').textContent = error.message; }
+});
+$('presetWindow').addEventListener('click', () => {
+  commit(setDailyWindow(snapshot, DEFAULT_WINDOW));
+  tell('已填入常用作息：工作日 8:00–23:00，周末 9:00–23:00，可以按自己的情况修改后再保存。');
+});
+$('clearWindow').addEventListener('click', () => { commit(setDailyWindow(snapshot, null)); });
+$('referenceTime').addEventListener('change', event => {
   const value = fromLocalInput(event.target.value);
-  invalidReference = !value;
-  try { if (value) commit(setReferenceTime(snapshot, value), { full: false }); }
-  catch (error) { invalidReference = true; tell(`新的计算时刻未保存：${error.message}`, 'error'); }
-  event.target.setAttribute('aria-invalid', String(invalidReference));
-  renderReferencePrecision();
+  if (!value) return tell('请填写完整的开始安排时刻。', 'warning');
+  calendarWeek = null;
+  commit(setReferenceTime(snapshot, value), { render: 'none' });
+  renderCalendar();
 });
-$('useCurrentTime').addEventListener('click', () => {
-  invalidateResults();
-  try { commit(setReferenceTime(snapshot, currentMinuteISO())); }
-  catch (error) { tell(`当前时刻未能保存：${error.message}`, 'error'); }
+$('useCurrentTime').addEventListener('click', () => { calendarWeek = null; commit(setReferenceTime(snapshot, currentMinuteISO())); });
+$('routinesConfirmed').addEventListener('change', event => commit(setRoutinesConfirmed(snapshot, event.target.checked)));
+$('addRoutine').addEventListener('click', () => {
+  $('routineForm').hidden = false;
+  $('routineFrom').value = localDate(Date.parse(snapshot.reference_time));
+  $('routineError').textContent = '';
+  $('routineTitle').focus();
 });
-$('addAvailability').addEventListener('click', () => {
-  invalidateResults();
-  $('availabilityForm').hidden = false;
-  $('availabilityStart').value = toLocalInput(snapshot.reference_time);
-  $('availabilityEnd').value = '';
-  $('availabilityError').textContent = '';
-  $('availabilityStart').focus();
-});
-$('cancelAvailability').addEventListener('click', () => { $('availabilityForm').hidden = true; $('availabilityError').textContent = ''; });
-$('availabilityForm').addEventListener('input', invalidateResults);
-$('availabilityForm').addEventListener('submit', event => {
+$('cancelRoutine').addEventListener('click', () => { $('routineForm').hidden = true; });
+$('routineForm').addEventListener('submit', event => {
   event.preventDefault();
-  const start = fromLocalInput($('availabilityStart').value);
-  const end = fromLocalInput($('availabilityEnd').value);
-  if (!start || !end || Date.parse(end) <= Date.parse(start)) { $('availabilityError').textContent = '请填写完整时刻，并让结束晚于开始；跨午夜请选择次日日期。'; return; }
-  try { commit(setAvailability(snapshot, [...snapshot.availability, { start, end }])); $('availabilityForm').hidden = true; $('availabilityError').textContent = ''; }
-  catch (error) { $('availabilityError').textContent = (error.errors || [error.message]).join('；'); }
-});
-$('availabilityList').addEventListener('click', event => {
-  if (event.target.closest('#confirmNoAvailability')) {
-    try { commit(setAvailability(snapshot, [])); } catch (error) { tell(error.message, 'error'); }
-    return;
-  }
-  const button = event.target.closest('[data-remove-availability]');
-  if (!button) return;
-  const index = Number(button.dataset.removeAvailability);
-  try { commit(setAvailability(snapshot, snapshot.availability.filter((_, item) => item !== index))); }
-  catch (error) { tell(error.message, 'error'); }
-});
-async function runAnalysis(mode) {
-  const planning = mode === 'plan';
-  const action = planning ? '生成安排' : '检查';
-  if (externalConflict) return tell('请先处理另一个标签页的清单变化。', 'warning');
-  if (!$('availabilityForm').hidden) return tell('请先保存或取消正在填写的空闲时段。', 'warning');
-  if (invalidReference || !fromLocalInput($('referenceTime').value)) return tell('请填写并保存有效的计算起始时刻。', 'warning');
-  if (!snapshot.tasks.length) return tell('请先添加并确认至少一件事项。', 'warning');
-  const pending = snapshot.tasks.filter(needsReview);
-  if (pending.length) { tell(`还有 ${pending.length} 件事项需要核对，不会将它们悄悄从计算中排除。`, 'warning'); showOnPage($('taskSection')); return; }
-  const active = snapshot.tasks.filter(task => !isInactive(task));
-  const availabilityKnown = snapshot.availability_confirmed ?? (snapshot.availability.length > 0);
-  if (active.length && !availabilityKnown) return tell('请先填写真实空闲时段，或明确确认目前没有可用时间；没有填写不代表全天可用或零空闲。', 'warning');
   try {
-    if (new TextEncoder().encode(serializeSnapshot(snapshot)).byteLength > MAX_SNAPSHOT_BYTES) throw new Error('清单超过15MB，请导出并拆分清单后再检查。');
-  } catch (error) { return tell(error.message, 'error'); }
-  const submitted = clone(snapshot);
-  invalidateScenario();
-  const ticket = calculateGate.begin(submitted);
-  activeCalculation = ticket;
-  const base = apiBase;
-  hasCalculated = true;
-  result = null;
-  planResult = null;
-  // Both actions share one request gate: an older check cannot replace a newer plan.
-  busy($('calculate'), false, '检查冲突与容量');
-  busy($('generatePlan'), false, '生成具体安排');
-  $('resultOutput').setAttribute('aria-busy', 'true');
-  $('resultOutput').innerHTML = `<p class="loading-output">正在按这份已确认清单${action}。修改内容后，本次结果会失效。</p>`;
-  busy($(planning ? 'generatePlan' : 'calculate'), true, planning ? '生成具体安排' : '检查冲突与容量', planning ? '正在安排并校验…' : '正在检查…');
-  tell('');
-  try {
-    const health = await ensureCapabilities(base, { fresh: planning });
-    if (!calculateGate.accepts(ticket, snapshot.revision) || base !== apiBase) return;
-    if (planning && !health.capabilities.includes('bounded_planning_v1')) throw new Error('当前服务尚未支持具体排程，请重启本地服务加载1.5版后重试；清单没有提交给旧算法。');
-    $('connectionStatus').textContent = '已连接支持任务确认与重算的服务';
-    const computed = await request(planning ? '/api/v2/plan' : '/api/v2/calculate', submitted, base);
-    if (!calculateGate.accepts(ticket, snapshot.revision) || base !== apiBase) return;
-    if (planning) planResult = readPlanResponse(computed, submitted);
-    else {
-      if (computed.schema_version !== 2 || computed.revision !== submitted.revision || !['information_needed', 'conflicts_detected', 'no_conflict_detected'].includes(computed.status)) throw new Error('计算结果与当前清单不匹配，请重新检查服务版本。');
-      result = computed;
-    }
-    renderResult();
-  } catch (error) {
-    if (activeCalculation === ticket) {
-      $('resultOutput').removeAttribute('aria-busy');
-      $('resultOutput').innerHTML = `<p class="field-error">本次${action}未完成，清单已保留。检查服务连接或输入后可以重试。</p>`;
-      tell(`${action}未完成：${error.message}`, 'error');
-    }
-  } finally { if (activeCalculation === ticket) { activeCalculation = null; busy($('calculate'), false, '检查冲突与容量'); busy($('generatePlan'), false, '生成具体安排'); } }
-}
-$('calculate').addEventListener('click', () => runAnalysis('calculate'));
-$('generatePlan').addEventListener('click', () => runAnalysis('plan'));
-
-function clearScenarioValidation() {
-  for (const input of $('scenarioForm')?.querySelectorAll('input,select') || []) {
-    input.removeAttribute('aria-invalid');
-    const descriptions = (input.getAttribute('aria-describedby') || '').split(/\s+/).filter(id => id && id !== 'scenarioValidationError');
-    if (descriptions.length) input.setAttribute('aria-describedby', descriptions.join(' '));
-    else input.removeAttribute('aria-describedby');
-  }
-}
-function invalidateScenario(message = '') {
-  scenarioGate.invalidate();
-  activeScenario = null;
-  scenarioPreview = null;
-  clearScenarioValidation();
-  const output = $('scenarioOutput');
-  if (output) {
-    output.removeAttribute('aria-busy');
-    output.innerHTML = `<p class="result-caption">${escapeHTML(message || '方案参数已修改，原试算结果失效；当前清单未改变。')}</p>`;
-  }
-  if ($('measureScenario')) busy($('measureScenario'), false, '按此假设测算');
-}
-function scenarioInput() {
-  if ($('scenarioKind').value === 'remaining') {
-    const raw = $('scenarioMinutes').value;
-    if (!/^[0-9]{1,8}$/.test(raw)) throw Object.assign(new Error('请填写1至10000000的整数分钟。'), { scenarioField: 'minutes' });
-    return { kind: 'remaining', task_id: $('scenarioTask').value, minutes: Number(raw) };
-  }
-  if ($('scenarioKind').value !== 'availability') throw Object.assign(new Error('请选择有效的调整方式。'), { scenarioField: 'kind' });
-  return { kind: 'availability', start: fromLocalInput($('scenarioStart').value), end: fromLocalInput($('scenarioEnd').value) };
-}
-function scenarioAccepts(ticket, originalPlan, base) {
-  return scenarioGate.accepts(ticket, snapshot.revision) && planResult === originalPlan && apiBase === base;
-}
-$('resultOutput').addEventListener('input', event => {
-  if (event.target.id === 'scenarioReality') {
-    const adopt = $('scenarioOutput')?.querySelector('[data-scenario-action="adopt"]');
-    if (adopt) adopt.disabled = !event.target.checked;
-    return;
-  }
-  if (!event.target.closest('#scenarioForm')) return;
-  invalidateScenario();
-  event.target.removeAttribute('aria-invalid');
-  if (event.target.id === 'scenarioKind') {
-    const work = event.target.value === 'remaining';
-    $('scenarioWorkFields').hidden = !work; $('scenarioWorkFields').disabled = !work;
-    $('scenarioAvailabilityFields').hidden = work; $('scenarioAvailabilityFields').disabled = work;
-  }
+    const weekdays = Array.from($('routineWeekdays').querySelectorAll('input:checked'), input => Number(input.value));
+    commit(addRoutine(snapshot, { title: $('routineTitle').value, weekdays, start: $('routineStart').value, end: $('routineEnd').value,
+      from: $('routineFrom').value, until: $('routineUntil').value || null, week_interval: Number($('routineInterval').value), location: $('routineLocation').value.trim() || null }));
+    $('routineForm').reset();
+    $('routineForm').hidden = true;
+  } catch (error) { $('routineError').textContent = error.message; }
 });
-$('resultOutput').addEventListener('submit', async event => {
-  if (event.target.id !== 'scenarioForm') return;
+$('routineList').addEventListener('click', event => {
+  const id = event.target.closest('[data-remove]')?.dataset.remove;
+  if (id && window.confirm('删除这条例行占用？')) commit(removeItem(snapshot, id));
+});
+$('addAdjustment').addEventListener('click', () => { $('adjustmentForm').hidden = false; $('adjustmentError').textContent = ''; $('adjustmentStart').focus(); });
+$('cancelAdjustment').addEventListener('click', () => { $('adjustmentForm').hidden = true; });
+$('adjustmentForm').addEventListener('submit', event => {
   event.preventDefault();
-  if (!canCompare(planResult) || externalConflict) return tell('当前结果已失效，请先重新生成正式安排。', 'warning');
-  invalidateScenario();
-  const originalPlan = planResult;
-  let prepared;
-  try { prepared = buildScenario(snapshot, scenarioInput()); }
-  catch (error) {
-    $('scenarioOutput').innerHTML = `<p class="field-error" id="scenarioValidationError" role="alert" tabindex="-1">${escapeHTML((error.errors || [error.message]).join('；'))}</p>`;
-    const field = { kind: 'scenarioKind', task_id: 'scenarioTask', minutes: 'scenarioMinutes', start: 'scenarioStart', end: 'scenarioEnd' }[error.scenarioField];
-    const input = field ? $(field) : null;
-    if (input) {
-      input.setAttribute('aria-invalid', 'true');
-      input.setAttribute('aria-describedby', [input.getAttribute('aria-describedby'), 'scenarioValidationError'].filter(Boolean).join(' '));
-      input.focus();
-    } else $('scenarioValidationError').focus();
-    return;
-  }
-  const ticket = scenarioGate.begin(snapshot);
-  const base = apiBase;
-  activeScenario = ticket;
-  $('scenarioOutput').setAttribute('aria-busy', 'true');
-  $('scenarioOutput').innerHTML = '<p class="loading-output">正在测算这项假设，当前清单和原结果保留。</p>';
-  busy($('measureScenario'), true, '按此假设测算', '正在测算并校验…');
   try {
-    const health = await ensureCapabilities(base, { fresh: true });
-    if (!scenarioAccepts(ticket, originalPlan, base)) return;
-    if (!health.capabilities.includes('bounded_planning_v1')) throw new Error('当前服务不支持具体排程，假设未提交；请检查服务版本。');
-    const raw = await request('/api/v2/plan', prepared.candidate, base);
-    if (!scenarioAccepts(ticket, originalPlan, base)) return;
-    const computed = readPlanResponse(raw, prepared.candidate);
-    scenarioPreview = { ...prepared, originalPlan, ticket, base };
-    $('scenarioOutput').innerHTML = comparisonMarkup(originalPlan, computed, prepared.proposal, prepared.candidate, readableTime);
-    $('scenarioOutput').removeAttribute('aria-busy');
-  } catch (error) {
-    if (scenarioAccepts(ticket, originalPlan, base)) {
-      $('scenarioOutput').removeAttribute('aria-busy');
-      $('scenarioOutput').innerHTML = `<p class="field-error" role="alert">试算未完成：${escapeHTML(error.message)} 当前清单未改变，可以修改参数或重试。</p>`;
-    }
-  } finally { if (activeScenario === ticket) { activeScenario = null; if ($('measureScenario')) busy($('measureScenario'), false, '按此假设测算'); } }
+    commit(addAdjustment(snapshot, { kind: $('adjustmentKind').value, start_at: fromLocalInput($('adjustmentStart').value), end_at: fromLocalInput($('adjustmentEnd').value), note: $('adjustmentNote').value.trim() || null }));
+    $('adjustmentForm').reset();
+    $('adjustmentForm').hidden = true;
+  } catch (error) { $('adjustmentError').textContent = error.message; }
 });
-$('resultOutput').addEventListener('click', event => {
-  const button = event.target.closest('[data-scenario-action]');
-  if (!button) return;
-  if (button.dataset.scenarioAction === 'discard') { invalidateScenario('已放弃此方案，当前清单和原结果保持原样。'); $('measureScenario')?.focus(); return; }
-  const preview = scenarioPreview;
-  if (!preview || !scenarioAccepts(preview.ticket, preview.originalPlan, preview.base) || externalConflict) { invalidateScenario('旧方案已失效，请重新测算。'); return; }
-  if (!$('scenarioReality')?.checked) return tell('请先确认改动符合实际，再决定是否写入清单。', 'warning');
-  try {
-    const next = adoptScenario(snapshot, preview.proposal);
-    commit(next);
-    tell(preview.proposal.input.kind === 'remaining' ? '已写入工时改动，该事项恢复待核对。请重新确认后生成正式安排。' : '已写入你确认的新增空闲。请重新生成正式安排，试算结果没有直接替换当前安排。');
-    if (preview.proposal.input.kind === 'remaining') {
-      const card = Array.from($('taskList').querySelectorAll('[data-task-id]')).find(node => node.dataset.taskId === preview.proposal.input.task_id);
-      const confirm = card?.querySelector('[data-action="confirm"]');
-      if (confirm) { confirm.closest('details').open = true; confirm.focus({ preventScroll: true }); }
-      showOnPage($('taskSection'));
-    } else {
-      $('generatePlan').focus({ preventScroll: true });
-      showOnPage($('resultSection'));
-    }
-  } catch (error) { tell(`未采用：${(error.errors || [error.message]).join('；')}`, 'error'); }
+$('adjustmentList').addEventListener('click', event => {
+  const id = event.target.closest('[data-remove]')?.dataset.remove;
+  if (id) commit(removeItem(snapshot, id));
 });
 
+// ---- Timetable ----------------------------------------------------------
+function readPeriods() {
+  const periods = {};
+  for (const line of $('periodText').value.split('\n').map(text => text.trim()).filter(Boolean)) {
+    const match = /^(\d{1,2})\s+(\d{1,2}):(\d{2})\s*[-–—~至]\s*(\d{1,2}):(\d{2})$/.exec(line);
+    if (!match) throw new Error(`节次时间“${line}”看不懂，请写成“1 08:00-08:45”`);
+    const pad = value => value.padStart(2, '0');
+    periods[String(Number(match[1]))] = { start: `${pad(match[2])}:${match[3]}`, end: `${pad(match[4])}:${match[5]}` };
+  }
+  return periods;
+}
+function timetablePreview(result) {
+  const routines = result.routines.map(routine => `<li><strong>${escapeHTML(routine.title)}</strong><span>每周${weekdayText(routine.weekdays)} ${routine.start}–${routine.end}${routine.week_interval === 2 ? '（隔周）' : ''} · ${dateText(routine.from)}起${routine.until ? `至${dateText(routine.until)}` : ''}${routine.location ? ` · ${escapeHTML(routine.location)}` : ''}</span></li>`).join('');
+  const drafts = result.drafts.map(draft => `<li><strong>${escapeHTML(draft.course.title)}</strong><span>${escapeHTML(draft.problem)}</span></li>`).join('');
+  const warnings = result.warnings.map(note => `<li>${escapeHTML(note)}</li>`).join('');
+  return `<div class="timetable-result">
+    <h3>整理出 ${result.routines.length} 条例行占用${result.drafts.length ? `，${result.drafts.length} 门课还缺信息` : ''}</h3>
+    <p class="field-help">课表是整学期的数据，请逐条对照原课表核对后再导入。</p>
+    ${routines ? `<ul class="plain-list">${routines}</ul>` : ''}
+    ${drafts ? `<h4>还缺信息</h4><ul class="plain-list is-draft">${drafts}</ul>` : ''}
+    ${warnings ? `<h4>没有采用的部分</h4><ul>${warnings}</ul>` : ''}
+    ${result.routines.length ? `<button type="button" class="primary-button" id="adoptTimetable">核对无误，导入这 ${result.routines.length} 条</button>` : ''}
+  </div>`;
+}
+async function runTimetable(mode) {
+  const text = $('timetableText').value.trim();
+  if (!text) return tell('请先粘贴课表文字。', 'warning');
+  let periods;
+  try { periods = readPeriods(); } catch (error) { return tell(error.message, 'warning'); }
+  const body = { mode, text, term_start: $('termStart').value || null, periods };
+  if (mode === 'convert') {
+    if (!lastTimetable || lastTimetable.text !== text) return tell('课表文字改过了，请重新整理。', 'warning');
+    body.courses = lastTimetable.result.courses;
+  }
+  const ticket = ++timetableSequence;
+  const base = apiBase;
+  const button = mode === 'model' ? $('recognizeTimetable') : $('reconvertTimetable');
+  busy(button, true, button.textContent, mode === 'model' ? '正在整理…' : '正在换算…');
+  try {
+    const result = await ensureHealth(base, { fresh: mode === 'model' });
+    if (!result.capabilities.includes('timetable_v3')) throw new Error('计算服务还不支持课表识别（需要后端1.13或更新）。');
+    if (mode === 'model' && !result.timetable_model?.configured) throw new Error('本地服务没有配置 DeepSeek Key。重启服务时输入 Key 后再试。');
+    const data = await request('/api/v3/timetable', body, base, mode === 'model' ? 100000 : 30000);
+    if (ticket !== timetableSequence) return;
+    lastTimetable = { text, result: data };
+    $('timetablePreview').innerHTML = timetablePreview(data);
+    $('reconvertTimetable').hidden = !data.courses.length;
+  } catch (error) {
+    if (ticket === timetableSequence) tell(`课表没有整理完成：${error.message}`, 'error');
+  } finally {
+    busy(button, false, mode === 'model' ? '整理课表' : '按新的日期和节次重新换算');
+  }
+}
+$('timetableForm').addEventListener('submit', event => { event.preventDefault(); runTimetable('model'); });
+$('reconvertTimetable').addEventListener('click', () => runTimetable('convert'));
+$('timetablePreview').addEventListener('click', event => {
+  if (!event.target.closest('#adoptTimetable') || !lastTimetable) return;
+  const { source, routines } = lastTimetable.result;
+  commit(addTimetable(snapshot, { source, routines }));
+  $('timetablePreview').innerHTML = `<p class="field-help">已导入 ${routines.length} 条例行占用。</p>`;
+  lastTimetable = null;
+  $('reconvertTimetable').hidden = true;
+  tell(`已导入 ${routines.length} 条例行占用，日历会扣除这些时间。`);
+});
+
+// ---- Calendar interactions ------------------------------------------------
+$('calendarView').addEventListener('click', event => {
+  const week = event.target.closest('[data-cal-week]');
+  if (week) {
+    const step = Number(week.dataset.calWeek);
+    calendarWeek = step ? shownWeek() + step * 7 * DAY : null;
+    calendarResult = null;
+    computeCalendar();
+    return;
+  }
+  if (event.target.closest('[data-cal-goto="time"]')) { window.SixuRouter?.go('time'); return; }
+  const target = event.target.closest('[data-cal-item]');
+  if (!target) return;
+  const { calItem: id, calLayer: layer } = target.dataset;
+  const element = $(layer === 'routine' ? `routine-${id}` : `item-${id}`);
+  if (element) showOnPage(element, 'center');
+});
+document.addEventListener('sixu:route', event => { if (event.detail === 'calendar' && !calendarResult && !calendarLoading) computeCalendar(); });
+window.setInterval(() => { if (document.documentElement.dataset.current === 'calendar' && !document.hidden) renderCalendar(); }, 60000);
+
+// ---- Service settings, backup -------------------------------------------
 $('apiBase').value = apiBase;
 $('apiForm').addEventListener('submit', async event => {
   event.preventDefault();
-  const connectionTicket = ++connectionSequence;
+  const ticket = ++connectionSequence;
   try {
     apiBase = normalizeApiBase($('apiBase').value.trim());
-    capabilityBase = null;
-    invalidateResults();
+    healthBase = null;
     try { storage?.setItem('sixu.api-base', apiBase); } catch { /* Current session can still connect. */ }
     $('connectionStatus').textContent = '正在检查连接…';
-    const checkedBase = apiBase;
-    await ensureCapabilities(checkedBase);
-    if (checkedBase !== apiBase || connectionTicket !== connectionSequence) return;
-    $('connectionStatus').textContent = '已连接支持任务确认与重算的服务';
-    tell('服务已连接。通知仍需由你点击提取后才会发送。');
+    const checked = apiBase;
+    await ensureHealth(checked, { fresh: true });
+    if (checked !== apiBase || ticket !== connectionSequence) return;
+    tell('服务已连接。');
+    computeCalendar();
   } catch (error) {
-    if (connectionTicket !== connectionSequence) return;
-    capabilityBase = null;
+    if (ticket !== connectionSequence) return;
+    healthBase = null;
     $('connectionStatus').textContent = error.message; tell(error.message, 'error');
   }
 });
 $('exportSnapshot').addEventListener('click', () => {
   try {
-    if (invalidEdits.size && !window.confirm('有无效输入尚未保存，导出文件只包含已接受的字段值。是否仍导出这份有效清单？')) return;
-    const blob = new Blob([serializeSnapshot(snapshot)], { type: 'application/json;charset=utf-8' });
+    const blob = new Blob([serializeTimeSnapshot(snapshot)], { type: 'application/json;charset=utf-8' });
     const url = URL.createObjectURL(blob);
     const link = document.createElement('a');
-    link.href = url; link.download = `司序-个人清单-${toLocalInput(nowISO()).slice(0, 10)}.json`;
+    link.href = url; link.download = `司序-清单-${localDate(Date.now())}.json`;
     document.body.append(link); link.click(); link.remove();
     window.setTimeout(() => URL.revokeObjectURL(url), 1000);
     tell('已导出清单，文件包含通知原文与个人安排，请妥善保存。');
@@ -884,114 +644,85 @@ $('importSnapshot').addEventListener('click', () => $('importFile').click());
 $('importFile').addEventListener('change', async event => {
   const file = event.target.files[0];
   if (!file) return;
-  const ticket = ++importSequence;
   try {
     if (file.size > 15000000) throw new Error('导入文件超过15MB，请缩小清单。');
-    const next = parseSnapshot(await file.text());
-    if (ticket !== importSequence) return tell('读取文件期间清单发生变化，未覆盖当前修改，请重新导入。', 'warning');
-    if (snapshot.tasks.length && !window.confirm('导入会替换当前清单。请先导出需要保留的内容，是否继续？')) return;
-    invalidEdits.clear();
-    commit(next, { unlock: true });
-    hasCalculated = false;
-    renderResult();
-    tell('已载入清单。导入未发送数据，计算时仍会校验字段和原文依据。');
-  } catch (error) { tell(`导入未完成：${(error.errors || [error.message]).join('；')}`, 'error'); }
+    const next = parseTimeSnapshot(await file.text());
+    const hasData = snapshot.events.length || snapshot.tasks.length || snapshot.routines.length;
+    if (hasData && !window.confirm('导入会替换当前清单。请先导出需要保留的内容，是否继续？')) return;
+    calendarWeek = null;
+    commit({ ...next, revision: snapshot.revision + 1 }, { unlock: true });
+    tell('已载入清单。旧版清单会自动转换成四层时间格式。');
+  } catch (error) { tell(`导入未完成：${error.message}`, 'error'); }
   finally { event.target.value = ''; }
 });
 $('clearSnapshot').addEventListener('click', () => {
   if (!window.confirm('清空此浏览器中的当前清单？请先导出需要保留的内容。')) return;
-  hasCalculated = false;
-  invalidEdits.clear();
-  commit(createSnapshot({ referenceTime: currentMinuteISO() }), { unlock: true });
-  $('noticeText').value = ''; $('noticeDate').value = ''; $('availabilityForm').hidden = true;
-  tell('清单已清空，可以重新导入通知。');
+  calendarWeek = null;
+  commit({ ...createTimeSnapshot({ referenceTime: currentMinuteISO() }), revision: snapshot.revision + 1 }, { unlock: true });
+  $('noticeText').value = ''; $('noticeDate').value = ''; $('importSummary').hidden = true;
+  tell('清单已清空。');
 });
 $('reloadLatest').addEventListener('click', () => {
-  const latest = readSnapshot(storage);
+  const latest = readTimeSnapshot(storage);
   if (latest.error || !latest.snapshot) return tell('最新清单无法读取，请先导出当前内容，保留备份后重试。', 'error');
   if (!window.confirm('载入另一个标签页保存的清单？当前未保存修改将被替换，请先导出需要保留的内容。')) return;
   snapshot = latest.snapshot;
-  invalidEdits.clear();
   snapshotStore.adoptRaw(latest.raw);
-  externalConflict = false;
-  storageLocked = false;
+  externalConflict = false; storageLocked = false;
   $('storageConflict').hidden = true;
-  invalidateResults(); renderAll();
+  calendarResult = null;
+  renderAll(); scheduleCalendar();
   $('saveState').textContent = '已载入浏览器保存的最新清单';
 });
 window.addEventListener('storage', event => {
-  if (event.key !== STORAGE_KEY) return;
-  try { if (event.newValue === serializeSnapshot(snapshot)) return; } catch { /* Oversized memory state must not overwrite stored data. */ }
+  if (event.key !== TIME_STORAGE_KEY) return;
+  try { if (event.newValue === serializeTimeSnapshot(snapshot)) return; } catch { /* Oversized memory state must not overwrite stored data. */ }
   externalConflict = true;
   snapshotStore.invalidate();
-  invalidateResults();
   $('storageConflict').hidden = false;
   $('saveState').textContent = '其他标签页已修改，请先处理版本变化';
 });
 
+// ---- Examples -------------------------------------------------------------
 $('fillExample').addEventListener('click', () => {
-  const day = new Date(Date.parse(nowISO()) + 8 * 3600000 + 86400000).toISOString().slice(0, 10);
-  $('noticeText').value = `【虚构示例】讲座与课程报告安排\n请于${day}15:00前完成讲座报名。讲座于${day}18:00-20:00举行，地点为主楼405。请于${day}23:59前提交课程报告。`;
+  // Written the way notices are ("2026年11月7日15:00"); "2026-11-0715:00" would not be readable.
+  const [year, month, date] = localDate(Date.now() + DAY).split('-').map(Number);
+  const day = `${year}年${month}月${date}日`;
+  $('noticeText').value =`【虚构示例】讲座与课程报告安排\n请于${day}15:00前完成讲座报名。讲座于${day}18:00-20:00举行，地点为主楼405。请于${day}23:59前提交课程报告。`;
   $('noticeDate').value = '';
-  parseGate.invalidate(); activeParse = null; busy($('parseNotice'), false, '提取待确认事项'); hideParseProgress();
-  tell('已填入虚构通知。点击提取后，仍需要逐项核对与补充剩余耗时。');
+  tell('已填入虚构通知，点“导入”即可。');
   $('noticeText').focus();
 });
-$('loadNineMinutes').addEventListener('click', () => {
-  if (snapshot.tasks.length && !window.confirm('载入虚构场景会替换当前清单，请先导出要保留的内容。是否继续？')) return;
-  const day = new Date(Date.parse(nowISO()) + 8 * 3600000 + 86400000).toISOString().slice(0, 10);
-  const source = { id: sourceId(), kind: 'synthetic', text: `【虚构示例】${day}23:59前提交课程报告。预计还需要180分钟。`, published_at: null };
-  let next = createSnapshot({ referenceTime: `${day}T23:50:00+08:00` });
-  next.label = '虚构示例：九分钟缺口';
-  const task = createTask('flexible', source.id);
-  Object.assign(task, { title: '虚构示例：课程报告', deadline_at: `${day}T23:59:00+08:00`, remaining_minutes: 180, must_do: true, priority: 90, splittable: true, min_block_minutes: 1, evidence: [{ field: 'deadline_at', origin: 'source_text', source_id: source.id, quote: `${day}23:59前提交课程报告` }], uncertainties: ['这是虚构场景，计算起始固定为23:50，空闲到23:59；请核对后确认。'] });
-  next = addSource(next, source); next = addTask(next, task);
-  next = setAvailability(next, [{ start: `${day}T23:50:00+08:00`, end: `${day}T23:59:00+08:00` }]);
-  hasCalculated = false; invalidEdits.clear(); commit(next, { unlock: !externalConflict && !storageLocked });
-  $('availabilityForm').hidden = true;
-  tell('已载入虚构场景，时间不是当前时刻。先确认报告事项，再检查180分钟工作面对9分钟空闲会发生什么。');
+$('loadDemoWeek').addEventListener('click', () => {
+  const hasData = snapshot.events.length || snapshot.tasks.length || snapshot.routines.length;
+  if (hasData && !window.confirm('载入示例会替换当前清单，请先导出要保留的内容。是否继续？')) return;
+  // Next week, so every time in the example lies in the future.
+  const monday = weekStart(Date.now()) + 7 * DAY;
+  const at = (dayIndex, time) => `${localDate(monday + dayIndex * DAY)}T${time}:00+08:00`;
+  const source = { id: 's-demo', kind: 'synthetic', text: '【虚构示例】一周安排：周三9:00-10:30讲座（与高数冲突）；周二12:00前讲座报名；周五23:59前交课程报告，约3小时。', published_at: null };
+  // The example plans from next Monday 07:00, so its work blocks land in the week shown.
+  let next = createTimeSnapshot({ referenceTime: at(0, '07:00') });
+  next = setDailyWindow(next, DEFAULT_WINDOW);
+  const from = localDate(monday - 56 * DAY);
+  next = addRoutine(next, { title: '高等数学（示例）', weekdays: [1, 3], start: '08:00', end: '09:40', from, location: '主楼301' });
+  next = addRoutine(next, { title: '大学英语（示例）', weekdays: [2, 4], start: '10:00', end: '11:40', from, location: '外语楼204' });
+  next = addRoutine(next, { title: '社团例会（示例）', weekdays: [2], start: '19:00', end: '20:00', from });
+  next = addImported(next, { source,
+    events: [{ id: 'e-demo-talk', title: '参加讲座（示例）', start_at: at(2, '09:00'), end_at: at(2, '10:30'), location: '主楼405', status: 'active', source_id: 's-demo', evidence: [], notes: ['示例：故意与高数时间重叠，演示冲突。'] }],
+    tasks: [
+      { id: 't-demo-signup', title: '讲座报名（示例）', deadline_at: at(1, '12:00'), estimate_minutes: null, splittable: true, min_block_minutes: null, earliest_start_at: null, priority: null, status: 'active', location: null, materials: [], source_id: 's-demo', evidence: [], notes: ['示例：预计用时未定义，只显示截止。'] },
+      { id: 't-demo-report', title: '课程报告（示例）', deadline_at: at(4, '23:59'), estimate_minutes: 180, splittable: true, min_block_minutes: 60, earliest_start_at: null, priority: 80, status: 'active', location: null, materials: [], source_id: 's-demo', evidence: [], notes: [] },
+    ] });
+  calendarWeek = monday;
+  commit({ ...next, revision: snapshot.revision + 1 }, { unlock: !externalConflict && !storageLocked });
+  tell('已载入示例一周（下周，从下周一7:00开始安排）：有一处讲座撞课的冲突，一件预计用时未定义的工作。想按真实时间安排，可在“时间”页点“使用当前时间”。');
+  window.SixuRouter?.go('calendar');
 });
-$('loadEveningPlan').addEventListener('click', () => {
-  if (snapshot.tasks.length && !window.confirm('载入虚构场景会替换当前清单，请先导出要保留的内容。是否继续？')) return;
-  const day = new Date(Date.parse(nowISO()) + 8 * 3600000 + 86400000).toISOString().slice(0, 10);
-  const at = time => `${day}T${time}:00+08:00`;
-  const source = { id: sourceId(), kind: 'synthetic', text: `【虚构示例】一晚安排\n${day}19:00前准备汇报材料，剩余30分钟；19:00至20:00参加小组汇报，须先准备材料，地点主楼405；22:00前完成课程报告，剩余90分钟。个人愿意投入18:00至22:00。工时、优先级和其他选择均为演示设定。`, published_at: null };
-  let next = addSource(createSnapshot({ referenceTime: at('18:00') }), source);
-  const prep = createTask('flexible', source.id), event = createTask('fixed', source.id), report = createTask('flexible', source.id);
-  Object.assign(prep, { title: '虚构示例：准备汇报材料', deadline_at: at('19:00'), remaining_minutes: 30, priority: 80, must_do: true, splittable: false });
-  Object.assign(event, { title: '虚构示例：小组汇报', fixed_start_at: at('19:00'), fixed_end_at: at('20:00'), location: '主楼405', remaining_minutes: 0, priority: 80, must_do: true, depends_on: [prep.id] });
-  Object.assign(report, { title: '虚构示例：完成课程报告', deadline_at: at('22:00'), remaining_minutes: 90, priority: 70, must_do: true, splittable: true, min_block_minutes: 30 });
-  for (const task of [prep, event, report]) { task.uncertainties = ['这是虚构演示，工时与优先级均为示例选择，请核对后确认。']; next = addTask(next, task); }
-  next = setAvailability(next, [{ start: at('18:00'), end: at('22:00') }]);
-  next.label = '虚构示例：一晚安排';
-  hasCalculated = false; invalidEdits.clear(); commit(next, { unlock: !externalConflict && !storageLocked });
-  $('availabilityForm').hidden = true;
-  tell('已载入3件虚构事项，时间不是当前时刻。逐项核对并确认后，点击“生成具体安排”；这里的工时与优先级仅为演示设定。');
-  showOnPage($('taskSection'));
-});
-
-$('calendarView').addEventListener('click', event => {
-  const week = event.target.closest('[data-cal-week]');
-  if (week) {
-    const step = Number(week.dataset.calWeek);
-    const shown = calendarWeek ?? weekStart(Date.parse(snapshot.reference_time) || Date.now());
-    calendarWeek = step ? shown + step * 7 * 86400000 : weekStart(Date.now());
-    renderCalendar();
-    return;
-  }
-  if (event.target.closest('[data-cal-free]')) { window.SixuRouter?.go('time'); return; }
-  const id = event.target.closest('[data-cal-task]')?.dataset.calTask;
-  const card = id && Array.from($('taskList').querySelectorAll('[data-task-id]')).find(item => item.dataset.taskId === id);
-  if (!card) return;
-  showOnPage(card, 'center');
-  card.classList.remove('is-flash');
-  void card.offsetWidth;
-  card.classList.add('is-flash');
-});
-// Keep the needle on the present while the calendar is open.
-document.addEventListener('sixu:route', event => { if (event.detail === 'calendar') renderCalendar(); });
-window.setInterval(() => { if (document.documentElement.dataset.current === 'calendar' && !document.hidden) renderCalendar(); }, 60000);
 
 renderAll();
 if (recovered.error) tell(`本地清单未能读取：${recovered.error}。为保护原数据，当前修改暂不覆盖保存；请导入备份或明确清空后重建。`, 'warning');
+else if (recovered.migrated) { tell('已把旧版清单转换成四层时间格式；旧数据仍保留在浏览器中，没有删除。'); save(); }
 if (location.protocol === 'file:') tell('请通过本地HTTP服务打开此页面，直接打开文件无法完整加载编辑模块。', 'warning');
+$('timetableText').value ||= '';
+$('periodText').value = DEFAULT_PERIODS;
+scheduleCalendar();
