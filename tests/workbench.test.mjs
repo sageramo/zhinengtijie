@@ -305,6 +305,41 @@ test('timetable notes are not shown as rejected courses; only real rejections ar
   assert.match(preview, /整理时的提醒所有课程均未标注周次信息/);
 });
 
+test('timetable screenshot: uploads the image, fills the transcript and offers the period times seen in it', async t => {
+  const posted = [];
+  const seen = { '1': { start: '08:00', end: '08:50' }, '2': { start: '09:00', end: '09:50' } };
+  const answer = { ...structuredClone(API.timetable), mode: 'image', periods_seen: seen,
+    source: { ...API.timetable.source, text: '周一 第1-2节 高等数学 @主楼301' } };
+  const routes = { '/api/v3/timetable': async body => { posted.push(body); return [200, structuredClone(answer)]; } };
+  const app = await boot(t, { routes, health: { capabilities: [...CAPABILITIES, 'timetable_image_v3'], timetable_model: { configured: true } } });
+  const picker = app.find('#timetableImage');
+  const file = new app.window.File([new Uint8Array([0x89, 0x50, 0x4e, 0x47])], 'grid.png', { type: 'image/png' });
+  Object.defineProperty(picker, 'files', { value: [file], configurable: true });
+  picker.dispatchEvent(new app.window.Event('change', { bubbles: true }));
+  await settle();
+  assert.equal(posted[0].mode, 'image');
+  assert.match(posted[0].image, /^data:image\/png;base64,/);
+  assert.equal(posted[0].text, undefined);
+  assert.equal(app.find('#timetableText').value, '周一 第1-2节 高等数学 @主楼301');
+  assert.match(app.find('#timetablePreview').textContent, /截图上的节次时间与下面填的不同/);
+  app.click('#usePeriodsSeen');
+  await settle();
+  assert.match(app.find('#periodText').value, /^1 08:00-08:50\n2 09:00-09:50$/);
+  assert.equal(posted[1].mode, 'convert');
+  assert.equal(posted[1].text, '周一 第1-2节 高等数学 @主楼301');
+  assert.deepEqual(posted[1].periods, seen);
+});
+
+test('timetable screenshot needs a service that can read images', async t => {
+  const app = await boot(t, { health: { timetable_model: { configured: true } } });
+  const picker = app.find('#timetableImage');
+  Object.defineProperty(picker, 'files', { value: [new app.window.File([new Uint8Array([1])], 'grid.png', { type: 'image/png' })], configurable: true });
+  picker.dispatchEvent(new app.window.Event('change', { bubbles: true }));
+  await settle();
+  assert.match(app.message(), /1\.15/);
+  assert.equal(app.calls.some(call => call.path === '/api/v3/timetable'), false);
+});
+
 test('timetable period lines that cannot be read are reported before sending', async t => {
   const app = await boot(t, { health: { timetable_model: { configured: true } } });
   app.set('#timetableText', API.timetable_text, 'input');
