@@ -537,13 +537,17 @@ function readPeriods() {
 function timetablePreview(result) {
   const routines = result.routines.map(routine => `<li><strong>${escapeHTML(routine.title)}</strong><span>每周${weekdayText(routine.weekdays)} ${routine.start}–${routine.end}${routine.week_interval === 2 ? '（隔周）' : ''} · ${dateText(routine.from)}起${routine.until ? `至${dateText(routine.until)}` : ''}${routine.location ? ` · ${escapeHTML(routine.location)}` : ''}</span></li>`).join('');
   const drafts = result.drafts.map(draft => `<li><strong>${escapeHTML(draft.course.title)}</strong><span>${escapeHTML(draft.problem)}</span></li>`).join('');
-  const warnings = result.warnings.map(note => `<li>${escapeHTML(note)}</li>`).join('');
+  // The backend marks dropped courses with 未采用; other notes are the model's remarks about courses it did keep.
+  const list = notes => notes.map(note => `<li>${escapeHTML(note)}</li>`).join('');
+  const rejected = list(result.warnings.filter(note => note.includes('未采用')));
+  const remarks = list(result.warnings.filter(note => !note.includes('未采用')));
   return `<div class="timetable-result">
     <h3>整理出 ${result.routines.length} 条例行占用${result.drafts.length ? `，${result.drafts.length} 门课还缺信息` : ''}</h3>
     <p class="field-help">课表是整学期的数据，请逐条对照原课表核对后再导入。</p>
     ${routines ? `<ul class="plain-list">${routines}</ul>` : ''}
     ${drafts ? `<h4>还缺信息</h4><ul class="plain-list is-draft">${drafts}</ul>` : ''}
-    ${warnings ? `<h4>没有采用的部分</h4><ul>${warnings}</ul>` : ''}
+    ${rejected ? `<h4>没有采用的部分</h4><ul>${rejected}</ul>` : ''}
+    ${remarks ? `<h4>整理时的提醒</h4><ul>${remarks}</ul>` : ''}
     ${result.routines.length ? `<button type="button" class="primary-button" id="adoptTimetable">核对无误，导入这 ${result.routines.length} 条</button>` : ''}
   </div>`;
 }

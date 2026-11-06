@@ -294,6 +294,17 @@ test('timetable: needs a configured key, sends parsed period times, previews and
   assert.match(app.find('#routineList').textContent, /高等数学/);
 });
 
+test('timetable notes are not shown as rejected courses; only real rejections are', async t => {
+  const answer = { ...structuredClone(API.timetable), warnings: ['「某课」未采用：原文依据不在课表文字中。', '所有课程均未标注周次信息'] };
+  const app = await boot(t, { routes: { '/api/v3/timetable': async () => [200, answer] }, health: { timetable_model: { configured: true } } });
+  app.set('#timetableText', API.timetable_text, 'input');
+  app.submit('#timetableForm');
+  await settle();
+  const preview = app.find('#timetablePreview').textContent;
+  assert.match(preview, /没有采用的部分「某课」未采用/);
+  assert.match(preview, /整理时的提醒所有课程均未标注周次信息/);
+});
+
 test('timetable period lines that cannot be read are reported before sending', async t => {
   const app = await boot(t, { health: { timetable_model: { configured: true } } });
   app.set('#timetableText', API.timetable_text, 'input');
