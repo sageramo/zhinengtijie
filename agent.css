@@ -575,3 +575,6 @@ html.intro-out .intro-stage { animation: intro-lift 520ms cubic-bezier(.5, 0, .2
 .cal .cal-issue.is-conflict strong { color: var(--danger); }
 .cal .cal-issue.is-undefined { border: 1px dashed #e0bf8a; background: var(--warning-bg); }
 .cal .cal-row.is-conflict { border-left: 3px solid var(--danger); }
+.period-diff { margin: 12px 0; padding: 12px 14px; border: 1px dashed #e0bf8a; border-radius: 10px; background: var(--warning-bg); }
+.period-diff h4 { margin: 0; font-size: .875rem; color: var(--warning); }
+.period-diff button { margin-top: 8px; }

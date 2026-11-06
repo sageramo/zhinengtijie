@@ -534,6 +534,15 @@ function readPeriods() {
   }
   return periods;
 }
+const periodLines = periods => Object.entries(periods).sort((a, b) => Number(a[0]) - Number(b[0])).map(([number, item]) => `${number} ${item.start}-${item.end}`);
+function periodDifference(seen) {
+  if (!seen) return '';
+  let mine = {};
+  try { mine = readPeriods(); } catch { /* An unreadable table differs from anything seen. */ }
+  const differs = Object.entries(seen).some(([number, item]) => mine[number]?.start !== item.start || mine[number]?.end !== item.end);
+  if (!differs) return '<p class="field-help">截图上的节次时间与下面填的一致。</p>';
+  return `<div class="period-diff"><h4>截图上的节次时间与下面填的不同</h4><p class="field-help">${escapeHTML(periodLines(seen).join('；'))}</p><button type="button" id="usePeriodsSeen">改用截图上的节次时间并重新换算</button></div>`;
+}
 function timetablePreview(result) {
   const routines = result.routines.map(routine => `<li><strong>${escapeHTML(routine.title)}</strong><span>每周${weekdayText(routine.weekdays)} ${routine.start}–${routine.end}${routine.week_interval === 2 ? '（隔周）' : ''} · ${dateText(routine.from)}起${routine.until ? `至${dateText(routine.until)}` : ''}${routine.location ? ` · ${escapeHTML(routine.location)}` : ''}</span></li>`).join('');
   const drafts = result.drafts.map(draft => `<li><strong>${escapeHTML(draft.course.title)}</strong><span>${escapeHTML(draft.problem)}</span></li>`).join('');
@@ -544,6 +553,7 @@ function timetablePreview(result) {
   return `<div class="timetable-result">
     <h3>整理出 ${result.routines.length} 条例行占用${result.drafts.length ? `，${result.drafts.length} 门课还缺信息` : ''}</h3>
     <p class="field-help">课表是整学期的数据，请逐条对照原课表核对后再导入。</p>
+    ${periodDifference(result.periods_seen)}
     ${routines ? `<ul class="plain-list">${routines}</ul>` : ''}
     ${drafts ? `<h4>还缺信息</h4><ul class="plain-list is-draft">${drafts}</ul>` : ''}
     ${rejected ? `<h4>没有采用的部分</h4><ul>${rejected}</ul>` : ''}
@@ -551,38 +561,68 @@ function timetablePreview(result) {
     ${result.routines.length ? `<button type="button" class="primary-button" id="adoptTimetable">核对无误，导入这 ${result.routines.length} 条</button>` : ''}
   </div>`;
 }
-async function runTimetable(mode) {
+/** Shrink a screenshot to at most 2000px on its long side as JPEG; without canvas support, send it as it is. */
+async function imageToDataUrl(file) {
+  const read = blob => new Promise((resolve, reject) => { const reader = new window.FileReader(); reader.onload = () => resolve(reader.result); reader.onerror = () => reject(new Error('图片读取失败')); reader.readAsDataURL(blob); });
+  try {
+    const bitmap = await window.createImageBitmap(file);
+    const scale = Math.min(1, 2000 / Math.max(bitmap.width, bitmap.height));
+    const canvas = document.createElement('canvas');
+    canvas.width = Math.round(bitmap.width * scale); canvas.height = Math.round(bitmap.height * scale);
+    canvas.getContext('2d').drawImage(bitmap, 0, 0, canvas.width, canvas.height);
+    return canvas.toDataURL('image/jpeg', 0.9);
+  } catch { return read(file); }
+}
+const TIMETABLE_BUTTONS = { model: ['recognizeTimetable', '整理课表', '正在整理…'], image: ['chooseTimetableImage', '从课表截图识别', '正在读截图…'], convert: ['reconvertTimetable', '按新的日期和节次重新换算', '正在换算…'] };
+async function runTimetable(mode, file = null) {
   const text = $('timetableText').value.trim();
-  if (!text) return tell('请先粘贴课表文字。', 'warning');
+  if (mode !== 'image' && !text) return tell('请先粘贴课表文字，或上传课表截图。', 'warning');
   let periods;
   try { periods = readPeriods(); } catch (error) { return tell(error.message, 'warning'); }
-  const body = { mode, text, term_start: $('termStart').value || null, periods };
+  const body = { mode, term_start: $('termStart').value || null, periods };
   if (mode === 'convert') {
     if (!lastTimetable || lastTimetable.text !== text) return tell('课表文字改过了，请重新整理。', 'warning');
     body.courses = lastTimetable.result.courses;
   }
   const ticket = ++timetableSequence;
   const base = apiBase;
-  const button = mode === 'model' ? $('recognizeTimetable') : $('reconvertTimetable');
-  busy(button, true, button.textContent, mode === 'model' ? '正在整理…' : '正在换算…');
+  const [buttonId, idle, working] = TIMETABLE_BUTTONS[mode];
+  const button = $(buttonId);
+  busy(button, true, idle, working);
   try {
-    const result = await ensureHealth(base, { fresh: mode === 'model' });
-    if (!result.capabilities.includes('timetable_v3')) throw new Error('计算服务还不支持课表识别（需要后端1.13或更新）。');
-    if (mode === 'model' && !result.timetable_model?.configured) throw new Error('本地服务没有配置 DeepSeek Key。重启服务时输入 Key 后再试。');
-    const data = await request('/api/v3/timetable', body, base, mode === 'model' ? 100000 : 30000);
+    if (mode === 'image') {
+      if (!['image/png', 'image/jpeg', 'image/webp', 'image/gif'].includes(file.type)) throw new Error('请选择PNG、JPG、WebP或GIF格式的截图。');
+      body.image = await imageToDataUrl(file);
+    } else body.text = text;
+    const result = await ensureHealth(base, { fresh: mode !== 'convert' });
+    if (!result.capabilities.includes(mode === 'image' ? 'timetable_image_v3' : 'timetable_v3')) throw new Error(`计算服务还不支持${mode === 'image' ? '课表截图识别（需要后端1.15或更新）' : '课表识别（需要后端1.13或更新）'}。`);
+    if (mode !== 'convert' && !result.timetable_model?.configured) throw new Error('本地服务没有配置 DeepSeek Key。重启服务时输入 Key 后再试。');
+    const data = await request('/api/v3/timetable', body, base, mode === 'convert' ? 30000 : 100000);
     if (ticket !== timetableSequence) return;
-    lastTimetable = { text, result: data };
+    if (mode === 'image') $('timetableText').value = data.source.text;
+    lastTimetable = { text: mode === 'image' ? data.source.text : text, result: data };
     $('timetablePreview').innerHTML = timetablePreview(data);
     $('reconvertTimetable').hidden = !data.courses.length;
   } catch (error) {
     if (ticket === timetableSequence) tell(`课表没有整理完成：${error.message}`, 'error');
   } finally {
-    busy(button, false, mode === 'model' ? '整理课表' : '按新的日期和节次重新换算');
+    busy(button, false, idle);
   }
 }
+$('chooseTimetableImage').addEventListener('click', () => $('timetableImage').click());
+$('timetableImage').addEventListener('change', event => {
+  const [file] = event.target.files || [];
+  if (file) runTimetable('image', file);
+  event.target.value = '';
+});
 $('timetableForm').addEventListener('submit', event => { event.preventDefault(); runTimetable('model'); });
 $('reconvertTimetable').addEventListener('click', () => runTimetable('convert'));
 $('timetablePreview').addEventListener('click', event => {
+  if (event.target.closest('#usePeriodsSeen') && lastTimetable?.result.periods_seen) {
+    $('periodText').value = periodLines(lastTimetable.result.periods_seen).join('\n');
+    runTimetable('convert');
+    return;
+  }
   if (!event.target.closest('#adoptTimetable') || !lastTimetable) return;
   const { source, routines } = lastTimetable.result;
   commit(addTimetable(snapshot, { source, routines }));
