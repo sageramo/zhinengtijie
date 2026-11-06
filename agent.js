@@ -3,7 +3,7 @@ import { SnapshotStore } from './snapshot-store.js';
 import {
   TIME_STORAGE_KEY, ESTIMATE_PRESETS, createTimeSnapshot, serializeTimeSnapshot, parseTimeSnapshot, readTimeSnapshot,
   addImported, updateTask, updateEvent, addTask, addEvent, removeItem, setDailyWindow, addRoutine, setRoutinesConfirmed,
-  addAdjustment, addTimetable, setReferenceTime,
+  addAdjustment, addTimetable, setReferenceTime, skipRoutineDate,
 } from './time-state.js';
 import { calendarMarkup, weekStart, weekRange } from './calendar.js';
 import { createRecognizer, imageProblem } from './screenshot-ocr.js';
@@ -59,6 +59,7 @@ let calendarLoading = false;
 let calendarSequence = 0;
 let calendarTimer = null;
 let calendarWeek = null;
+let strategyUndo = null; // { before, label } of the last 叠墨 strategy applied
 let parseSequence = 0;
 let connectionSequence = 0;
 let timetableSequence = 0;
@@ -100,6 +101,7 @@ function commit(next, { render = 'all', unlock = false } = {}) {
     try { snapshotStore.adoptRaw(storage?.getItem(TIME_STORAGE_KEY) ?? null); } catch { snapshotStore.invalidate(); }
   }
   calendarResult = null;
+  strategyUndo = null;
   save();
   if (render === 'all') renderAll(); else { renderBadges(); renderItemStates(); }
   scheduleCalendar();
@@ -171,7 +173,7 @@ async function computeCalendar() {
   }
 }
 function renderCalendar() {
-  $('calendarView').innerHTML = calendarMarkup({ result: calendarResult, start: shownWeek(), now: Date.now(), loading: calendarLoading && !calendarResult, error: calendarError });
+  $('calendarView').innerHTML = calendarMarkup({ result: calendarResult, start: shownWeek(), now: Date.now(), loading: calendarLoading && !calendarResult, error: calendarError, undo: strategyUndo?.label || '' });
   fitCalendar();
 }
 /** Size the hour rows so the whole week fits the window below the week header (wide screens only). */
@@ -181,9 +183,11 @@ function fitCalendar() {
   const rows = Number(week.style.getPropertyValue('--rows')) || 14;
   const head = week.querySelector('.cal-head-day')?.getBoundingClientRect().height || 0;
   const top = week.getBoundingClientRect().top + window.scrollY;
-  const row = Math.max(20, Math.min(46, Math.floor((window.innerHeight - top - head - 24) / rows)));
+  const row = Math.max(20, Math.min(46, Math.floor((window.innerHeight - top - head - 44) / rows)));
   week.style.setProperty('--row', `${row}px`);
   $('calendarView').style.setProperty('--cal-fit-height', `${Math.max(240, row * rows + head)}px`);
+  const side = $('calendarView').querySelector('.scroll-side');
+  if (side) side.style.maxHeight = `${Math.ceil(week.getBoundingClientRect().height) + 2}px`;
 }
 window.addEventListener('resize', fitCalendar);
 
@@ -693,12 +697,59 @@ $('calendarView').addEventListener('click', event => {
     return;
   }
   if (event.target.closest('[data-cal-goto="time"]')) { window.SixuRouter?.go('time'); return; }
+  if (event.target.closest('[data-strategy-undo]')) { undoStrategy(); return; }
+  const option = event.target.closest('[data-strategy]');
+  if (option) { applyStrategy(option.dataset.strategy); return; }
   const target = event.target.closest('[data-cal-item]');
   if (!target) return;
   const { calItem: id, calLayer: layer } = target.dataset;
   const element = $(layer === 'routine' ? `routine-${id}` : `item-${id}`);
   if (element) showOnPage(element, 'center');
 });
+/** Apply one rule-based strategy from the calendar result; the previous list is kept for one undo. */
+function applyStrategy(key) {
+  const [conflictId, index] = key.split(':');
+  const strategy = calendarResult?.conflicts.find(conflict => conflict.id === conflictId)?.strategies?.[Number(index)];
+  if (!strategy) return;
+  const params = strategy.params;
+  if (strategy.action === 'review') {
+    const element = params.item ? $(`item-${params.item}`) : null;
+    if (element) showOnPage(element, 'center'); else window.SixuRouter?.go(params.page);
+    return;
+  }
+  let next;
+  try {
+    if (strategy.action === 'skip_routine_date') next = skipRoutineDate(snapshot, params.routine_id, params.date);
+    else if (strategy.action === 'cancel_event') next = updateEvent(snapshot, params.event_id, { status: 'cancelled' });
+    else if (strategy.action === 'move_event') next = updateEvent(snapshot, params.event_id, { start_at: params.start_at, end_at: params.end_at });
+    else if (strategy.action === 'update_task') next = updateTask(snapshot, params.task_id, params.patch);
+    else if (strategy.action === 'add_free') next = addAdjustment(snapshot, { kind: 'add', start_at: params.start_at, end_at: params.end_at, note: params.note });
+    else return;
+  } catch (error) { tell(`这条对策没能采用：${error.message}`, 'error'); return; }
+  const before = snapshot;
+  commit(next);
+  strategyUndo = { before, label: strategy.label };
+  tell(`已采用：${strategy.label}`);
+}
+function undoStrategy() {
+  if (!strategyUndo) return;
+  const { before, label } = strategyUndo;
+  strategyUndo = null;
+  commit({ ...before, revision: snapshot.revision + 1 });
+  tell(`已撤销：${label}`);
+}
+// Hovering a 叠墨 card lights up the blocks it is about.
+for (const [type, lit] of [['mouseover', true], ['mouseout', false], ['focusin', true], ['focusout', false]]) {
+  $('calendarView').addEventListener(type, event => {
+    const card = event.target.closest('[data-conflict-keys]');
+    if (!card || (!lit && card.contains(event.relatedTarget))) return;
+    for (const key of card.dataset.conflictKeys.split(' ')) {
+      for (const block of $('calendarView').querySelectorAll('[data-cal-key], [data-cal-item]')) {
+        if (block.dataset.calKey === key || (!block.dataset.calKey && block.dataset.calItem === key && !block.closest('[data-conflict-keys]'))) block.classList.toggle('is-lit', lit);
+      }
+    }
+  });
+}
 document.addEventListener('sixu:route', event => {
   if (event.detail !== 'calendar') return;
   (window.requestAnimationFrame || window.setTimeout)(fitCalendar);

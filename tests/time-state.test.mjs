@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import {
   createTimeSnapshot, migrateV2, serializeTimeSnapshot, readTimeSnapshot, addImported, updateTask, updateEvent,
   addTask, addEvent, removeItem, setDailyWindow, addRoutine, setRoutinesConfirmed, addAdjustment, addTimetable,
-  setReferenceTime, TIME_STORAGE_KEY, ESTIMATE_PRESETS,
+  setReferenceTime, skipRoutineDate, TIME_STORAGE_KEY, ESTIMATE_PRESETS,
 } from '../time-state.js';
 
 const base = () => createTimeSnapshot({ referenceTime: '2026-11-09T08:00:00+08:00' });
@@ -126,4 +126,12 @@ test('events are 点墨 by default and can be marked as the user own appointment
   snapshot = updateEvent(snapshot, snapshot.events[0].id, { kind: 'appointment' });
   assert.equal(snapshot.events[0].kind, 'appointment');
   assert.throws(() => updateEvent(snapshot, snapshot.events[0].id, { kind: 'party' }), /点墨或约定/);
+});
+
+test('one routine date can be skipped without touching the rest of the series', () => {
+  let snapshot = addRoutine(base(), { title: '高等数学', weekdays: [1], start: '08:00', end: '09:40', from: '2026-09-07' });
+  const id = snapshot.routines[0].id;
+  snapshot = skipRoutineDate(skipRoutineDate(snapshot, id, '2026-11-09'), id, '2026-11-09');
+  assert.deepEqual(snapshot.routines[0].skip_dates, ['2026-11-09']);
+  assert.throws(() => skipRoutineDate(snapshot, id, '11月9日'), /日期/);
 });
