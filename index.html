@@ -4,12 +4,12 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="description" content="把校园通知整理成可核对的事项，用真实空闲生成经过校验的个人安排。">
-  <meta name="sixu-ui-version" content="2026.11.06.16">
-  <title>司序·知所先后</title>
+  <meta name="sixu-ui-version" content="2026.11.07.2">
+  <title>司序 Marshal · 知所先后</title>
   <link rel="icon" href="./assets/sixu-mark.svg" type="image/svg+xml">
   <script>{ const h = location.hash; document.documentElement.dataset.current = h.startsWith('#/') && ['import', 'items', 'time', 'calendar', 'review', 'plan'].includes(h.slice(2)) ? ({ review: 'items', plan: 'calendar' }[h.slice(2)] || h.slice(2)) : 'home'; if (document.documentElement.dataset.current === 'home' && !matchMedia('(prefers-reduced-motion: reduce)').matches) document.documentElement.classList.add('intro'); }</script>
-  <link rel="preload" as="image" href="./assets/hero-cliff.webp">
-  <link rel="stylesheet" href="./agent.css?v=2026.11.06.16">
+  <link rel="preload" as="image" href="./assets/hero-meadow-plate.webp">
+  <link rel="stylesheet" href="./agent.css?v=2026.11.07.2">
 </head>
 <body>
   <div class="intro" id="intro" aria-hidden="true">
@@ -22,16 +22,18 @@
   <div class="landing" id="home" data-page="home">
     <section class="hero" aria-labelledby="heroTitle">
       <div class="hero-frame">
-        <video class="hero-video" id="heroVideo" muted loop playsinline preload="auto" poster="./assets/hero-cliff.webp" aria-hidden="true"><source src="./assets/hero-cliff.mp4" type="video/mp4"></video>
-        <div class="noise-overlay" aria-hidden="true"></div>
+        <div class="hero-scene" aria-hidden="true"><img class="hero-plate" src="./assets/hero-meadow-plate.webp" alt=""><video class="hero-video" id="heroVideo" muted loop playsinline preload="auto" aria-hidden="true"><source src="./assets/hero-meadow-loop.mp4" type="video/mp4"></video></div>
         <div class="hero-shade" aria-hidden="true"></div>
-        <nav class="hero-nav" aria-label="首页导航"><a href="#about">知所先后</a><a href="#features">四步</a><a href="./algorithm.html">计算说明</a></nav>
-        <div class="hero-content">
-          <h1 class="hero-title" id="heroTitle" data-pull><span class="sr-only">司序·知所先后</span><span aria-hidden="true"><span class="w" style="--i:0">司</span><span class="w" style="--i:1">序</span><svg class="hero-star" viewBox="0 0 100 100" aria-hidden="true"><path class="mark-ring" d="M92.06 58.94A43 43 0 0 1 58.94 92.06M41.06 92.06A43 43 0 0 1 7.94 58.94M7.94 41.06A43 43 0 0 1 41.06 7.94M58.94 7.94A43 43 0 0 1 92.06 41.06" fill="none" stroke="currentColor" stroke-width="6" stroke-linecap="round"/><path d="M50 2Q54.6 45.4 75 50H25Q45.4 45.4 50 2Z" fill="currentColor"/><path d="M27.5 50Q46 54.6 50 82Q54 54.6 72.5 50" fill="none" stroke="currentColor" stroke-width="5" stroke-linejoin="round" stroke-linecap="round"/></svg></span></h1>
-          <div class="hero-side">
-            <p class="hero-desc" data-rise style="--d:.5s">把群通知、课程要求和自己的安排，整理成一件件可以核对的事；再按你真正能用的时间，排出一份做得到的安排。</p>
-            <a class="cta" href="#/import" data-rise style="--d:.7s">开始安排<span class="cta-dot"><svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><path d="M5 12h14M13 6l6 6-6 6" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></span></a>
-          </div>
+        <header class="hero-bar" data-drop>
+          <a class="hero-logo" href="#home" aria-label="司序 Marshal"><svg viewBox="0 0 100 100" width="30" height="30" aria-hidden="true"><path d="M92.06 58.94A43 43 0 0 1 58.94 92.06M41.06 92.06A43 43 0 0 1 7.94 58.94M7.94 41.06A43 43 0 0 1 41.06 7.94M58.94 7.94A43 43 0 0 1 92.06 41.06" fill="none" stroke="currentColor" stroke-width="7" stroke-linecap="round"/><path d="M50 2Q54.6 45.4 75 50H25Q45.4 45.4 50 2Z" fill="currentColor"/><path d="M27.5 50Q46 54.6 50 82Q54 54.6 72.5 50" fill="none" stroke="currentColor" stroke-width="6" stroke-linejoin="round" stroke-linecap="round"/></svg><span>Marshal</span></a>
+          <nav class="hero-nav" aria-label="首页导航"><a href="#about">知所先后</a><a href="#features">四步</a><a href="./algorithm.html">计算说明</a></nav>
+          <a class="hero-join" href="#/import">开始</a>
+        </header>
+        <div class="hero-copy">
+          <p class="hero-kicker" data-rise style="--d:.1s">Marshal · Know What Comes First</p>
+          <h1 class="hero-title" id="heroTitle" data-pull><span class="sr-only">司序·知所先后 Marshal · Know What Comes First</span><span class="hero-line" aria-hidden="true"><span class="w" style="--i:0">司序</span><svg class="hero-star" viewBox="0 0 100 100" aria-hidden="true"><path class="mark-ring" d="M92.06 58.94A43 43 0 0 1 58.94 92.06M41.06 92.06A43 43 0 0 1 7.94 58.94M7.94 41.06A43 43 0 0 1 41.06 7.94M58.94 7.94A43 43 0 0 1 92.06 41.06" fill="none" stroke="currentColor" stroke-width="6" stroke-linecap="round"/><path d="M50 2Q54.6 45.4 75 50H25Q45.4 45.4 50 2Z" fill="currentColor"/><path d="M27.5 50Q46 54.6 50 82Q54 54.6 72.5 50" fill="none" stroke="currentColor" stroke-width="5" stroke-linejoin="round" stroke-linecap="round"/></svg></span><span class="hero-line hero-line-sub" aria-hidden="true"><span class="w" style="--i:1">知所先后</span></span></h1>
+          <p class="hero-desc" data-rise style="--d:.75s">把群通知、课程要求和自己的安排，整理成一件件可以核对的事；再按你真正能用的时间，排出一份做得到的安排。</p>
+          <div class="hero-actions" data-rise style="--d:.9s"><a class="cta" href="#/import">开始安排<svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><path d="M9 6l6 6-6 6" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></svg></a><a class="cta-ghost" href="#features"><svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><path d="M8.5 6.2v11.6a1 1 0 0 0 1.5.86l9.2-5.8a1 1 0 0 0 0-1.72L10 5.34a1 1 0 0 0-1.5.86z" fill="currentColor"/></svg>看看四步</a></div>
         </div>
       </div>
     </section>
@@ -148,14 +150,14 @@
       <form id="apiForm"><label for="apiBase">解析与计算服务地址</label><input id="apiBase" type="url" inputmode="url" required><button type="submit">保存地址并检查连接</button><p class="field-help" id="connectionStatus" role="status">尚未检查连接</p></form>
       <div class="backup-actions"><button type="button" id="importSnapshot">导入清单</button><input type="file" id="importFile" accept="application/json,.json" hidden></div>
       <p class="field-help">导出文件包含原文与个人安排，请妥善保存。</p>
-      <p class="field-help" id="uiVersion">界面版本 2026.11.06.16</p>
+      <p class="field-help" id="uiVersion">界面版本 2026.11.07.2</p>
     </details>
     <footer class="page-footer"><span>以确认后的信息计算，把取舍留给你。</span></footer>
   </main>
   </div>
   <div class="route-veil" id="routeVeil" aria-hidden="true"><svg class="veil-mark" viewBox="0 0 100 100"><path class="mark-ring" d="M92.06 58.94A43 43 0 0 1 58.94 92.06M41.06 92.06A43 43 0 0 1 7.94 58.94M7.94 41.06A43 43 0 0 1 41.06 7.94M58.94 7.94A43 43 0 0 1 92.06 41.06" fill="none" stroke="currentColor" stroke-width="5" stroke-linecap="round"/><g class="veil-needle"><path d="M50 2Q54.6 45.4 75 50H25Q45.4 45.4 50 2Z" fill="currentColor"/><path d="M27.5 50Q46 54.6 50 82Q54 54.6 72.5 50" fill="none" stroke="currentColor" stroke-width="5" stroke-linejoin="round" stroke-linecap="round"/></g></svg></div>
   <noscript>此页面需要启用JavaScript才能编辑和计算任务。</noscript>
-  <script type="importmap">{"imports":{"./task-state.js":"./task-state.js?v=2026.11.06.16","./snapshot-store.js":"./snapshot-store.js?v=2026.11.06.16","./model-candidates.js":"./model-candidates.js?v=2026.11.06.16","./time-review.js":"./time-review.js?v=2026.11.06.16","./planning-result.js":"./planning-result.js?v=2026.11.06.16","./calendar.js":"./calendar.js?v=2026.11.06.16","./time-state.js":"./time-state.js?v=2026.11.06.16","./scenario.js":"./scenario.js?v=2026.11.06.16","./screenshot-ocr.js":"./screenshot-ocr.js?v=2026.11.06.16"}}</script>
-  <script src="./router.js?v=2026.11.06.16"></script><script src="./about-sky.js?v=2026.11.06.16"></script><script src="./landing.js?v=2026.11.06.16"></script><script src="./api-config.js?v=2026.11.06.16"></script><script type="module" src="./agent.js?v=2026.11.06.16"></script>
+  <script type="importmap">{"imports":{"./task-state.js":"./task-state.js?v=2026.11.07.2","./snapshot-store.js":"./snapshot-store.js?v=2026.11.07.2","./model-candidates.js":"./model-candidates.js?v=2026.11.07.2","./time-review.js":"./time-review.js?v=2026.11.07.2","./planning-result.js":"./planning-result.js?v=2026.11.07.2","./calendar.js":"./calendar.js?v=2026.11.07.2","./time-state.js":"./time-state.js?v=2026.11.07.2","./scenario.js":"./scenario.js?v=2026.11.07.2","./screenshot-ocr.js":"./screenshot-ocr.js?v=2026.11.07.2"}}</script>
+  <script src="./router.js?v=2026.11.07.2"></script><script src="./about-sky.js?v=2026.11.07.2"></script><script src="./landing.js?v=2026.11.07.2"></script><script src="./api-config.js?v=2026.11.07.2"></script><script type="module" src="./agent.js?v=2026.11.07.2"></script>
 </body>
 </html>
