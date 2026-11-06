@@ -4,12 +4,12 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="description" content="把校园通知整理成可核对的事项，用真实空闲生成经过校验的个人安排。">
-  <meta name="sixu-ui-version" content="2026.11.03.13">
+  <meta name="sixu-ui-version" content="2026.11.06.5">
   <title>司序·知所先后</title>
   <link rel="icon" href="./assets/sixu-mark.svg" type="image/svg+xml">
-  <script>{ const h = location.hash; document.documentElement.dataset.current = h.startsWith('#/') && ['import', 'review', 'time', 'plan'].includes(h.slice(2)) ? h.slice(2) : 'home'; if (document.documentElement.dataset.current === 'home' && !matchMedia('(prefers-reduced-motion: reduce)').matches) document.documentElement.classList.add('intro'); }</script>
-  <link rel="preload" as="image" href="./assets/hero-astrolabe.webp">
-  <link rel="stylesheet" href="./agent.css?v=2026.11.03.13">
+  <script>{ const h = location.hash; document.documentElement.dataset.current = h.startsWith('#/') && ['import', 'review', 'time', 'plan', 'calendar'].includes(h.slice(2)) ? h.slice(2) : 'home'; if (document.documentElement.dataset.current === 'home' && !matchMedia('(prefers-reduced-motion: reduce)').matches) document.documentElement.classList.add('intro'); }</script>
+  <link rel="preload" as="image" href="./assets/hero-campus.webp">
+  <link rel="stylesheet" href="./agent.css?v=2026.11.06.5">
 </head>
 <body>
   <div class="intro" id="intro" aria-hidden="true">
@@ -22,7 +22,7 @@
   <div class="landing" id="home" data-page="home">
     <section class="hero" aria-labelledby="heroTitle">
       <div class="hero-frame">
-        <canvas class="hero-sky" id="heroSky" data-src="./assets/hero-astrolabe.webp" data-clean-src="./assets/hero-astrolabe-clean.webp" data-flow-src="./assets/hero-astrolabe-flow.webp" aria-hidden="true"></canvas>
+        <video class="hero-video" id="heroVideo" muted loop playsinline preload="auto" poster="./assets/hero-campus.webp" aria-hidden="true"><source src="./assets/hero-campus.mp4" type="video/mp4"></video>
         <div class="noise-overlay" aria-hidden="true"></div>
         <div class="hero-shade" aria-hidden="true"></div>
         <nav class="hero-nav" aria-label="首页导航"><a href="#about">知所先后</a><a href="#features">四步</a><a href="./algorithm.html">计算说明</a></nav>
@@ -54,11 +54,11 @@
   <div class="app" data-app>
   <header class="site-header">
     <a class="brand-lockup brand-title" href="#/" aria-label="司序·知所先后，回到首页"><svg class="brand-mark" viewBox="0 0 100 100" width="32" height="32" aria-hidden="true"><path class="mark-ring" d="M92.06 58.94A43 43 0 0 1 58.94 92.06M41.06 92.06A43 43 0 0 1 7.94 58.94M7.94 41.06A43 43 0 0 1 41.06 7.94M58.94 7.94A43 43 0 0 1 92.06 41.06" fill="none" stroke="currentColor" stroke-width="6" stroke-linecap="round"/><path d="M50 2Q54.6 45.4 75 50H25Q45.4 45.4 50 2Z" fill="currentColor"/><path d="M27.5 50Q46 54.6 50 82Q54 54.6 72.5 50" fill="none" stroke="currentColor" stroke-width="5" stroke-linejoin="round" stroke-linecap="round"/></svg><span class="brand-name">司序</span><span class="brand-dot">·</span><span class="brand-sub">知所先后</span></a>
-    <nav class="page-tabs" aria-label="功能页面"><a href="#/import" data-tab="import"><span class="tab-no">1</span>导入通知</a><a href="#/review" data-tab="review"><span class="tab-no">2</span>核对事项<span class="tab-count" id="reviewCount" aria-label="件待核对"></span></a><a href="#/time" data-tab="time"><span class="tab-no">3</span>空闲时间</a><a href="#/plan" data-tab="plan"><span class="tab-no">4</span>生成安排</a></nav>
+    <nav class="page-tabs" aria-label="功能页面"><a href="#/import" data-tab="import"><span class="tab-no">1</span>导入通知</a><a href="#/review" data-tab="review"><span class="tab-no">2</span>核对事项<span class="tab-count" id="reviewCount" aria-label="件待核对"></span></a><a href="#/time" data-tab="time"><span class="tab-no">3</span>空闲时间</a><a href="#/plan" data-tab="plan"><span class="tab-no">4</span>生成安排</a><a href="#/calendar" data-tab="calendar"><span class="tab-no">5</span>日历</a></nav>
     <nav class="aux-nav" aria-label="辅助入口"><a href="./algorithm.html">计算说明</a></nav>
   </header>
   <main class="workspace">
-    <div class="page-status"><h1 class="sr-only" id="workbenchHeading" tabindex="-1">司序工作台</h1><p class="save-state" id="saveState" role="status">清单保存在当前浏览器</p></div>
+    <div class="page-status"><h1 class="sr-only" id="workbenchHeading" tabindex="-1">司序工作台</h1><p class="save-state" id="saveState" role="status">清单保存在当前浏览器</p><div class="list-actions" aria-label="清单"><button type="button" id="exportSnapshot"><svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true"><path d="M12 4v11M7 10l5 5 5-5M5 20h14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>导出清单</button><button class="danger-text" type="button" id="clearSnapshot"><svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true"><path d="M5 7h14M10 7V4h4v3M7 7l1 13h8l1-13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>清空清单</button></div></div>
     <div id="appMessage" class="message" role="status" aria-live="polite" hidden></div>
     <div id="storageConflict" class="message warning" hidden><p>清单在另一个标签页发生了变化。为避免覆盖，请先导出当前内容，再载入最新清单。</p><button type="button" id="reloadLatest">载入最新清单</button></div>
     <div class="page page-import" data-page="import">
@@ -86,12 +86,6 @@
         </section>
       <aside class="import-side" aria-label="原文与设置">
         <section class="source-section" aria-labelledby="sourceHeading"><div class="section-top"><h2 id="sourceHeading">保留的原文</h2><span id="sourceCount">0 份</span></div><div id="sourceList"><p class="empty-note">导入后可随时回来核对。</p></div></section>
-        <details class="settings" id="settingsPanel"><summary>服务与备份</summary>
-          <form id="apiForm"><label for="apiBase">解析与计算服务地址</label><input id="apiBase" type="url" inputmode="url" required><button type="submit">保存地址并检查连接</button><p class="field-help" id="connectionStatus" role="status">尚未检查连接</p></form>
-          <div class="backup-actions"><button type="button" id="exportSnapshot">导出清单</button><button type="button" id="importSnapshot">导入清单</button><input type="file" id="importFile" accept="application/json,.json" hidden><button class="danger-text" type="button" id="clearSnapshot">清空清单</button></div>
-          <p class="field-help">导出文件包含原文与个人安排，请妥善保存。</p>
-          <p class="field-help" id="uiVersion">界面版本 2026.11.03.13</p>
-        </details>
       </aside>
     </div>
     <div class="page" data-page="review">
@@ -116,12 +110,21 @@
           <div id="resultOutput" aria-live="polite"><p class="empty-note">确认事项并填写空闲时段后，可以生成安排或检查容量。</p></div>
         </section>
     </div>
+    <div class="page page-calendar" data-page="calendar">
+        <section class="cal" id="calendarSection" aria-labelledby="calendarHeading"><div id="calendarView"></div></section>
+    </div>
+    <details class="settings" id="settingsPanel"><summary>服务与备份</summary>
+      <form id="apiForm"><label for="apiBase">解析与计算服务地址</label><input id="apiBase" type="url" inputmode="url" required><button type="submit">保存地址并检查连接</button><p class="field-help" id="connectionStatus" role="status">尚未检查连接</p></form>
+      <div class="backup-actions"><button type="button" id="importSnapshot">导入清单</button><input type="file" id="importFile" accept="application/json,.json" hidden></div>
+      <p class="field-help">导出文件包含原文与个人安排，请妥善保存。</p>
+      <p class="field-help" id="uiVersion">界面版本 2026.11.06.5</p>
+    </details>
     <footer class="page-footer"><span>以确认后的信息计算，把取舍留给你。</span></footer>
   </main>
   </div>
   <div class="route-veil" id="routeVeil" aria-hidden="true"><svg class="veil-mark" viewBox="0 0 100 100"><path class="mark-ring" d="M92.06 58.94A43 43 0 0 1 58.94 92.06M41.06 92.06A43 43 0 0 1 7.94 58.94M7.94 41.06A43 43 0 0 1 41.06 7.94M58.94 7.94A43 43 0 0 1 92.06 41.06" fill="none" stroke="currentColor" stroke-width="5" stroke-linecap="round"/><g class="veil-needle"><path d="M50 2Q54.6 45.4 75 50H25Q45.4 45.4 50 2Z" fill="currentColor"/><path d="M27.5 50Q46 54.6 50 82Q54 54.6 72.5 50" fill="none" stroke="currentColor" stroke-width="5" stroke-linejoin="round" stroke-linecap="round"/></g></svg></div>
   <noscript>此页面需要启用JavaScript才能编辑和计算任务。</noscript>
-  <script type="importmap">{"imports":{"./task-state.js":"./task-state.js?v=2026.11.03.13","./snapshot-store.js":"./snapshot-store.js?v=2026.11.03.13","./model-candidates.js":"./model-candidates.js?v=2026.11.03.13","./time-review.js":"./time-review.js?v=2026.11.03.13","./planning-result.js":"./planning-result.js?v=2026.11.03.13","./scenario.js":"./scenario.js?v=2026.11.03.13","./screenshot-ocr.js":"./screenshot-ocr.js?v=2026.11.03.13"}}</script>
-  <script src="./router.js?v=2026.11.03.13"></script><script src="./hero-scene.js?v=2026.11.03.13"></script><script src="./about-sky.js?v=2026.11.03.13"></script><script src="./landing.js?v=2026.11.03.13"></script><script src="./api-config.js?v=2026.11.03.13"></script><script type="module" src="./agent.js?v=2026.11.03.13"></script>
+  <script type="importmap">{"imports":{"./task-state.js":"./task-state.js?v=2026.11.06.5","./snapshot-store.js":"./snapshot-store.js?v=2026.11.06.5","./model-candidates.js":"./model-candidates.js?v=2026.11.06.5","./time-review.js":"./time-review.js?v=2026.11.06.5","./planning-result.js":"./planning-result.js?v=2026.11.06.5","./calendar.js":"./calendar.js?v=2026.11.06.5","./scenario.js":"./scenario.js?v=2026.11.06.5","./screenshot-ocr.js":"./screenshot-ocr.js?v=2026.11.06.5"}}</script>
+  <script src="./router.js?v=2026.11.06.5"></script><script src="./about-sky.js?v=2026.11.06.5"></script><script src="./landing.js?v=2026.11.06.5"></script><script src="./api-config.js?v=2026.11.06.5"></script><script type="module" src="./agent.js?v=2026.11.06.5"></script>
 </body>
 </html>

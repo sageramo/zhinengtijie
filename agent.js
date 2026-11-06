@@ -8,6 +8,7 @@ import { SnapshotStore } from './snapshot-store.js';
 import { modelCandidates } from './model-candidates.js';
 import { reviewTimePatch } from './time-review.js';
 import { readPlanResponse, planMarkup } from './planning-result.js';
+import { calendarMarkup, weekStart } from './calendar.js';
 import { canCompare, buildScenario, adoptScenario, scenarioForm, comparisonMarkup } from './scenario.js';
 import { createRecognizer, imageProblem } from './screenshot-ocr.js';
 
@@ -361,6 +362,10 @@ function renderReferencePrecision() {
   $('referencePrecision').hidden = !hasSeconds;
 }
 function renderResult() {
+  renderPlanResult();
+  renderCalendar();
+}
+function renderPlanResult() {
   const output = $('resultOutput');
   if (planResult) {
     output.innerHTML = planMarkup(planResult, snapshot, readableTime) + (canCompare(planResult) ? scenarioForm(snapshot, toLocalInput) : '');
@@ -390,6 +395,14 @@ function renderResult() {
     <p class="result-caption">${capacityNote}</p>
     <details><summary>计算口径与具体空档</summary>${(result.warnings || []).map(warning => `<p class="field-help">${escapeHTML(warning)}</p>`).join('')}${(result.limitations || []).map(limit => `<p class="field-help">${escapeHTML(limit)}</p>`).join('')}${checks.map(check => `<div class="result-entry"><strong>${escapeHTML(readableTime(check.deadline))}前的空档</strong>${(check.free_intervals || []).map(interval => `<p>${escapeHTML(readableTime(interval.start))} 至 ${escapeHTML(readableTime(interval.end))}</p>`).join('') || '<p>没有可用空档。</p>'}</div>`).join('')}</details>`;
   output.removeAttribute('aria-busy');
+}
+// Calendar page: the week shown is chosen with the arrows; by default the week of the reference time.
+let calendarWeek = null;
+function renderCalendar() {
+  const view = $('calendarView');
+  if (!view) return;
+  const anchor = weekStart(Date.parse(snapshot.reference_time) || Date.now());
+  view.innerHTML = calendarMarkup({ snapshot, plan: planResult, start: calendarWeek ?? anchor, now: Date.now() });
 }
 function renderAll() { renderSummary(); renderTasks(); renderSources(); renderAvailability(); renderResult(); }
 
@@ -956,6 +969,28 @@ $('loadEveningPlan').addEventListener('click', () => {
   tell('已载入3件虚构事项，时间不是当前时刻。逐项核对并确认后，点击“生成具体安排”；这里的工时与优先级仅为演示设定。');
   showOnPage($('taskSection'));
 });
+
+$('calendarView').addEventListener('click', event => {
+  const week = event.target.closest('[data-cal-week]');
+  if (week) {
+    const step = Number(week.dataset.calWeek);
+    const shown = calendarWeek ?? weekStart(Date.parse(snapshot.reference_time) || Date.now());
+    calendarWeek = step ? shown + step * 7 * 86400000 : weekStart(Date.now());
+    renderCalendar();
+    return;
+  }
+  if (event.target.closest('[data-cal-free]')) { window.SixuRouter?.go('time'); return; }
+  const id = event.target.closest('[data-cal-task]')?.dataset.calTask;
+  const card = id && Array.from($('taskList').querySelectorAll('[data-task-id]')).find(item => item.dataset.taskId === id);
+  if (!card) return;
+  showOnPage(card, 'center');
+  card.classList.remove('is-flash');
+  void card.offsetWidth;
+  card.classList.add('is-flash');
+});
+// Keep the needle on the present while the calendar is open.
+document.addEventListener('sixu:route', event => { if (event.detail === 'calendar') renderCalendar(); });
+window.setInterval(() => { if (document.documentElement.dataset.current === 'calendar' && !document.hidden) renderCalendar(); }, 60000);
 
 renderAll();
 if (recovered.error) tell(`本地清单未能读取：${recovered.error}。为保护原数据，当前修改暂不覆盖保存；请导入备份或明确清空后重建。`, 'warning');
