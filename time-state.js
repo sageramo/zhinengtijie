@@ -238,3 +238,12 @@ export function setReferenceTime(snapshot, iso) {
   if (!isTimestamp(iso)) fail('计算起点需要完整的日期和时刻');
   return change(snapshot, next => { next.reference_time = iso; });
 }
+
+/** Leave one date out of a routine (one missed class), keeping the rest of the series. */
+export function skipRoutineDate(snapshot, id, date) {
+  if (!DATE.test(date || '')) fail('日期需要YYYY-MM-DD');
+  return change(snapshot, next => {
+    const routine = find(next, 'routines', id);
+    if (!routine.skip_dates.includes(date)) routine.skip_dates = [...routine.skip_dates, date].sort();
+  });
+}

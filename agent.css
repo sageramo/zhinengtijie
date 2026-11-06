@@ -686,17 +686,81 @@ html:not([data-current="home"]), html:not([data-current="home"]) body { backgrou
 .feature-sub { display: block; margin-top: 4px; font-size: .875rem; font-weight: 400; opacity: .7; }
 @media (max-width: 1100px) { .tab-sub { display: none; } }
 
-/* 画卷: the whole week fits the window without scrolling. Header rows are tightened here;
-   agent.js sets --row from the space left below the week header. */
+/* 画卷: a hanging scroll. The week is mounted on the right with rollers top and bottom, its top level
+   with the week title; the left column carries the title, the week's figures, 叠墨 with their
+   rule-based strategies, 待书 and the legend. agent.js sets --row so the week fits the window and
+   caps the left column at the week's height (it scrolls inside). */
+.scroll { display: grid; grid-template-columns: minmax(270px, 330px) minmax(0, 1fr); align-items: start; gap: 28px; }
+.scroll-side { display: flex; flex-direction: column; gap: 16px; min-width: 0; overflow-y: auto; padding: 4px 6px 4px 0; scrollbar-width: thin; }
+.cal .cal-top { display: block; }
+.cal .cal-eyebrow { margin: 0 0 4px; font-size: .6875rem; letter-spacing: .3em; }
+.cal .cal-range { font-size: clamp(1.7rem, 2.5vw, 2.4rem); line-height: 1.1; }
+.cal .cal-nav { display: inline-flex; margin-top: 12px; }
+.cal .cal-stats { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 0; margin: 0; padding: 12px 0; border-block: 1px solid var(--line); list-style: none; }
+.cal-stats li { display: grid; justify-items: center; gap: 2px; }
+.cal-stats li + li { border-left: 1px solid var(--line); }
+.cal-stats b { margin: 0; font-family: var(--font-serif); font-size: 1.35rem; line-height: 1.1; color: var(--text); }
+.cal-stats span { font-size: .6875rem; color: var(--muted); letter-spacing: .08em; }
+.cal .cal-hint { margin: 0; }
+.cal .cal-pending { max-height: none; overflow: visible; padding: 0; border: 0; background: transparent; }
+.cal .cal-stats { margin-top: auto; }
+.cal .cal-legend { display: grid; grid-template-columns: 1fr 1fr; gap: 6px 10px; margin: 0; font-size: .6875rem; }
+
+/* 叠墨 · 对策 cards */
+.cx-list { display: grid; gap: 12px; margin: 10px 0 0; padding: 0; list-style: none; }
+.cx-card { padding: 12px 12px 10px; border: 1px solid #ecc9c4; border-left: 4px solid var(--danger); border-radius: 12px; background: #fff; box-shadow: 0 6px 18px rgba(162, 51, 45, .07); transition: box-shadow .2s ease, transform .2s ease; }
+.cx-card:hover, .cx-card:focus-within { box-shadow: 0 10px 26px rgba(162, 51, 45, .14); transform: translateY(-1px); }
+.cal .cx-head { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; width: 100%; min-height: 0; padding: 0; border: 0; background: transparent; text-align: left; }
+.cx-head strong { color: var(--danger); font-family: var(--font-serif); font-size: 1rem; }
+.cx-head span { color: var(--muted); font-size: .6875rem; white-space: nowrap; }
+.cx-picture { --name: 64px; position: relative; display: grid; gap: 5px; margin: 10px 0 6px; }
+.cx-row { display: grid; grid-template-columns: var(--name) minmax(0, 1fr); align-items: center; gap: 0; }
+.cx-name { overflow: hidden; padding-right: 8px; color: var(--text); font-size: .6875rem; white-space: nowrap; text-overflow: ellipsis; }
+.cx-track { position: relative; height: 12px; border-radius: 6px; background: rgba(29, 42, 56, .06); }
+.cx-bar { position: absolute; top: 0; bottom: 0; border-radius: 6px; }
+.cx-routine { background: #5c6b7a; }
+.cx-temporary { background: var(--night); }
+.cx-appointment { background: linear-gradient(90deg, #f3c784, #e0a050); }
+.cx-work { background: linear-gradient(90deg, #d9944a, #b06d24); }
+.cx-free { background: rgba(63, 138, 92, .55); }
+.cx-missing { background: repeating-linear-gradient(135deg, rgba(162, 51, 45, .75) 0 4px, rgba(162, 51, 45, .25) 4px 8px); }
+.cx-overlap { position: absolute; z-index: 1; top: -3px; bottom: 16px; left: calc(var(--name) + (100% - var(--name)) * var(--l) / 100); width: calc((100% - var(--name)) * var(--w) / 100); border-radius: 4px; background: repeating-linear-gradient(135deg, rgba(162, 51, 45, .5) 0 3px, transparent 3px 7px); box-shadow: inset 0 0 0 1.5px var(--danger); pointer-events: none; }
+.cx-axis { display: flex; justify-content: space-between; gap: 6px; padding-left: var(--name); color: var(--muted); font-size: .625rem; font-variant-numeric: tabular-nums; }
+.cx-axis span:nth-child(2):not(:last-child) { color: var(--danger); }
+.cx-advice { margin: 4px 0 8px; color: var(--muted); font-family: var(--font-kai); font-size: .8125rem; line-height: 1.55; }
+.cx-options { display: grid; gap: 6px; margin: 0; padding: 0; list-style: none; }
+.cal .cx-option { display: grid; gap: 1px; width: 100%; min-height: 0; padding: 7px 10px; border: 1px solid var(--line); border-radius: 9px; background: var(--panel-soft); color: var(--text); text-align: left; font-size: .8125rem; }
+.cal .cx-option:hover { border-color: var(--accent); background: var(--accent-soft); }
+.cal .cx-option.is-recommended { border-color: var(--accent); background: var(--accent); color: #fff; box-shadow: 0 4px 12px rgba(37, 99, 184, .22); }
+.cal .cx-option.is-recommended:hover { background: var(--accent-deep); }
+.cx-option-label em { margin-right: 6px; padding: 0 6px; border-radius: 999px; background: rgba(255, 255, 255, .22); font-style: normal; font-size: .625rem; letter-spacing: .1em; vertical-align: 1px; }
+.cx-option-detail { font-size: .6875rem; opacity: .75; }
+.cx-undo { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin: 8px 0 0; padding: 6px 4px 6px 12px; border-radius: 10px; background: var(--sage-soft); color: var(--sage-deep); font-size: .75rem; }
+.cx-undo button { min-height: 30px; }
+.cx-clear { margin: 8px 0 0; padding: 12px 14px; border-radius: 12px; background: var(--sage-soft); color: var(--sage-deep) !important; font-family: var(--font-kai); }
+.cal .cal-block.is-lit { z-index: 5; outline: 3px solid var(--danger); outline-offset: 1px; transform: scale(1.04); box-shadow: 0 0 0 6px rgba(162, 51, 45, .18), 0 10px 26px rgba(162, 51, 45, .3); }
+
+/* A line near the bottom of the day keeps its label above itself, clear of the roller. */
+.cal .cal-deadline.is-low span { top: -19px; }
+
+/* The mount: silk border, paper inside, wooden rollers top and bottom. */
+.scroll-mount { position: relative; padding: 14px 14px; border-radius: 4px; background: repeating-linear-gradient(45deg, rgba(255, 255, 255, .25) 0 2px, transparent 2px 6px), linear-gradient(180deg, #dfe9f4, #e9f0f8 50%, #dfe9f4); box-shadow: 0 24px 50px rgba(29, 42, 56, .14), 0 2px 0 rgba(29, 42, 56, .05); }
+.scroll-mount::before, .scroll-mount::after { content: ""; position: absolute; left: -12px; right: -12px; height: 12px; border-radius: 6px; background: linear-gradient(180deg, #8a6440 0%, #5a3d25 45%, #3b2716 100%); box-shadow: 0 3px 8px rgba(43, 28, 15, .35); }
+.scroll-mount::before { top: -6px; }
+.scroll-mount::after { bottom: -6px; }
+.scroll-mount .cal-board { border: 0; border-radius: 2px; box-shadow: 0 0 0 1px rgba(29, 42, 56, .08); }
 html[data-current="calendar"] .page-status { margin-bottom: 8px; }
-html[data-current="calendar"] .cal-top { gap: 10px 20px; align-items: center; }
-html[data-current="calendar"] .cal-eyebrow { margin-bottom: 2px; }
-html[data-current="calendar"] .cal-range { font-size: clamp(1.4rem, 2.2vw, 2rem); }
-html[data-current="calendar"] .cal-stats { margin-top: 6px; }
-html[data-current="calendar"] .cal-legend { margin-top: 10px; gap: 6px 14px; }
-html[data-current="calendar"] .cal-hint { margin-top: 6px; }
-html[data-current="calendar"] .cal-layout { margin-top: 10px; }
+html[data-current="calendar"] .cal { padding: 22px 26px 24px; }
 html[data-current="calendar"] .cal-head-day { flex-direction: row; justify-content: center; gap: 6px; padding: 6px 4px; }
 html[data-current="calendar"] .cal-head-day strong { width: 30px; height: 30px; font-size: 1.05rem; }
-html[data-current="calendar"] .cal-head-day.is-today strong { box-shadow: 0 0 0 3px rgba(192, 122, 44, .16); }
-html[data-current="calendar"] .cal-pending { max-height: var(--cal-fit-height, none); overflow-y: auto; }
+html[data-current="calendar"] .cal-head-day.is-today strong { box-shadow: 0 0 0 3px rgba(37, 99, 184, .16); }
+@media (max-width: 1000px) {
+  .scroll { grid-template-columns: minmax(0, 1fr); gap: 20px; }
+  .scroll-side { max-height: none !important; overflow: visible; }
+}
+@media (max-width: 760px) { .scroll-mount { padding: 10px 8px; } .scroll-mount::before, .scroll-mount::after { left: -6px; right: -6px; } }
+@media (prefers-reduced-motion: reduce) { .cx-card, .cal .cal-block.is-lit { transition: none; transform: none; } }
+
+/* A faint compass mark rests in the lower right of every workbench page. */
+html:not([data-current="home"]) body { background: transparent; }
+html:not([data-current="home"]) body::after { content: ""; position: fixed; right: -70px; bottom: -80px; z-index: -1; width: min(46vw, 460px); aspect-ratio: 1; pointer-events: none; opacity: .07; transform: rotate(-14deg); background: center / contain no-repeat url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100' color='%232563b8'%3E%3Cpath d='M92.06 58.94A43 43 0 0 1 58.94 92.06M41.06 92.06A43 43 0 0 1 7.94 58.94M7.94 41.06A43 43 0 0 1 41.06 7.94M58.94 7.94A43 43 0 0 1 92.06 41.06' fill='none' stroke='%232563b8' stroke-width='5' stroke-linecap='round'/%3E%3Cpath d='M50 2Q54.6 45.4 75 50H25Q45.4 45.4 50 2Z' fill='%232563b8'/%3E%3Cpath d='M27.5 50Q46 54.6 50 82Q54 54.6 72.5 50' fill='none' stroke='%232563b8' stroke-width='4' stroke-linejoin='round' stroke-linecap='round'/%3E%3C/svg%3E"); }
