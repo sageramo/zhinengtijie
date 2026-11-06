@@ -173,7 +173,7 @@ export function calendarMarkup({ result, start, now, loading = false, error = ''
     : result?.status === 'conflicts' ? `<p class="cal-hint is-error" role="status">有 ${result.conflicts.length} 处叠墨：两件事落在了同一处，详见右侧。</p>`
     : result?.status === 'incomplete' ? `<p class="cal-hint" role="status">有 ${result.undefined.length} 项待书，已按写清楚的部分落笔。</p>`
     : result ? '<p class="cal-hint" role="status">没有叠墨，所有信息都已写清楚。</p>' : '';
-  const empty = result && !inWeek.length ? '<div class="cal-empty"><p>这一周还是一片空白。</p><span>在「时间」里铺好底色、定下留白，导入通知后，事情会落在这里。</span></div>' : '';
+  const empty = result && !inWeek.length ? '<div class="cal-empty"><p>这一周还是一片空白。</p><span>在「铺纸」里铺好底色、定下留白，再到「研墨」导入通知，事情会落在这里。</span></div>' : '';
   const side = result ? sideLists(result) : '<section class="cal-side-block"><p>计算完成后，这里列出叠墨和待书。</p></section>';
   return `<header class="cal-top">
       <div><p class="cal-eyebrow">${local(start).getUTCFullYear()} · 第 ${weekNumber(start)} 周</p><h2 class="cal-range" id="calendarHeading">${range}</h2>
