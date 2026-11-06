@@ -256,15 +256,16 @@ html[data-current="home"], html[data-current="home"] body { background: var(--bg
 .landing :focus-visible { outline-color: var(--accent); }
 .hero { color: var(--moon); }
 .hero :focus-visible { outline-color: var(--gold-soft); }
-.hero { height: 100vh; height: 100svh; min-height: 560px; padding: 16px; }
-.hero-frame { position: relative; height: 100%; overflow: hidden; border-radius: 16px; background: var(--night); }
+.hero { height: 100vh; height: 100svh; min-height: 560px; }
+.hero-frame { position: relative; height: 100%; overflow: hidden; background: var(--night); }
 .hero-video { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; object-position: 62% 50%; }
 .noise-overlay { position: absolute; inset: 0; opacity: .18; mix-blend-mode: overlay; pointer-events: none; background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='220' height='220'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E"); }
 .hero-shade { position: absolute; inset: 0; pointer-events: none; background: linear-gradient(to bottom, rgba(0, 0, 0, .2), rgba(0, 0, 0, 0) 30%, rgba(0, 0, 0, 0) 55%, rgba(0, 0, 0, .6)); }
-.hero-nav { position: absolute; top: 0; left: 50%; z-index: 2; transform: translateX(-50%); display: flex; gap: 12px; padding: 8px 16px; border-radius: 0 0 16px 16px; background: var(--bg); font-size: .6875rem; white-space: nowrap; }
-.hero-nav a { color: var(--muted); text-decoration: none; }
-.hero-nav a:hover { color: var(--accent-deep); }
-.hero-nav :focus-visible { outline-color: var(--accent); }
+/* The film fills the screen; the nav floats on it as a frosted pill. */
+.hero-nav { position: absolute; top: 14px; left: 50%; z-index: 2; transform: translateX(-50%); display: flex; gap: 12px; padding: 8px 16px; border: 1px solid rgba(251, 245, 234, .2); border-radius: 999px; background: rgba(28, 22, 16, .38); backdrop-filter: blur(12px) saturate(1.2); font-size: .6875rem; white-space: nowrap; }
+.hero-nav a { color: rgba(251, 245, 234, .86); text-decoration: none; }
+.hero-nav a:hover { color: #fff; }
+.hero-nav :focus-visible { outline-color: var(--gold-soft); }
 .hero-content { position: absolute; left: 0; right: 0; bottom: 0; z-index: 1; display: grid; grid-template-columns: repeat(12, minmax(0, 1fr)); align-items: end; gap: 16px 24px; padding: 0 20px 24px; }
 .hero-title { grid-column: span 12; margin: 0; font-family: var(--font-serif); font-size: 34vw; font-weight: 900; line-height: .85; letter-spacing: -.02em; color: var(--moon); }
 .hero-title > span[aria-hidden] { position: relative; display: inline-flex; }
@@ -310,9 +311,7 @@ html[data-current="home"], html[data-current="home"] body { background: var(--bg
 .landing-foot { position: relative; display: flex; flex-wrap: wrap; justify-content: space-between; gap: 8px 24px; max-width: 72rem; margin: 56px auto 0; padding-top: 20px; border-top: 1px solid var(--line); color: var(--muted); font-size: .8125rem; }
 @media (min-width: 640px) { .hero-nav { gap: 24px; font-size: .8125rem; } }
 @media (min-width: 768px) {
-  .hero { padding: 24px; }
-  .hero-frame { border-radius: 32px; }
-  .hero-nav { gap: 48px; padding: 10px 32px; border-radius: 0 0 24px 24px; font-size: .875rem; }
+  .hero-nav { top: 22px; gap: 48px; padding: 10px 32px; font-size: .875rem; }
   .hero-content { padding: 0 36px 32px; }
   .hero-title { grid-column: span 8; font-size: 22vw; }
   .hero-side { grid-column: span 4; }
@@ -578,3 +577,56 @@ html.intro-out .intro-stage { animation: intro-lift 520ms cubic-bezier(.5, 0, .2
 .period-diff { margin: 12px 0; padding: 12px 14px; border: 1px dashed #e0bf8a; border-radius: 10px; background: var(--warning-bg); }
 .period-diff h4 { margin: 0; font-size: .875rem; color: var(--warning); }
 .period-diff button { margin-top: 8px; }
+
+/* ---- Workbench palette (晴空) ----
+   The workbench is redrawn bright, apart from the warm-paper landing: a pale sky page, white cards,
+   a white header, sky-blue for action and sunny amber for highlights. The tokens are redefined on the
+   app container, so everything inside follows; the calendar keeps its four layers apart — routine
+   slate grey-blue, temporary dark navy, planned work amber, free time light green, conflicts red. */
+[data-app] {
+  --bg: #f4f8fc;
+  --panel: #fff;
+  --panel-soft: #f1f5fa;
+  --text: #1d2a38;
+  --muted: #586577;
+  --line: #dde5ee;
+  --line-strong: #8794a6;
+  --accent: #2563b8;
+  --accent-deep: #1d4f94;
+  --accent-soft: #e6effa;
+  --sage: #3f8a5c;
+  --sage-deep: #2f6e48;
+  --sage-soft: #e3f2e8;
+  --warning: #8a5a12;
+  --warning-bg: #fff6e5;
+  --night: #1f2d3d;
+  --night-soft: #2e3f53;
+  --gold: #e09a35;
+  --gold-soft: #f2b85b;
+  --moon: #f7fafc;
+  color: var(--text);
+}
+html:not([data-current="home"]), html:not([data-current="home"]) body { background: #f4f8fc; }
+[data-app] :focus-visible { outline-color: var(--accent); }
+[data-app] .site-header { position: sticky; top: 0; z-index: 10; background: rgba(255, 255, 255, .92); color: var(--text); border-bottom: 1px solid var(--line); box-shadow: 0 6px 24px rgba(29, 42, 56, .06); backdrop-filter: saturate(1.4) blur(10px); }
+[data-app] .site-header :focus-visible { outline-color: var(--accent); }
+[data-app] .brand-mark { color: var(--text); }
+[data-app] .brand-dot { color: var(--gold); }
+[data-app] .brand-sub { color: var(--accent); }
+[data-app] .site-header nav a { color: var(--text); text-decoration-color: var(--gold); }
+[data-app] .site-header nav a:hover { color: var(--accent); }
+[data-app] .site-header .page-tabs { background: var(--panel-soft); box-shadow: inset 0 0 0 1px var(--line); }
+[data-app] .site-header .page-tabs a { color: var(--muted); }
+[data-app] .site-header .page-tabs a:hover { color: var(--text); }
+[data-app] .site-header .page-tabs a[aria-current="page"] { background: var(--accent); color: #fff; box-shadow: 0 4px 12px rgba(37, 99, 184, .25); }
+[data-app] .tab-count:not(:empty) { background: var(--gold); color: #fff; }
+[data-app] .list-actions #exportSnapshot { background: var(--accent); border-color: var(--accent); color: #fff; }
+[data-app] .list-actions #exportSnapshot:hover { background: var(--accent-deep); border-color: var(--accent-deep); }
+[data-app] .message.warning, [data-app] .plain-list.is-draft li { border-color: #f0cf94; }
+/* Calendar on a bright panel: a sky wash at the top right, a hint of sun and grass at the bottom left. */
+[data-app] .cal { background: radial-gradient(1100px 480px at 88% -12%, rgba(120, 170, 235, .28), transparent 62%), radial-gradient(760px 420px at -8% 112%, rgba(242, 184, 91, .16), transparent 60%), linear-gradient(160deg, #ffffff, #f2f7fd 72%); box-shadow: 0 30px 80px rgba(29, 42, 56, .08), inset 0 1px 0 #fff; }
+[data-app] .cal::before { opacity: .35; }
+[data-app] .cal-board { background: #fff; box-shadow: inset 0 0 60px rgba(120, 170, 235, .08); }
+[data-app] .cal-head-day.is-today strong { background: var(--accent); color: #fff; box-shadow: 0 0 0 5px rgba(37, 99, 184, .14), 0 0 22px rgba(37, 99, 184, .3); }
+[data-app] .cal-day.is-today { background-color: rgba(37, 99, 184, .05); box-shadow: inset 0 0 0 1px rgba(37, 99, 184, .2); }
+[data-app] .cal-pending, [data-app] .cal .cal-pending-item { background: #fff; }
