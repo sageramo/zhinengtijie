@@ -117,3 +117,13 @@ test('reading migrates a stored v2 list but leaves the v2 bytes untouched', () =
 test('estimate presets cover quick choices', () => {
   assert.deepEqual(ESTIMATE_PRESETS.map(item => item.minutes), [15, 30, 60, 120, 240]);
 });
+
+test('events are 点墨 by default and can be marked as the user own appointments', () => {
+  let snapshot = addEvent(base(), { title: '讲座' });
+  assert.equal(snapshot.events[0].kind, 'temporary');
+  snapshot = addEvent(snapshot, { title: '和朋友出去玩', kind: 'appointment' });
+  assert.equal(snapshot.events[1].kind, 'appointment');
+  snapshot = updateEvent(snapshot, snapshot.events[0].id, { kind: 'appointment' });
+  assert.equal(snapshot.events[0].kind, 'appointment');
+  assert.throws(() => updateEvent(snapshot, snapshot.events[0].id, { kind: 'party' }), /点墨或约定/);
+});

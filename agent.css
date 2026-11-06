@@ -630,3 +630,12 @@ html:not([data-current="home"]), html:not([data-current="home"]) body { backgrou
 [data-app] .cal-head-day.is-today strong { background: var(--accent); color: #fff; box-shadow: 0 0 0 5px rgba(37, 99, 184, .14), 0 0 22px rgba(37, 99, 184, .3); }
 [data-app] .cal-day.is-today { background-color: rgba(37, 99, 184, .05); box-shadow: inset 0 0 0 1px rgba(37, 99, 184, .2); }
 [data-app] .cal-pending, [data-app] .cal .cal-pending-item { background: #fff; }
+
+/* 书画 names: glosses under layer headings, 落笔 sub-groups, and 约定 blocks in the 落笔 colour family. */
+.layer-gloss { margin-left: 8px; font-family: inherit; font-size: .8125rem; font-weight: 400; color: var(--muted); }
+.sub-top { margin-top: 22px; }
+.sub-top h3 { margin: 0; font-size: 1rem; }
+.cal-side-note { margin: 0 0 4px !important; font-size: .75rem !important; }
+.cal .cal-appointment { padding-left: 10px; background: linear-gradient(160deg, #f3c784 0%, #e0a050 100%); color: #3b2508; box-shadow: inset 3px 0 0 #8a5218, 0 4px 12px rgba(176, 109, 36, .25); }
+.cal .cal-appointment:hover { background: linear-gradient(160deg, #f6d29a 0%, #e5ab60 100%); }
+.cal .cal-row-appointment { border-left: 3px solid #b06d24; }

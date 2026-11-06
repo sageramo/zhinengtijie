@@ -1,7 +1,8 @@
 import { isTimestamp, parseSnapshot, STORAGE_KEY as V2_STORAGE_KEY } from './task-state.js';
 
 /**
- * Four-layer time list (snapshot v3, see backend docs/time_layers_v3.md).
+ * Four-layer time list (snapshot v3, see backend docs/time_layers_v3.md). On screen the layers
+ * are named 底色 (routine), 留白 (free), 落笔 (work and the user's own appointments) and 点墨 (temporary).
  * Imported items are used at once; missing values stay null ("undefined") and
  * never block other items. Every change returns a new snapshot with a higher
  * revision. The backend re-validates everything; checks here only stop
@@ -14,7 +15,8 @@ export const ESTIMATE_PRESETS = [
   { minutes: 120, label: '2小时' }, { minutes: 240, label: '半天' },
 ];
 const TASK_FIELDS = ['title', 'deadline_at', 'estimate_minutes', 'splittable', 'min_block_minutes', 'earliest_start_at', 'priority', 'status', 'location', 'materials'];
-const EVENT_FIELDS = ['title', 'start_at', 'end_at', 'location', 'status'];
+const EVENT_FIELDS = ['title', 'start_at', 'end_at', 'location', 'status', 'kind'];
+export const EVENT_KINDS = ['temporary', 'appointment'];
 const EVIDENCE_FIELDS = new Set(['title', 'start_at', 'end_at', 'deadline_at', 'earliest_start_at', 'estimate_minutes', 'location', 'materials']);
 const CLOCK = /^(?:[01]\d|2[0-3]):[0-5]\d$|^24:00$/;
 const DATE = /^\d{4}-\d{2}-\d{2}$/;
@@ -122,7 +124,7 @@ export function addImported(snapshot, { source, events = [], tasks = [] }) {
     const sourceId = source && next.sources.find(entry => entry.text === source.text)?.id;
     const adopt = item => ({ ...clone(item), source_id: item.source_id === source?.id ? sourceId : item.source_id,
       evidence: item.evidence.map(entry => entry.source_id === source?.id ? { ...entry, source_id: sourceId } : entry) });
-    next.events.push(...events.map(adopt));
+    next.events.push(...events.map(event => ({ kind: 'temporary', ...adopt(event) })));
     next.tasks.push(...tasks.map(adopt));
   });
 }
@@ -146,6 +148,7 @@ function checkEvent(event) {
   if (event.end_at && !event.start_at) fail('有结束时间时也需要开始时间');
   if (event.start_at && event.end_at && Date.parse(event.end_at) <= Date.parse(event.start_at)) fail('结束要晚于开始');
   if (!['active', 'cancelled'].includes(event.status)) fail('状态无效');
+  if (event.kind !== undefined && !EVENT_KINDS.includes(event.kind)) fail('类别只能是点墨或约定');
 }
 
 export function updateTask(snapshot, id, patch) {
@@ -178,7 +181,7 @@ export function addTask(snapshot, fields = {}) {
 }
 
 export function addEvent(snapshot, fields = {}) {
-  const event = { id: newId('e'), title: '', start_at: null, end_at: null, location: null, status: 'active', source_id: null, evidence: [], notes: [], ...clone(fields) };
+  const event = { id: newId('e'), kind: 'temporary', title: '', start_at: null, end_at: null, location: null, status: 'active', source_id: null, evidence: [], notes: [], ...clone(fields) };
   checkEvent(event);
   return change(snapshot, next => { next.events.push(event); });
 }

@@ -17,7 +17,7 @@ test('weeks start on Monday 00:00 Beijing time and map to the API range', () => 
 test('items come from the four layers and markers; conflicting items are flagged', () => {
   const items = calendarItems(result);
   const types = new Set(items.map(item => item.type));
-  for (const type of ['free', 'routine', 'temporary', 'work', 'deadline', 'start']) assert.ok(types.has(type), type);
+  for (const type of ['free', 'routine', 'temporary', 'appointment', 'work', 'deadline', 'start']) assert.ok(types.has(type), type);
   assert.ok(items.find(item => item.type === 'temporary' && item.id === 'e1').conflict);
   assert.ok(items.find(item => item.type === 'routine' && item.key === 'r1@2026-11-09').conflict);
   assert.equal(items.find(item => item.type === 'routine' && item.key === 'r1@2026-11-11').conflict, false);
@@ -33,10 +33,13 @@ test('markup draws each layer, links blocks to their entries and lists conflicts
   assert.match(html, /class="cal-deadline is-start" data-cal-item="e2"/);
   assert.match(html, /class="cal-free" data-cal-goto="time"/);
   assert.match(html, /class="cal-now"/);
-  assert.match(html, /冲突 <span>1<\/span>/);
-  assert.match(html, /临时占用撞上例行占用 · 40分钟/);
-  assert.match(html, /未定义 <span>2<\/span>/);
+  assert.match(html, /class="cal-block cal-appointment[^"]*" data-cal-item="a1" data-cal-layer="event"/);
+  assert.match(html, /叠墨 <span>1<\/span>/);
+  assert.match(html, /点墨压在底色上 · 40分钟/);
+  assert.match(html, /待书 <span>2<\/span>/);
   assert.match(html, /预计用时未定义/);
+  assert.match(html, /落笔 · 约定与截止之事/);
+  assert.match(html, /留白 · 自己支配/);
   assert.match(html, /11月9日 — 15日/);
 });
 
