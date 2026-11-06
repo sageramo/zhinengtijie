@@ -94,12 +94,12 @@ async function imported(t, options = {}) {
 
 test('a fresh list shows free time as undefined and asks the v3 calendar for the reference week', async t => {
   const app = await boot(t);
-  assert.match(app.find('#windowState').textContent, /未定义/);
+  assert.match(app.find('#windowState').textContent, /待书/);
   const request = app.calls.find(call => call.path === '/api/v3/calendar');
   assert.ok(request, 'calendar requested on load');
   assert.equal(request.body.snapshot.schema_version, 3);
   assert.match(request.body.range.from, /^\d{4}-\d{2}-\d{2}$/);
-  assert.match(app.find('#calendarView').textContent, /冲突/);
+  assert.match(app.find('#calendarView').textContent, /叠墨/);
 });
 
 test('an old service without time layers is explained instead of failing silently', async t => {
@@ -115,15 +115,15 @@ test('rules import adds events and tasks at once, explains what is still undefin
   const stored = app.stored();
   assert.deepEqual([stored.events.length, stored.tasks.length, stored.sources.length], [1, 2, 1]);
   assert.equal(stored.sources[0].kind, 'synthetic');
-  assert.match(app.find('#importSummary').textContent, /已加入 1 个临时占用、2 件工作/);
-  assert.match(app.find('#importSummary').textContent, /2 件工作的预计用时还未定义/);
+  assert.match(app.find('#importSummary').textContent, /已加入 1 处点墨、2 件截止之事/);
+  assert.match(app.find('#importSummary').textContent, /2 件的预计用时还是待书/);
   assert.equal(app.find('#noticeText').value, '');
   assert.equal(app.all('#eventList [data-item-id]').length, 1);
   assert.equal(app.all('#taskList [data-item-id]').length, 2);
   assert.equal(app.find('#itemsCount').textContent, '2');
   const last = app.calls.filter(item => item.path === '/api/v3/calendar').at(-1);
   assert.equal(last.body.snapshot.revision, stored.revision, 'calendar recomputed for the new list');
-  assert.match(app.find('#taskList').textContent, /预计用时未定义/);
+  assert.match(app.find('#taskList').textContent, /预计用时未填/);
 });
 
 test('the same notice is not imported twice and a failed import keeps the text', async t => {
@@ -196,9 +196,26 @@ test('complete, cancel, delete and manual add on the items page', async t => {
   app.click('#addTask');
   app.click('#addEvent');
   await settle();
-  assert.equal(app.stored().tasks.at(-1).title, '新的工作');
-  assert.equal(app.stored().events.at(-1).title, '新的临时占用');
+  assert.equal(app.stored().tasks.at(-1).title, '新的截止之事');
+  assert.equal(app.stored().events.at(-1).title, '新的点墨');
   assert.match(app.find('#eventList').textContent, /时间待定/);
+});
+
+test('appointments are added under 落笔 and switching the kind moves the card', async t => {
+  const app = await boot(t);
+  app.click('#addAppointment');
+  await settle();
+  const stored = app.stored();
+  assert.deepEqual([stored.events[0].kind, stored.events[0].title], ['appointment', '新的约定']);
+  const id = stored.events[0].id;
+  assert.ok(app.find(`#appointmentList [data-item-id="${id}"]`));
+  const select = app.find(`[data-item-id="${id}"] [data-field="kind"]`);
+  select.value = 'temporary';
+  select.dispatchEvent(new app.window.Event('change', { bubbles: true }));
+  await settle();
+  assert.equal(app.stored().events[0].kind, 'temporary');
+  assert.ok(app.find(`#eventList [data-item-id="${id}"]`), 'card moved to 点墨');
+  assert.equal(app.find(`#appointmentList [data-item-id="${id}"]`), null);
 });
 
 test('the daily window can be filled in one click, edited per day and cleared', async t => {
@@ -279,7 +296,7 @@ test('timetable: needs a configured key, sends parsed period times, previews and
   assert.equal(posted[0].term_start, '2026-09-07');
   assert.deepEqual(posted[0].periods['1'], { start: '08:00', end: '08:45' });
   assert.equal(Object.keys(posted[0].periods).length, 12);
-  assert.match(app.find('#timetablePreview').textContent, /整理出 2 条例行占用/);
+  assert.match(app.find('#timetablePreview').textContent, /整理出 2 处底色/);
   assert.equal(app.stored(), null, 'nothing is saved before the user imports');
   app.click('#reconvertTimetable');
   await settle();
@@ -355,7 +372,7 @@ test('the calendar marks conflicts on the tab and a click opens the matching ite
     events: [{ id: 'e1', title: '讲座', start_at: '2026-11-09T09:00:00+08:00', end_at: '2026-11-09T11:00:00+08:00', location: null, status: 'active', source_id: null, evidence: [], notes: [] }] });
   const app = await boot(t, { initial: { [TIME_STORAGE_KEY]: serializeTimeSnapshot(snapshot) } });
   assert.equal(app.find('#conflictCount').textContent, '1');
-  assert.match(app.find('#eventList').textContent, /与其他占用冲突/);
+  assert.match(app.find('#eventList').textContent, /叠墨：与他事相撞/);
   const card = app.find('#item-e1');
   app.find('#calendarView [data-cal-item="e1"]').click();
   assert.ok(card.classList.contains('is-flash'));
@@ -396,7 +413,8 @@ test('the demo week fills every layer for next week and opens on that week', asy
   await settle();
   const stored = app.stored();
   assert.equal(stored.routines.length, 3);
-  assert.deepEqual([stored.events.length, stored.tasks.length], [1, 2]);
+  assert.deepEqual([stored.events.length, stored.tasks.length], [2, 2]);
+  assert.deepEqual(stored.events.map(event => event.kind), ['appointment', 'temporary']);
   assert.ok(stored.daily_window);
   const request = app.calls.filter(call => call.path === '/api/v3/calendar').at(-1);
   assert.ok(Date.parse(`${request.body.range.from}T00:00:00+08:00`) > Date.now(), 'demo week is in the future');

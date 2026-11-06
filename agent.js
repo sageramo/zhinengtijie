@@ -23,8 +23,9 @@ const WEEKDAY_NAMES = ['周一', '周二', '周三', '周四', '周五', '周六
 const DEFAULT_WINDOW = [...Array(5).fill({ start: '08:00', end: '23:00' }), ...Array(2).fill({ start: '09:00', end: '23:00' })];
 const DEFAULT_PERIODS = ['1 08:00-08:45', '2 08:55-09:40', '3 10:00-10:45', '4 10:55-11:40', '5 14:00-14:45', '6 14:55-15:40',
   '7 16:00-16:45', '8 16:55-17:40', '9 19:00-19:45', '10 19:55-20:40', '11 20:50-21:35', '12 21:45-22:30'].join('\n');
-const TASK_STATE = { scheduled: ['已排进工作时间', 'ok'], estimate_undefined: ['预计用时未定义', 'undefined'], deadline_undefined: ['截止未定义', 'undefined'],
-  free_time_undefined: ['自由时间未定义', 'undefined'], short: ['工作时间不足', 'conflict'], overdue: ['已过截止', 'conflict'],
+// 书画 names: 底色 routine, 留白 free, 落笔 work and appointments, 点墨 temporary, 叠墨 conflict, 待书 undefined.
+const TASK_STATE = { scheduled: ['已落笔', 'ok'], estimate_undefined: ['待书：预计用时未填', 'undefined'], deadline_undefined: ['待书：截止未填', 'undefined'],
+  free_time_undefined: ['待书：留白未设定', 'undefined'], short: ['留白不够落笔', 'conflict'], overdue: ['已过截止', 'conflict'],
   beyond_horizon: ['截止超出31天，临近再排', 'undefined'], not_attempted: ['暂未安排', 'undefined'], completed: ['已完成', 'done'], cancelled: ['不做了', 'done'] };
 const currentMinuteISO = () => new Date(Math.ceil(Date.now() / 60000) * 60000).toISOString().replace(/\.\d{3}Z$/, 'Z');
 const toLocalInput = iso => isTimestamp(iso) ? new Date(Date.parse(iso) + OFFSET).toISOString().slice(0, 16) : '';
@@ -206,10 +207,10 @@ function taskState(task) {
 }
 function eventState(event) {
   if (event.status === 'cancelled') return ['不参加了', 'done'];
-  if (!event.start_at) return ['时间待定', 'undefined'];
-  if (!event.end_at) return ['结束未定义', 'undefined'];
-  if (calendarResult?.conflicts.some(conflict => conflict.items.some(item => item.id === event.id))) return ['与其他占用冲突', 'conflict'];
-  return ['已放进日历', 'ok'];
+  if (!event.start_at) return ['待书：时间待定', 'undefined'];
+  if (!event.end_at) return ['待书：结束未填', 'undefined'];
+  if (calendarResult?.conflicts.some(conflict => conflict.items.some(item => item.id === event.id))) return ['叠墨：与他事相撞', 'conflict'];
+  return [event.kind === 'appointment' ? '已落笔' : '已点上', 'ok'];
 }
 const stateBadge = ([text, kind]) => `<span class="item-state${kind ? ` is-${kind}` : ''}" data-item-state>${escapeHTML(text)}</span>`;
 function taskMarkup(task) {
@@ -219,7 +220,7 @@ function taskMarkup(task) {
     <div class="item-top"><input class="item-title" data-field="title" value="${escapeHTML(task.title)}" aria-label="工作名称" maxlength="200">${stateBadge(taskState(task))}</div>
     <div class="field-grid">
       <label>截止<input type="datetime-local" data-field="deadline_at" value="${toLocalInput(task.deadline_at)}"></label>
-      <label>预计用时（分钟）<input type="number" inputmode="numeric" min="1" max="20160" data-field="estimate_minutes" value="${task.estimate_minutes ?? ''}" placeholder="未定义"></label>
+      <label>预计用时（分钟）<input type="number" inputmode="numeric" min="1" max="20160" data-field="estimate_minutes" value="${task.estimate_minutes ?? ''}" placeholder="未填"></label>
       <div class="field-wide chips" role="group" aria-label="预计用时快捷选择">${chips}</div>
       <label>能否拆开做<select data-field="splittable"><option value="true"${task.splittable ? ' selected' : ''}>可以分几次做</option><option value="false"${task.splittable ? '' : ' selected'}>需要一次做完</option></select></label>
       <label>优先级 <span class="optional">可选，0–100</span><input type="number" inputmode="numeric" min="0" max="100" data-field="priority" value="${task.priority ?? ''}" placeholder="未填按50"></label>
@@ -230,9 +231,11 @@ function taskMarkup(task) {
   </article>`;
 }
 function eventMarkup(event) {
+  const appointment = event.kind === 'appointment';
   return `<article class="item-card${event.status === 'active' ? '' : ' is-inactive'}" data-item-id="${escapeHTML(event.id)}" data-kind="event" id="item-${escapeHTML(event.id)}">
-    <div class="item-top"><input class="item-title" data-field="title" value="${escapeHTML(event.title)}" aria-label="临时占用名称" maxlength="200">${stateBadge(eventState(event))}</div>
+    <div class="item-top"><input class="item-title" data-field="title" value="${escapeHTML(event.title)}" aria-label="${appointment ? '约定' : '点墨'}名称" maxlength="200">${stateBadge(eventState(event))}</div>
     <div class="field-grid">
+      <label class="field-wide">这件事是<select data-field="kind"><option value="temporary"${appointment ? '' : ' selected'}>点墨：外部安排的一次性事项（讲座、考试等）</option><option value="appointment"${appointment ? ' selected' : ''}>约定：自己约好的事，属于落笔（如和朋友出去）</option></select></label>
       <label>开始<input type="datetime-local" data-field="start_at" value="${toLocalInput(event.start_at)}"></label>
       <label>结束<input type="datetime-local" data-field="end_at" value="${toLocalInput(event.end_at)}"></label>
       <label class="field-wide">地点 <span class="optional">可选</span><input data-field="location" value="${escapeHTML(event.location ?? '')}" maxlength="500"></label>
@@ -243,8 +246,11 @@ function eventMarkup(event) {
   </article>`;
 }
 function renderItems() {
-  $('eventList').innerHTML = snapshot.events.length ? snapshot.events.map(eventMarkup).join('') : '<p class="empty-note">还没有临时占用。导入通知或手动添加。</p>';
-  $('taskList').innerHTML = snapshot.tasks.length ? snapshot.tasks.map(taskMarkup).join('') : '<p class="empty-note">还没有工作。导入通知或手动添加。</p>';
+  const points = snapshot.events.filter(event => event.kind !== 'appointment');
+  const appointments = snapshot.events.filter(event => event.kind === 'appointment');
+  $('eventList').innerHTML = points.length ? points.map(eventMarkup).join('') : '<p class="empty-note">还没有点墨。导入通知或手动添加。</p>';
+  $('appointmentList').innerHTML = appointments.length ? appointments.map(eventMarkup).join('') : '<p class="empty-note">还没有约定。和别人约好的事可以加在这里。</p>';
+  $('taskList').innerHTML = snapshot.tasks.length ? snapshot.tasks.map(taskMarkup).join('') : '<p class="empty-note">还没有截止之事。导入通知或手动添加。</p>';
 }
 function renderItemStates() {
   for (const card of document.querySelectorAll('[data-item-id]')) {
@@ -262,13 +268,13 @@ function renderDayGrid() {
     const on = snapshot.daily_window ? Boolean(window) : true;
     const value = window || DEFAULT_WINDOW[index];
     return `<div class="day-row"><label class="check-row"><input type="checkbox" data-day-on="${index}"${on ? ' checked' : ''}>${name}</label><label class="sr-only" for="day-start-${index}">${name}开始</label><input type="time" id="day-start-${index}" data-day-start="${index}" value="${value.start}"><span aria-hidden="true">至</span><label class="sr-only" for="day-end-${index}">${name}结束</label><input type="time" id="day-end-${index}" data-day-end="${index}" value="${value.end === '24:00' ? '23:59' : value.end}"></div>`;
-  }).join('') + `<p class="field-help" id="windowState">${snapshot.daily_window ? '已保存。改动后再点保存。' : '还没有保存，自由时间暂为“未定义”。下面是常用作息，确认后点保存。'}</p>`;
+  }).join('') + `<p class="field-help" id="windowState">${snapshot.daily_window ? '已保存。改动后再点保存。' : '还没有保存，留白暂为“待书”。下面是常用作息，确认后点保存。'}</p>`;
 }
 const weekdayText = days => days.map(day => WEEKDAY_NAMES[day - 1].slice(1)).join('、');
 const dateText = value => { const [, month, day] = value.split('-').map(Number); return `${month}月${day}日`; };
 function renderRoutines() {
   $('routinesConfirmed').checked = snapshot.routines_confirmed;
-  $('routineList').innerHTML = snapshot.routines.length ? `<ul class="plain-list">${snapshot.routines.map(routine => `<li id="routine-${escapeHTML(routine.id)}"><div><strong>${escapeHTML(routine.title)}</strong><span>每周${weekdayText(routine.weekdays)} ${routine.start}–${routine.end}${routine.week_interval === 2 ? '（隔周）' : ''} · ${dateText(routine.from)}起${routine.until ? `至${dateText(routine.until)}` : ''}${routine.location ? ` · ${escapeHTML(routine.location)}` : ''}</span></div><button type="button" class="danger-text" data-remove="${escapeHTML(routine.id)}">删除</button></li>`).join('')}</ul>` : `<p class="empty-note">${snapshot.routines_confirmed ? '已确认没有例行占用。' : '还没有填写。没填时，自由时间可能偏多。'}</p>`;
+  $('routineList').innerHTML = snapshot.routines.length ? `<ul class="plain-list">${snapshot.routines.map(routine => `<li id="routine-${escapeHTML(routine.id)}"><div><strong>${escapeHTML(routine.title)}</strong><span>每周${weekdayText(routine.weekdays)} ${routine.start}–${routine.end}${routine.week_interval === 2 ? '（隔周）' : ''} · ${dateText(routine.from)}起${routine.until ? `至${dateText(routine.until)}` : ''}${routine.location ? ` · ${escapeHTML(routine.location)}` : ''}</span></div><button type="button" class="danger-text" data-remove="${escapeHTML(routine.id)}">删除</button></li>`).join('')}</ul>` : `<p class="empty-note">${snapshot.routines_confirmed ? '已确认没有每周照例的事。' : '还没有铺底色。没铺时，留白可能偏多。'}</p>`;
   $('routineWeekdays').innerHTML = WEEKDAY_NAMES.map((name, index) => `<label class="check-row"><input type="checkbox" value="${index + 1}">${name}</label>`).join('');
 }
 function renderAdjustments() {
@@ -299,11 +305,11 @@ function importSummary(imported) {
   const noDeadline = imported.tasks.filter(task => task.deadline_at === null).length;
   const openEvents = imported.events.filter(event => !event.start_at || !event.end_at).length;
   const parts = [];
-  if (imported.events.length) parts.push(`${imported.events.length} 个临时占用`);
-  if (imported.tasks.length) parts.push(`${imported.tasks.length} 件工作`);
-  const missing = [pending && `${pending} 件工作的预计用时`, noDeadline && `${noDeadline} 件工作的截止`, openEvents && `${openEvents} 个临时占用的时间`].filter(Boolean);
+  if (imported.events.length) parts.push(`${imported.events.length} 处点墨`);
+  if (imported.tasks.length) parts.push(`${imported.tasks.length} 件截止之事`);
+  const missing = [pending && `${pending} 件的预计用时`, noDeadline && `${noDeadline} 件的截止`, openEvents && `${openEvents} 处点墨的时间`].filter(Boolean);
   const warnings = (imported.warnings || []).map(note => `<li>${escapeHTML(note)}</li>`).join('');
-  return `<p><strong>已加入 ${parts.join('、') || '0 项'}。</strong>${missing.length ? `${missing.join('、')}还未定义，可以随时补；没补之前它们不会挡住其他事项。` : '时间信息都已齐全。'}</p>
+  return `<p><strong>已加入 ${parts.join('、') || '0 项'}。</strong>${missing.length ? `${missing.join('、')}还是待书，可以随时补；没补之前它们不会挡住其他事项。` : '时间信息都已写清楚。'}</p>
     ${warnings ? `<ul>${warnings}</ul>` : ''}<p class="inline-links"><a href="#/items">去事项页补充</a><a href="#/calendar">看日历</a></p>`;
 }
 $('noticeForm').addEventListener('submit', async event => {
@@ -399,6 +405,7 @@ function fieldValue(input) {
   }
   if (field === 'splittable') return raw === 'true';
   if (field === 'location') return raw || null;
+  if (field === 'kind') return raw;
   return raw;
 }
 function editItem(card, patch) {
@@ -413,7 +420,8 @@ function onItemChange(event) {
     const next = editItem(card, { [input.dataset.field]: fieldValue(input) });
     input.setAttribute('aria-invalid', 'false');
     itemError(card, '');
-    commit(next, { render: 'none' });
+    // Changing 点墨/约定 moves the card to the other list.
+    commit(next, { render: input.dataset.field === 'kind' ? 'all' : 'none' });
   } catch (error) {
     input.setAttribute('aria-invalid', 'true');
     itemError(card, `没有保存：${error.message}。`);
@@ -446,18 +454,23 @@ function onItemClick(event) {
     }
   } catch (error) { itemError(card, error.message); }
 }
-for (const list of ['eventList', 'taskList']) {
+for (const list of ['eventList', 'appointmentList', 'taskList']) {
   $(list).addEventListener('change', onItemChange);
   $(list).addEventListener('click', onItemClick);
 }
 $('addTask').addEventListener('click', () => {
-  commit(addTask(snapshot, { title: '新的工作' }));
+  commit(addTask(snapshot, { title: '新的截止之事' }));
   const title = $('taskList').lastElementChild.querySelector('[data-field="title"]');
   title.focus(); title.select();
 });
 $('addEvent').addEventListener('click', () => {
-  commit(addEvent(snapshot, { title: '新的临时占用' }));
+  commit(addEvent(snapshot, { title: '新的点墨' }));
   const title = $('eventList').lastElementChild.querySelector('[data-field="title"]');
+  title.focus(); title.select();
+});
+$('addAppointment').addEventListener('click', () => {
+  commit(addEvent(snapshot, { title: '新的约定', kind: 'appointment' }));
+  const title = $('appointmentList').lastElementChild.querySelector('[data-field="title"]');
   title.focus(); title.select();
 });
 
@@ -470,7 +483,7 @@ function readDayGrid() {
 }
 $('windowForm').addEventListener('submit', event => {
   event.preventDefault();
-  try { commit(setDailyWindow(snapshot, readDayGrid())); $('windowError').textContent = ''; tell('作息范围已保存，自由时间会按它推算。'); }
+  try { commit(setDailyWindow(snapshot, readDayGrid())); $('windowError').textContent = ''; tell('作息范围已保存，留白会按它推算。'); }
   catch (error) { $('windowError').textContent = error.message; }
 });
 $('presetWindow').addEventListener('click', () => {
@@ -551,14 +564,14 @@ function timetablePreview(result) {
   const rejected = list(result.warnings.filter(note => note.includes('未采用')));
   const remarks = list(result.warnings.filter(note => !note.includes('未采用')));
   return `<div class="timetable-result">
-    <h3>整理出 ${result.routines.length} 条例行占用${result.drafts.length ? `，${result.drafts.length} 门课还缺信息` : ''}</h3>
+    <h3>整理出 ${result.routines.length} 处底色${result.drafts.length ? `，${result.drafts.length} 门课还缺信息` : ''}</h3>
     <p class="field-help">课表是整学期的数据，请逐条对照原课表核对后再导入。</p>
     ${periodDifference(result.periods_seen)}
     ${routines ? `<ul class="plain-list">${routines}</ul>` : ''}
     ${drafts ? `<h4>还缺信息</h4><ul class="plain-list is-draft">${drafts}</ul>` : ''}
     ${rejected ? `<h4>没有采用的部分</h4><ul>${rejected}</ul>` : ''}
     ${remarks ? `<h4>整理时的提醒</h4><ul>${remarks}</ul>` : ''}
-    ${result.routines.length ? `<button type="button" class="primary-button" id="adoptTimetable">核对无误，导入这 ${result.routines.length} 条</button>` : ''}
+    ${result.routines.length ? `<button type="button" class="primary-button" id="adoptTimetable">核对无误，铺上这 ${result.routines.length} 处底色</button>` : ''}
   </div>`;
 }
 /** Shrink a screenshot to at most 2000px on its long side as JPEG; without canvas support, send it as it is. */
@@ -626,10 +639,10 @@ $('timetablePreview').addEventListener('click', event => {
   if (!event.target.closest('#adoptTimetable') || !lastTimetable) return;
   const { source, routines } = lastTimetable.result;
   commit(addTimetable(snapshot, { source, routines }));
-  $('timetablePreview').innerHTML = `<p class="field-help">已导入 ${routines.length} 条例行占用。</p>`;
+  $('timetablePreview').innerHTML = `<p class="field-help">已铺上 ${routines.length} 处底色。</p>`;
   lastTimetable = null;
   $('reconvertTimetable').hidden = true;
-  tell(`已导入 ${routines.length} 条例行占用，日历会扣除这些时间。`);
+  tell(`已铺上 ${routines.length} 处底色（例行占用），留白会扣除这些时间。`);
 });
 
 // ---- Calendar interactions ------------------------------------------------
@@ -752,14 +765,15 @@ $('loadDemoWeek').addEventListener('click', () => {
   next = addRoutine(next, { title: '大学英语（示例）', weekdays: [2, 4], start: '10:00', end: '11:40', from, location: '外语楼204' });
   next = addRoutine(next, { title: '社团例会（示例）', weekdays: [2], start: '19:00', end: '20:00', from });
   next = addImported(next, { source,
-    events: [{ id: 'e-demo-talk', title: '参加讲座（示例）', start_at: at(2, '09:00'), end_at: at(2, '10:30'), location: '主楼405', status: 'active', source_id: 's-demo', evidence: [], notes: ['示例：故意与高数时间重叠，演示冲突。'] }],
+    events: [{ id: 'e-demo-park', kind: 'appointment', title: '和朋友去公园（示例）', start_at: at(5, '14:00'), end_at: at(5, '18:00'), location: null, status: 'active', source_id: 's-demo', evidence: [], notes: ['示例：自己约好的事属于落笔，同样占用留白。'] },
+      { id: 'e-demo-talk', title: '参加讲座（示例）', start_at: at(2, '09:00'), end_at: at(2, '10:30'), location: '主楼405', status: 'active', source_id: 's-demo', evidence: [], notes: ['示例：故意与高数时间重叠，演示冲突。'] }],
     tasks: [
       { id: 't-demo-signup', title: '讲座报名（示例）', deadline_at: at(1, '12:00'), estimate_minutes: null, splittable: true, min_block_minutes: null, earliest_start_at: null, priority: null, status: 'active', location: null, materials: [], source_id: 's-demo', evidence: [], notes: ['示例：预计用时未定义，只显示截止。'] },
       { id: 't-demo-report', title: '课程报告（示例）', deadline_at: at(4, '23:59'), estimate_minutes: 180, splittable: true, min_block_minutes: 60, earliest_start_at: null, priority: 80, status: 'active', location: null, materials: [], source_id: 's-demo', evidence: [], notes: [] },
     ] });
   calendarWeek = monday;
   commit({ ...next, revision: snapshot.revision + 1 }, { unlock: !externalConflict && !storageLocked });
-  tell('已载入示例一周（下周，从下周一7:00开始安排）：有一处讲座撞课的冲突，一件预计用时未定义的工作。想按真实时间安排，可在“时间”页点“使用当前时间”。');
+  tell('已载入示例一周（下周，从下周一7:00开始安排）：讲座撞上高数是一处叠墨，讲座报名的预计用时还是待书，周六和朋友去公园是一笔约定。想按真实时间安排，可在“时间”页点“使用当前时间”。');
   window.SixuRouter?.go('calendar');
 });
 

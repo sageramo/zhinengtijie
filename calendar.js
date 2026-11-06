@@ -14,11 +14,12 @@ const escape = value => String(value ?? '').replace(/[&<>"']/g, character => ({ 
 const local = value => new Date(value + OFFSET);
 const clock = value => { const d = local(value); return `${String(d.getUTCHours()).padStart(2, '0')}:${String(d.getUTCMinutes()).padStart(2, '0')}`; };
 const monthDay = value => { const d = local(value); return `${d.getUTCMonth() + 1}月${d.getUTCDate()}日`; };
-export const LAYER_LABEL = { routine: '例行占用', temporary: '临时占用', work: '工作时间', free: '自由时间', deadline: '截止', start: '开始' };
-const TASK_STATE = { scheduled: '已排进工作时间', estimate_undefined: '预计用时未定义', deadline_undefined: '截止未定义', free_time_undefined: '自由时间未定义',
-  short: '工作时间不足', overdue: '已过截止', beyond_horizon: '超出31天', not_attempted: '暂未安排', completed: '已完成', cancelled: '已取消' };
-const CONFLICT_LABEL = { routine_overlap: '例行占用重叠', temporary_routine_overlap: '临时占用撞上例行占用', temporary_overlap: '临时占用重叠',
-  work_shortage: '工作时间不足', overdue: '已过截止' };
+// On screen the layers use the 书画 names: 底色 routine, 留白 free, 落笔 work and appointments, 点墨 temporary.
+export const LAYER_LABEL = { routine: '底色', temporary: '点墨', work: '落笔', appointment: '落笔·约定', free: '留白', deadline: '截止', start: '开始' };
+const TASK_STATE = { scheduled: '已落笔', estimate_undefined: '预计用时未填', deadline_undefined: '截止未填', free_time_undefined: '留白未设定',
+  short: '留白不够', overdue: '已过截止', beyond_horizon: '超出31天', not_attempted: '暂未安排', completed: '已完成', cancelled: '已取消' };
+const CONFLICT_LABEL = { routine_overlap: '底色相叠', temporary_routine_overlap: '点墨压在底色上', temporary_overlap: '两处点墨相叠',
+  appointment_routine_overlap: '约定压在底色上', appointment_overlap: '约定与他事相叠', work_shortage: '留白不够落笔', overdue: '已过截止' };
 
 /** Monday 00:00 Beijing time of the week holding `value` (epoch ms). */
 export function weekStart(value) {
@@ -47,6 +48,7 @@ export function calendarItems(result) {
   for (const item of result.layers.free) items.push({ type: 'free', start: Date.parse(item.start), end: Date.parse(item.end) });
   for (const item of result.layers.routine) items.push({ type: 'routine', id: item.routine_id, key: item.id, title: item.title, location: item.location, start: Date.parse(item.start), end: Date.parse(item.end), conflict: conflictIds.has(item.id) });
   for (const item of result.layers.temporary) items.push({ type: 'temporary', id: item.id, key: item.id, title: item.title, location: item.location, start: Date.parse(item.start), end: Date.parse(item.end), conflict: conflictIds.has(item.id) });
+  for (const item of result.layers.appointment || []) items.push({ type: 'appointment', id: item.id, key: item.id, title: item.title, location: item.location, start: Date.parse(item.start), end: Date.parse(item.end), conflict: conflictIds.has(item.id) });
   for (const item of result.layers.work) items.push({ type: 'work', id: item.task_id, key: item.task_id, title: item.title, start: Date.parse(item.start), end: Date.parse(item.end) });
   for (const marker of result.markers) {
     const at = Date.parse(marker.at);
@@ -73,7 +75,7 @@ function lanes(blocks) {
   return sorted;
 }
 
-const layerOf = { routine: 'routine', temporary: 'event', work: 'task', deadline: 'task', start: 'event' };
+const layerOf = { routine: 'routine', temporary: 'event', appointment: 'event', work: 'task', deadline: 'task', start: 'event' };
 const attrs = item => `data-cal-item="${escape(item.id)}" data-cal-layer="${layerOf[item.type]}"`;
 const isLine = item => item.type === 'deadline' || item.type === 'start';
 
@@ -82,16 +84,16 @@ function sideLists(result) {
     const first = conflict.items[0];
     const names = conflict.items.map(item => escape(item.title)).join(' × ');
     const when = conflict.start ? `${monthDay(Date.parse(conflict.start))} ${clock(Date.parse(conflict.start))}` : conflict.end ? `截止 ${monthDay(Date.parse(conflict.end))} ${clock(Date.parse(conflict.end))}` : '';
-    const layer = first.layer === 'routine' ? 'routine' : first.layer === 'temporary' ? 'event' : 'task';
+    const layer = first.layer === 'routine' ? 'routine' : ['temporary', 'appointment'].includes(first.layer) ? 'event' : 'task';
     const id = first.layer === 'routine' ? first.id.split('@')[0] : first.id;
-    return `<li><button type="button" class="cal-issue is-conflict" data-cal-item="${escape(id)}" data-cal-layer="${layer}"><strong>${escape(CONFLICT_LABEL[conflict.type] || '冲突')}${conflict.minutes ? ` · ${conflict.minutes}分钟` : ''}</strong><span>${names}${when ? ` · ${when}` : ''}</span><em>${escape(conflict.reason)}</em></button></li>`;
+    return `<li><button type="button" class="cal-issue is-conflict" data-cal-item="${escape(id)}" data-cal-layer="${layer}"><strong>${escape(CONFLICT_LABEL[conflict.type] || '叠墨')}${conflict.minutes ? ` · ${conflict.minutes}分钟` : ''}</strong><span>${names}${when ? ` · ${when}` : ''}</span><em>${escape(conflict.reason)}</em></button></li>`;
   }).join('');
   const undefinedRows = result.undefined.map(item => {
     const target = item.id ? `data-cal-item="${escape(item.id)}" data-cal-layer="${item.type.startsWith('event_') ? 'event' : 'task'}"` : `data-cal-goto="time"`;
-    return `<li><button type="button" class="cal-issue is-undefined" ${target}><strong>${escape(item.title || (item.type === 'free_time_undefined' ? '自由时间' : '例行占用'))}</strong><span>${escape(item.reason)}</span></button></li>`;
+    return `<li><button type="button" class="cal-issue is-undefined" ${target}><strong>${escape(item.title || (item.type === 'free_time_undefined' ? '留白' : '底色'))}</strong><span>${escape(item.reason)}</span></button></li>`;
   }).join('');
-  return `<section class="cal-side-block" aria-labelledby="calConflictHeading"><h3 id="calConflictHeading">冲突 <span>${result.conflicts.length}</span></h3>${conflicts ? `<ul>${conflicts}</ul>` : '<p>例行、工作与临时占用之间没有冲突。</p>'}</section>
-    <section class="cal-side-block" aria-labelledby="calUndefinedHeading"><h3 id="calUndefinedHeading">未定义 <span>${result.undefined.length}</span></h3>${undefinedRows ? `<ul>${undefinedRows}</ul>` : '<p>所有信息都已定义。</p>'}</section>`;
+  return `<section class="cal-side-block" aria-labelledby="calConflictHeading"><h3 id="calConflictHeading">叠墨 <span>${result.conflicts.length}</span></h3><p class="cal-side-note">两件事落在同一处</p>${conflicts ? `<ul>${conflicts}</ul>` : '<p>底色、落笔与点墨之间没有相叠。</p>'}</section>
+    <section class="cal-side-block" aria-labelledby="calUndefinedHeading"><h3 id="calUndefinedHeading">待书 <span>${result.undefined.length}</span></h3><p class="cal-side-note">还没写清楚的信息</p>${undefinedRows ? `<ul>${undefinedRows}</ul>` : '<p>所有信息都已写清楚。</p>'}</section>`;
 }
 
 export function calendarMarkup({ result, start, now, loading = false, error = '' }) {
@@ -124,9 +126,9 @@ export function calendarMarkup({ result, start, now, loading = false, error = ''
     const segment = item => ({ ...item, start: Math.max(item.start, dayStart), end: Math.min(item.end, dayEnd) });
     const free = inWeek.filter(item => item.type === 'free' && item.end > dayStart && item.start < dayEnd).map(segment)
       .map(item => ({ ...item, start: Math.max(item.start, top), end: Math.min(item.end, top + span) })).filter(item => item.end > item.start);
-    const blocks = lanes(inWeek.filter(item => ['routine', 'temporary', 'work'].includes(item.type) && item.end > dayStart && item.start < dayEnd).map(segment));
+    const blocks = lanes(inWeek.filter(item => ['routine', 'temporary', 'appointment', 'work'].includes(item.type) && item.end > dayStart && item.start < dayEnd).map(segment));
     const marks = inWeek.filter(item => isLine(item) && item.start >= dayStart && item.start < dayEnd);
-    const bands = free.map(item => `<button type="button" class="cal-free" data-cal-goto="time" style="top:${pct(item.start - top)};height:${pct(item.end - item.start)}" aria-label="自由时间 ${clock(item.start)} 至 ${item.end === dayEnd ? '24:00' : clock(item.end)}"><span>自由</span></button>`).join('');
+    const bands = free.map(item => `<button type="button" class="cal-free" data-cal-goto="time" style="top:${pct(item.start - top)};height:${pct(item.end - item.start)}" aria-label="留白 ${clock(item.start)} 至 ${item.end === dayEnd ? '24:00' : clock(item.end)}"><span>留白</span></button>`).join('');
     const body = blocks.map(item => {
       const finish = item.end === dayEnd ? '24:00' : clock(item.end);
       const label = `${LAYER_LABEL[item.type]} ${item.title} ${clock(item.start)} 至 ${finish}${item.conflict ? '，有冲突' : ''}`;
@@ -159,7 +161,7 @@ export function calendarMarkup({ result, start, now, loading = false, error = ''
       const to = Math.min(item.end, dayEnd);
       const time = isLine(item) ? clock(item.start) : `${clock(from)}–${to === dayEnd ? '24:00' : clock(to)}`;
       const target = item.type === 'free' ? 'data-cal-goto="time"' : attrs(item);
-      return `<li><button type="button" class="cal-row cal-row-${item.type}${item.conflict ? ' is-conflict' : ''}" ${target}><time>${time}</time><span>${item.type === 'free' ? '自由时间' : escape(item.title)}</span><em>${LAYER_LABEL[item.type]}</em></button></li>`;
+      return `<li><button type="button" class="cal-row cal-row-${item.type}${item.conflict ? ' is-conflict' : ''}" ${target}><time>${time}</time><span>${item.type === 'free' ? '留白' : escape(item.title)}</span><em>${LAYER_LABEL[item.type]}</em></button></li>`;
     }).join('');
     return `<li class="cal-agenda-day${index === today ? ' is-today' : ''}"><h3>${monthDay(dayStart)} <span>${WEEKDAYS[index]}${index === today ? ' · 今天' : ''}</span></h3>${list ? `<ul>${list}</ul>` : '<p>今天还没有安排。</p>'}</li>`;
   }).join('');
@@ -168,17 +170,17 @@ export function calendarMarkup({ result, start, now, loading = false, error = ''
   const range = local(start).getUTCMonth() === local(weekEnd).getUTCMonth() ? `${monthDay(start)} — ${local(weekEnd).getUTCDate()}日` : `${monthDay(start)} — ${monthDay(weekEnd)}`;
   const status = error ? `<p class="cal-hint is-error" role="status">${escape(error)}</p>`
     : loading ? '<p class="cal-hint" role="status">正在计算这一周…</p>'
-    : result?.status === 'conflicts' ? `<p class="cal-hint is-error" role="status">这一周有 ${result.conflicts.length} 处冲突，详见右侧。</p>`
-    : result?.status === 'incomplete' ? `<p class="cal-hint" role="status">有 ${result.undefined.length} 项信息未定义，已按能确定的部分排好。</p>`
-    : result ? '<p class="cal-hint" role="status">没有冲突，所有信息都已定义。</p>' : '';
-  const empty = result && !inWeek.length ? '<div class="cal-empty"><p>这一周还是一片空白。</p><span>在「时间」里设置作息范围和例行占用，导入通知后，它们会出现在这里。</span></div>' : '';
-  const side = result ? sideLists(result) : '<section class="cal-side-block"><p>计算完成后，这里列出冲突和未定义的信息。</p></section>';
+    : result?.status === 'conflicts' ? `<p class="cal-hint is-error" role="status">有 ${result.conflicts.length} 处叠墨：两件事落在了同一处，详见右侧。</p>`
+    : result?.status === 'incomplete' ? `<p class="cal-hint" role="status">有 ${result.undefined.length} 项待书，已按写清楚的部分落笔。</p>`
+    : result ? '<p class="cal-hint" role="status">没有叠墨，所有信息都已写清楚。</p>' : '';
+  const empty = result && !inWeek.length ? '<div class="cal-empty"><p>这一周还是一片空白。</p><span>在「时间」里铺好底色、定下留白，导入通知后，事情会落在这里。</span></div>' : '';
+  const side = result ? sideLists(result) : '<section class="cal-side-block"><p>计算完成后，这里列出叠墨和待书。</p></section>';
   return `<header class="cal-top">
       <div><p class="cal-eyebrow">${local(start).getUTCFullYear()} · 第 ${weekNumber(start)} 周</p><h2 class="cal-range" id="calendarHeading">${range}</h2>
-      <p class="cal-stats"><span><b>${count('routine')}</b> 次例行</span><span><b>${count('temporary')}</b> 个临时占用</span><span><b>${count('work')}</b> 段工作</span><span><b>${count('deadline')}</b> 个截止</span><span><b>${Number(freeHours.toFixed(1))}</b> 小时自由</span></p></div>
+      <p class="cal-stats"><span><b>${count('routine')}</b> 处底色</span><span><b>${count('work') + count('appointment')}</b> 笔落笔</span><span><b>${count('temporary')}</b> 点墨</span><span><b>${count('deadline')}</b> 个截止</span><span><b>${Number(freeHours.toFixed(1))}</b> 小时留白</span></p></div>
       <div class="cal-nav"><button type="button" data-cal-week="-1" aria-label="上一周"><svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><path d="M15 5l-7 7 7 7" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></button><button type="button" data-cal-week="0">本周</button><button type="button" data-cal-week="1" aria-label="下一周"><svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><path d="M9 5l7 7-7 7" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></button></div>
     </header>
-    <ul class="cal-legend" aria-label="图例"><li class="lg-routine">例行占用</li><li class="lg-temporary">临时占用</li><li class="lg-work">工作时间</li><li class="lg-free">自由时间</li><li class="lg-deadline">截止</li><li class="lg-conflict">冲突</li><li class="lg-now">此刻</li></ul>
+    <ul class="cal-legend" aria-label="图例"><li class="lg-routine">底色 · 每周照例</li><li class="lg-free">留白 · 自己支配</li><li class="lg-work">落笔 · 约定与截止之事</li><li class="lg-temporary">点墨 · 一次性安排</li><li class="lg-deadline">截止</li><li class="lg-conflict">叠墨 · 相撞</li><li class="lg-now">此刻</li></ul>
     ${status}
     <div class="cal-layout">
       <div class="cal-board">
