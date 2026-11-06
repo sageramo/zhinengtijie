@@ -1,15 +1,24 @@
-// Landing page motion: the animated astrolabe behind the hero, words that pull up into place once, and
-// an about paragraph whose characters brighten as it scrolls through. Reduced motion shows a still
-// picture and all text at full strength.
+// Landing page motion: the looping hero film (assets/hero-campus.mp4, made in ../landing-video), words that
+// pull up into place once, and an about paragraph whose characters brighten as it scrolls through. Reduced
+// motion keeps the film on its poster frame and shows all text at full strength.
 (() => {
   const root = document.documentElement;
   const calm = window.matchMedia('(prefers-reduced-motion: reduce)');
-  // The astrolabe painting, animated (hero-scene.js), is the hero's background.
-  const scene = window.SixuHeroScene?.(document.getElementById('heroSky'));
+  // The hero film plays only while the landing is open, on screen and in a visible tab.
+  const video = document.getElementById('heroVideo');
+  let heroInView = true;
+  const playFilm = () => {
+    if (!video || calm.matches || !heroInView || document.hidden || root.dataset.current !== 'home') return;
+    video.play()?.catch(() => {});
+  };
+  const pauseFilm = () => video?.pause();
+  if (video && 'IntersectionObserver' in window) new IntersectionObserver(([entry]) => { heroInView = entry.isIntersecting; if (heroInView) playFilm(); else pauseFilm(); }).observe(video);
+  document.addEventListener('visibilitychange', () => { if (document.hidden) pauseFilm(); else playFilm(); });
+  calm.addEventListener?.('change', () => { if (calm.matches) pauseFilm(); else playFilm(); });
   // The star chart behind the 《大学》 card (about-sky.js).
   const chart = window.SixuAboutSky?.(document.getElementById('aboutSky'));
   const night = window.SixuSectionSky?.(document.getElementById('aboutNight'));
-  const startSky = () => { if (root.dataset.current === 'home') { scene?.start(); chart?.start(); night?.start(); } };
+  const startSky = () => { if (root.dataset.current === 'home') { playFilm(); chart?.start(); night?.start(); } };
 
   // Pull-up: each word slides up once, staggered, when its block first enters the viewport.
   const pullObserver = 'IntersectionObserver' in window ? new IntersectionObserver(entries => {
@@ -67,7 +76,7 @@
 
   window.addEventListener('scroll', updateReveal, { passive: true });
   window.addEventListener('resize', updateReveal);
-  document.addEventListener('sixu:route', event => { if (event.detail === 'home') { startSky(); updateReveal(); } else { scene?.stop(); chart?.stop(); night?.stop(); } });
+  document.addEventListener('sixu:route', event => { if (event.detail === 'home') { startSky(); updateReveal(); } else { pauseFilm(); chart?.stop(); night?.stop(); } });
   startSky();
   updateReveal();
 })();
