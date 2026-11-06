@@ -1,4 +1,4 @@
-// Landing page motion: the looping hero film (assets/hero-cliff.mp4, played forward then back), words that
+// Landing page motion: the looping hero film over its still (assets/hero-meadow-loop.mp4, hero-meadow-plate.webp), words that
 // pull up into place once, and an about paragraph whose characters brighten as it scrolls through. Reduced
 // motion keeps the film on its poster frame and shows all text at full strength.
 (() => {
@@ -25,7 +25,7 @@
     for (const entry of entries) if (entry.isIntersecting) { entry.target.classList.add('is-in'); pullObserver.unobserve(entry.target); }
   }, { rootMargin: '0px 0px -10% 0px' }) : null;
   const heroBlocks = [];
-  for (const block of document.querySelectorAll('[data-pull], [data-rise]')) {
+  for (const block of document.querySelectorAll('[data-pull], [data-rise], [data-drop]')) {
     if (block.closest('.hero')) heroBlocks.push(block);
     else if (calm.matches || !pullObserver) block.classList.add('is-in');
     else pullObserver.observe(block);

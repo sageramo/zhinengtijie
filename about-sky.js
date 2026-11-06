@@ -7,10 +7,10 @@
 (() => {
   const TAU = Math.PI * 2;
   const MANSIONS = 28;
-  // Warm-paper palette (暮光暖纸): amber-brown linework, ink stars, grass green for the mansion the sun wakes.
-  const GOLD = '128, 76, 22';
-  const CYAN = '70, 110, 48';
-  const MOON = '40, 30, 20';
+  // Sunny-meadow palette: sky-blue linework, ink-navy stars, meadow green for the mansion the sun wakes.
+  const GOLD = '47, 111, 191';
+  const CYAN = '91, 135, 92';
+  const MOON = '29, 53, 80';
 
   // A fixed seed, so the mansions keep their shapes from visit to visit.
   function seeded(seed) {
@@ -161,9 +161,9 @@
 
       // Keep the words readable: the chart sinks back behind the title and the paragraph.
       const veil = ctx.createRadialGradient(width / 2, height / 2, 0, width / 2, height / 2, Math.max(width, height) * 0.48);
-      veil.addColorStop(0, 'rgba(255, 251, 244, 0.82)');
-      veil.addColorStop(0.5, 'rgba(255, 251, 244, 0.45)');
-      veil.addColorStop(1, 'rgba(255, 251, 244, 0)');
+      veil.addColorStop(0, 'rgba(255, 255, 255, 0.82)');
+      veil.addColorStop(0.5, 'rgba(255, 255, 255, 0.45)');
+      veil.addColorStop(1, 'rgba(255, 255, 255, 0)');
       ctx.fillStyle = veil;
       ctx.fillRect(0, 0, width, height);
 
@@ -190,9 +190,9 @@
   };
 })();
 
-// The air around the card: three depths of amber dust that drift past at different speeds as the page
-// scrolls, soft clouds of sunlight and grass-green light wandering slowly behind them, and now and then a
-// shooting spark. Reduced motion draws the dust and clouds once.
+// The air around the card: three depths of sky-blue motes that drift past at different speeds as the page
+// scrolls, soft white and meadow-green clouds of light wandering slowly behind them, and now and then a
+// white streak. Reduced motion draws the motes and clouds once.
 (() => {
   const TAU = Math.PI * 2;
   window.SixuSectionSky = canvas => {
@@ -209,9 +209,9 @@
     let meteor = null;
     let nextMeteor = 1500;
     const clouds = [
-      { rgb: '226, 181, 106', x: 0.18, y: 0.3, r: 0.55, a: 0.34, speed: 0.00005, phase: 0 },
-      { rgb: '95, 122, 74', x: 0.85, y: 0.75, r: 0.5, a: 0.14, speed: 0.00004, phase: 2.1 },
-      { rgb: '240, 200, 140', x: 0.7, y: 0.2, r: 0.38, a: 0.3, speed: 0.00006, phase: 4.2 },
+      { rgb: '255, 255, 255', x: 0.18, y: 0.3, r: 0.55, a: 0.55, speed: 0.00005, phase: 0 },
+      { rgb: '150, 200, 140', x: 0.85, y: 0.75, r: 0.5, a: 0.18, speed: 0.00004, phase: 2.1 },
+      { rgb: '255, 236, 170', x: 0.7, y: 0.2, r: 0.38, a: 0.28, speed: 0.00006, phase: 4.2 },
     ];
 
     function resize() {
@@ -251,7 +251,7 @@
         ctx.fillRect(0, 0, width, height);
       }
 
-      ctx.fillStyle = '#a8661f';
+      ctx.fillStyle = '#4a90d9';
       for (const star of stars) {
         // Nearer stars slide further with the scroll and drift faster sideways.
         const x = ((star.x + (still ? 0 : time * 0.000004 * (0.3 + star.depth))) % 1) * width;
@@ -273,8 +273,8 @@
           const hx = meteor.x - p * width * 0.25;
           const hy = meteor.y + p * width * 0.12;
           const tail = ctx.createLinearGradient(hx, hy, hx + meteor.len, hy - meteor.len * 0.48);
-          tail.addColorStop(0, `rgba(192, 122, 44, ${0.85 * Math.sin(Math.min(1, p) * Math.PI)})`);
-          tail.addColorStop(1, 'rgba(192, 122, 44, 0)');
+          tail.addColorStop(0, `rgba(255, 255, 255, ${0.9 * Math.sin(Math.min(1, p) * Math.PI)})`);
+          tail.addColorStop(1, 'rgba(255, 255, 255, 0)');
           ctx.strokeStyle = tail;
           ctx.lineWidth = 1.3;
           ctx.lineCap = 'round';
