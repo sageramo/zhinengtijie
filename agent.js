@@ -172,7 +172,20 @@ async function computeCalendar() {
 }
 function renderCalendar() {
   $('calendarView').innerHTML = calendarMarkup({ result: calendarResult, start: shownWeek(), now: Date.now(), loading: calendarLoading && !calendarResult, error: calendarError });
+  fitCalendar();
 }
+/** Size the hour rows so the whole week fits the window below the week header (wide screens only). */
+function fitCalendar() {
+  const week = $('calendarView').querySelector('.cal-week');
+  if (!week || document.documentElement.dataset.current !== 'calendar' || window.innerWidth < 760) return;
+  const rows = Number(week.style.getPropertyValue('--rows')) || 14;
+  const head = week.querySelector('.cal-head-day')?.getBoundingClientRect().height || 0;
+  const top = week.getBoundingClientRect().top + window.scrollY;
+  const row = Math.max(20, Math.min(46, Math.floor((window.innerHeight - top - head - 24) / rows)));
+  week.style.setProperty('--row', `${row}px`);
+  $('calendarView').style.setProperty('--cal-fit-height', `${Math.max(240, row * rows + head)}px`);
+}
+window.addEventListener('resize', fitCalendar);
 
 // ---- Rendering ----------------------------------------------------------
 function renderSources() {
@@ -310,7 +323,7 @@ function importSummary(imported) {
   const missing = [pending && `${pending} 件的预计用时`, noDeadline && `${noDeadline} 件的截止`, openEvents && `${openEvents} 处点墨的时间`].filter(Boolean);
   const warnings = (imported.warnings || []).map(note => `<li>${escapeHTML(note)}</li>`).join('');
   return `<p><strong>已加入 ${parts.join('、') || '0 项'}。</strong>${missing.length ? `${missing.join('、')}还是待书，可以随时补；没补之前它们不会挡住其他事项。` : '时间信息都已写清楚。'}</p>
-    ${warnings ? `<ul>${warnings}</ul>` : ''}<p class="inline-links"><a href="#/items">去事项页补充</a><a href="#/calendar">看日历</a></p>`;
+    ${warnings ? `<ul>${warnings}</ul>` : ''}<p class="inline-links"><a href="#/items">去笔墨补充</a><a href="#/calendar">看画卷</a></p>`;
 }
 $('noticeForm').addEventListener('submit', async event => {
   event.preventDefault();
@@ -320,7 +333,7 @@ $('noticeForm').addEventListener('submit', async event => {
   const mode = $('extractionMode').value;
   if (!text) return tell('请先粘贴通知原文。', 'warning');
   if (mode === 'model' && [...text].length > 20000) return tell('模型提取每次最多两万字，请拆分通知后重试；原文尚未发送。', 'warning');
-  if (snapshot.sources.some(source => source.text === text)) return tell('这份通知已经导入过了，可以在“事项”页直接修改。', 'warning');
+  if (snapshot.sources.some(source => source.text === text)) return tell('这份通知已经导入过了，可以在“笔墨”页直接修改。', 'warning');
   const ticket = ++parseSequence;
   const base = apiBase;
   busy($('parseNotice'), true, '导入', '正在导入…');
@@ -394,7 +407,7 @@ ocrAsTimetable.addEventListener('click', () => {
   ocrAsTimetable.hidden = true;
   $('noticeText').value = textBefore;
   $('noticeText').dispatchEvent(new window.Event('input', { bubbles: true }));
-  ocrStatus('已把这张图交给课表截图识别，结果在“时间”页的“从课表铺底色”里。');
+  ocrStatus('已把这张图交给课表截图识别，结果在“铺纸”页的“从课表铺底色”里。');
   window.SixuRouter?.go('time');
   $('timetableSection').scrollIntoView({ behavior: scrollBehavior(), block: 'start' });
   runTimetable('image', file);
@@ -686,7 +699,11 @@ $('calendarView').addEventListener('click', event => {
   const element = $(layer === 'routine' ? `routine-${id}` : `item-${id}`);
   if (element) showOnPage(element, 'center');
 });
-document.addEventListener('sixu:route', event => { if (event.detail === 'calendar' && !calendarResult && !calendarLoading) computeCalendar(); });
+document.addEventListener('sixu:route', event => {
+  if (event.detail !== 'calendar') return;
+  (window.requestAnimationFrame || window.setTimeout)(fitCalendar);
+  if (!calendarResult && !calendarLoading) computeCalendar();
+});
 window.setInterval(() => { if (document.documentElement.dataset.current === 'calendar' && !document.hidden) renderCalendar(); }, 60000);
 
 // ---- Service settings, backup -------------------------------------------
@@ -797,7 +814,7 @@ $('loadDemoWeek').addEventListener('click', () => {
     ] });
   calendarWeek = monday;
   commit({ ...next, revision: snapshot.revision + 1 }, { unlock: !externalConflict && !storageLocked });
-  tell('已载入示例一周（下周，从下周一7:00开始安排）：讲座撞上高数是一处叠墨，讲座报名的预计用时还是待书，周六和朋友去公园是一笔约定。想按真实时间安排，可在“时间”页点“使用当前时间”。');
+  tell('已载入示例一周（下周，从下周一7:00开始安排）：讲座撞上高数是一处叠墨，讲座报名的预计用时还是待书，周六和朋友去公园是一笔约定。想按真实时间安排，可在“铺纸”页点“使用当前时间”。');
   window.SixuRouter?.go('calendar');
 });
 

@@ -679,3 +679,24 @@ html:not([data-current="home"]), html:not([data-current="home"]) body { backgrou
 .cal .cal-appointment { padding-left: 10px; background: linear-gradient(160deg, #f3c784 0%, #e0a050 100%); color: #3b2508; box-shadow: inset 3px 0 0 #8a5218, 0 4px 12px rgba(176, 109, 36, .25); }
 .cal .cal-appointment:hover { background: linear-gradient(160deg, #f6d29a 0%, #e5ab60 100%); }
 .cal .cal-row-appointment { border-left: 3px solid #b06d24; }
+
+/* Tabs carry their 书画 name with a plain gloss; the gloss hides on narrow screens. */
+.tab-name { font-weight: inherit; }
+.tab-sub { font-size: .6875rem; opacity: .65; }
+.feature-sub { display: block; margin-top: 4px; font-size: .875rem; font-weight: 400; opacity: .7; }
+@media (max-width: 1100px) { .tab-sub { display: none; } }
+
+/* 画卷: the whole week fits the window without scrolling. Header rows are tightened here;
+   agent.js sets --row from the space left below the week header. */
+html[data-current="calendar"] .page-status { margin-bottom: 8px; }
+html[data-current="calendar"] .cal-top { gap: 10px 20px; align-items: center; }
+html[data-current="calendar"] .cal-eyebrow { margin-bottom: 2px; }
+html[data-current="calendar"] .cal-range { font-size: clamp(1.4rem, 2.2vw, 2rem); }
+html[data-current="calendar"] .cal-stats { margin-top: 6px; }
+html[data-current="calendar"] .cal-legend { margin-top: 10px; gap: 6px 14px; }
+html[data-current="calendar"] .cal-hint { margin-top: 6px; }
+html[data-current="calendar"] .cal-layout { margin-top: 10px; }
+html[data-current="calendar"] .cal-head-day { flex-direction: row; justify-content: center; gap: 6px; padding: 6px 4px; }
+html[data-current="calendar"] .cal-head-day strong { width: 30px; height: 30px; font-size: 1.05rem; }
+html[data-current="calendar"] .cal-head-day.is-today strong { box-shadow: 0 0 0 3px rgba(192, 122, 44, .16); }
+html[data-current="calendar"] .cal-pending { max-height: var(--cal-fit-height, none); overflow-y: auto; }

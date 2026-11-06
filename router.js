@@ -3,7 +3,7 @@
 // The current page is html[data-current]; CSS shows only that page, so back/forward and reload all work.
 (() => {
   const root = document.documentElement;
-  const titles = { home: '司序 Marshal · 知所先后', import: '导入 · 司序', items: '事项 · 司序', time: '时间 · 司序', calendar: '日历 · 司序' };
+  const titles = { home: '司序 Marshal · 知所先后', time: '铺纸 · 司序', import: '研墨 · 司序', items: '笔墨 · 司序', calendar: '画卷 · 司序' };
   const aliases = { review: 'items', plan: 'calendar' };
   const routeOf = hash => {
     if (!hash.startsWith('#/')) return hash && root.dataset.current ? root.dataset.current : 'home';

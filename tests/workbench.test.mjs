@@ -102,6 +102,16 @@ test('a fresh list shows free time as undefined and asks the v3 calendar for the
   assert.match(app.find('#calendarView').textContent, /叠墨/);
 });
 
+test('tabs follow the painting order with plain glosses, and the workbench links back home', async t => {
+  const app = await boot(t);
+  assert.deepEqual(app.all('.page-tabs a').map(tab => [tab.dataset.tab, tab.querySelector('.tab-name').textContent, tab.querySelector('.tab-sub').textContent]),
+    [['time', '铺纸', '底色与留白'], ['import', '研墨', '导入通知'], ['items', '笔墨', '落笔与点墨'], ['calendar', '画卷', '一周日历']]);
+  assert.equal(app.find('.aux-nav a[href="#/"]').textContent, '回到首页');
+  assert.deepEqual(app.all('.next-step').map(link => link.getAttribute('href')).sort(), ['#/calendar', '#/import', '#/items']);
+  assert.deepEqual(app.all('.feature-card').map(card => card.getAttribute('href')), ['#/time', '#/import', '#/items', '#/calendar']);
+  assert.equal(app.find('.hero-actions .cta').getAttribute('href'), '#/time');
+});
+
 test('an old service without time layers is explained instead of failing silently', async t => {
   const app = await boot(t, { health: { capabilities: ['snapshot_v2'] } });
   assert.match(app.find('#calendarView').textContent, /四层时间版本/);
