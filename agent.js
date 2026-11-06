@@ -349,11 +349,19 @@ for (const id of ['noticeText', 'noticeDate', 'extractionMode']) $(id).addEventL
 const recognizeScreenshot = createRecognizer(...(window.SIXU_OCR_ENGINE ? [async () => window.SIXU_OCR_ENGINE] : []));
 let ocrSequence = 0;
 let ocrPreviewUrl = null;
+// Local OCR reads lines, not grids. A timetable screenshot belongs to timetable reading,
+// so the last recognised image can be handed over there.
+let ocrHandoff = null;
+const TIMETABLE_LIKE = /[一二三四五六日]{4,}|第\s*0*\d+\s*周|星期[一二三四五六日天]|第\s*\d+\s*[-—~至]\s*\d+\s*节/;
+const ocrAsTimetable = Object.assign(document.createElement('button'), { type: 'button', id: 'ocrAsTimetable', hidden: true, textContent: '这是课表？改用课表截图识别' });
+$('ocrStatus').after(ocrAsTimetable);
 function ocrStatus(message) { $('ocrStatus').textContent = message; }
 async function recognizeNotice(file) {
   const problem = imageProblem(file);
   if (problem) return ocrStatus(problem);
   const ticket = ++ocrSequence;
+  ocrHandoff = null;
+  ocrAsTimetable.hidden = true;
   if (ocrPreviewUrl) window.URL.revokeObjectURL(ocrPreviewUrl);
   ocrPreviewUrl = window.URL.createObjectURL(file);
   $('ocrPreviewImage').src = ocrPreviewUrl;
@@ -365,9 +373,13 @@ async function recognizeNotice(file) {
     if (ticket !== ocrSequence) return;
     if (!text) return ocrStatus('没有识别出文字。请换一张更清晰、只含通知部分的截图，或手动输入；输入框内容没有改动。');
     const box = $('noticeText');
+    ocrHandoff = { file, textBefore: box.value };
     box.value = box.value.trim() ? `${box.value.trimEnd()}\n\n${text}` : text;
     box.dispatchEvent(new window.Event('input', { bubbles: true }));
-    ocrStatus('已把识别出的文字放进输入框。请对照截图逐字核对时间、地点和数字，修改后再导入。');
+    ocrAsTimetable.hidden = false;
+    ocrStatus(TIMETABLE_LIKE.test(text)
+      ? '这张图像是一张课表。本机识别只能读一行行的通知文字，课表格子会被读乱；请点下面的按钮改用课表截图识别。'
+      : '已把识别出的文字放进输入框。请对照截图逐字核对时间、地点和数字，修改后再导入。');
   } catch (error) {
     if (ticket === ocrSequence) ocrStatus(`未能识别这张截图（${error.message}）。输入框内容没有改动，可以重试或手动输入。`);
   } finally {
@@ -375,6 +387,18 @@ async function recognizeNotice(file) {
   }
 }
 $('chooseNoticeImage').addEventListener('click', () => $('noticeImage').click());
+ocrAsTimetable.addEventListener('click', () => {
+  if (!ocrHandoff) return;
+  const { file, textBefore } = ocrHandoff;
+  ocrHandoff = null;
+  ocrAsTimetable.hidden = true;
+  $('noticeText').value = textBefore;
+  $('noticeText').dispatchEvent(new window.Event('input', { bubbles: true }));
+  ocrStatus('已把这张图交给课表截图识别，结果在“时间”页的“从课表铺底色”里。');
+  window.SixuRouter?.go('time');
+  $('timetableSection').scrollIntoView({ behavior: scrollBehavior(), block: 'start' });
+  runTimetable('image', file);
+});
 $('noticeImage').addEventListener('change', event => {
   const [file] = event.target.files || [];
   if (file) recognizeNotice(file);

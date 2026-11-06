@@ -463,6 +463,38 @@ test('recognised text is appended, failures keep the text and non-images are ref
   assert.match(app.find('#ocrStatus').textContent, /图片/);
 });
 
+test('a timetable screenshot pasted into the notice box is recognised as a timetable and can be sent to timetable reading', async t => {
+  const posted = [];
+  const engine = ocrEngine(async () => '第010周(非本周)\n和导三四五六日\n数据结由复变函');
+  const routes = { '/api/v3/timetable': async body => { posted.push(body); return [200, structuredClone({ ...API.timetable, mode: 'image', periods_seen: null })]; } };
+  const app = await boot(t, { ocrEngine: engine, routes, health: { capabilities: [...CAPABILITIES, 'timetable_image_v3'], timetable_model: { configured: true } } });
+  app.set('#noticeText', '原来的通知', 'input');
+  const picker = app.find('#noticeImage');
+  const file = new app.window.File([new Uint8Array([0x89, 0x50, 0x4e, 0x47])], 'grid.png', { type: 'image/png' });
+  Object.defineProperty(picker, 'files', { value: [file], configurable: true });
+  picker.dispatchEvent(new app.window.Event('change', { bubbles: true }));
+  await settle(20);
+  assert.match(app.find('#ocrStatus').textContent, /像是一张课表/);
+  const button = app.find('#ocrAsTimetable');
+  assert.equal(button.hidden, false);
+  button.click();
+  await settle();
+  assert.equal(app.find('#noticeText').value, '原来的通知', 'the garbled text is taken back out');
+  assert.equal(posted[0].mode, 'image');
+  assert.match(app.find('#timetablePreview').textContent, /整理出 2 处底色/);
+  assert.equal(button.hidden, true);
+});
+
+test('an ordinary notice screenshot still offers the timetable route without warning about it', async t => {
+  const app = await boot(t, { ocrEngine: ocrEngine(async () => '请于11月10日前提交报告') });
+  const picker = app.find('#noticeImage');
+  Object.defineProperty(picker, 'files', { value: [screenshot()], configurable: true });
+  picker.dispatchEvent(new app.window.Event('change', { bubbles: true }));
+  await settle(20);
+  assert.doesNotMatch(app.find('#ocrStatus').textContent, /像是一张课表/);
+  assert.equal(app.find('#ocrAsTimetable').hidden, false);
+});
+
 test('pasting an image recognises it; pasting text behaves normally', async t => {
   const engine = ocrEngine(async () => '粘 贴 的 通 知');
   const app = await boot(t, { ocrEngine: engine });
