@@ -2,7 +2,7 @@ import { isTimestamp } from './task-state.js';
 import { SnapshotStore } from './snapshot-store.js';
 import {
   TIME_STORAGE_KEY, ESTIMATE_PRESETS, createTimeSnapshot, serializeTimeSnapshot, parseTimeSnapshot, readTimeSnapshot,
-  addImported, updateTask, updateEvent, addTask, addEvent, removeItem, setDailyWindow, addRoutine, setRoutinesConfirmed,
+  addImported, updateTask, updateEvent, addTask, addEvent, removeItem, setDailyWindow, addRoutine,
   addAdjustment, addTimetable, setReferenceTime, skipRoutineDate,
 } from './time-state.js';
 import { calendarMarkup, weekStart, weekRange } from './calendar.js';
@@ -21,8 +21,8 @@ const DAY = 86400000;
 const OFFSET = 8 * 3600000;
 const WEEKDAY_NAMES = ['周一', '周二', '周三', '周四', '周五', '周六', '周日'];
 const DEFAULT_WINDOW = [...Array(5).fill({ start: '08:00', end: '23:00' }), ...Array(2).fill({ start: '09:00', end: '23:00' })];
-const DEFAULT_PERIODS = ['1 08:00-08:45', '2 08:55-09:40', '3 10:00-10:45', '4 10:55-11:40', '5 14:00-14:45', '6 14:55-15:40',
-  '7 16:00-16:45', '8 16:55-17:40', '9 19:00-19:45', '10 19:55-20:40', '11 20:50-21:35', '12 21:45-22:30'].join('\n');
+const DEFAULT_PERIODS = ['1 08:00-08:50', '2 09:00-09:50', '3 10:10-11:00', '4 11:10-12:00', '5 13:30-14:20', '6 14:20-15:10',
+  '7 15:30-16:20', '8 16:20-17:00', '9 18:00-18:50', '10 19:00-19:50', '11 20:00-20:50', '12 21:00-21:50'].join('\n');
 // 书画 names: 底色 routine, 留白 free, 落笔 work and appointments, 点墨 temporary, 叠墨 conflict, 待书 undefined.
 const TASK_STATE = { scheduled: ['已落笔', 'ok'], estimate_undefined: ['待书：预计用时未填', 'undefined'], deadline_undefined: ['待书：截止未填', 'undefined'],
   free_time_undefined: ['待书：留白未设定', 'undefined'], short: ['留白不够落笔', 'conflict'], overdue: ['已过截止', 'conflict'],
@@ -65,10 +65,54 @@ let connectionSequence = 0;
 let timetableSequence = 0;
 let lastTimetable = null;
 
+// Messages float over the page and fade on their own (errors stay longer); a click dismisses them.
+let tellTimer = null;
 function tell(message, type = '') {
   $('appMessage').textContent = message;
-  $('appMessage').className = `message ${type}`.trim();
+  $('appMessage').className = `message toast ${type}`.trim();
   $('appMessage').hidden = !message;
+  window.clearTimeout(tellTimer);
+  if (message) tellTimer = window.setTimeout(() => { $('appMessage').hidden = true; }, type === 'error' ? 10000 : 5000);
+}
+$('appMessage').addEventListener('click', () => { window.clearTimeout(tellTimer); $('appMessage').hidden = true; });
+
+// ---- Rolls: 铺纸 and 笔墨 show two rolled cards; one unrolls at a time, 返回 rolls it up again.
+function openRoll(key) {
+  const roll = document.querySelector(`[data-roll="${key}"]`);
+  const group = roll?.closest('[data-rolls]');
+  if (!group) return;
+  group.dataset.open = key;
+  for (const item of group.querySelectorAll('[data-roll]')) item.classList.toggle('is-open', item === roll);
+  for (const face of group.querySelectorAll('[data-roll-open]')) face.setAttribute('aria-expanded', String(face.dataset.rollOpen === key));
+}
+function closeRolls(group) {
+  delete group.dataset.open;
+  for (const item of group.querySelectorAll('[data-roll]')) item.classList.remove('is-open');
+  for (const face of group.querySelectorAll('[data-roll-open]')) face.setAttribute('aria-expanded', 'false');
+}
+document.addEventListener('click', event => {
+  const face = event.target.closest('[data-roll-open]');
+  if (face) { openRoll(face.dataset.rollOpen); window.scrollTo({ top: 0, behavior: scrollBehavior() }); return; }
+  const back = event.target.closest('[data-roll-close]');
+  if (back) { closeRolls(back.closest('[data-rolls]')); window.scrollTo({ top: 0, behavior: scrollBehavior() }); }
+});
+function renderRollFaces() {
+  const set = (key, lines) => { $(`rollSummary-${key}`).innerHTML = lines.filter(Boolean).map(line => `<span>${line}</span>`).join(''); };
+  const routines = snapshot.routines;
+  set('routine', [routines.length ? `<b>${routines.length}</b> 处每周照例` : '没有底色也能算，铺了更准',
+    routines.slice(0, 3).map(item => escapeHTML(item.title)).join('、') + (routines.length > 3 ? ' 等' : '')]);
+  const windows = snapshot.daily_window;
+  const ranges = windows ? [...new Set(windows.filter(Boolean).map(window => `${window.start}–${window.end}`))] : [];
+  const adds = snapshot.free_adjustments.length;
+  set('free', [windows ? `作息 ${ranges.slice(0, 2).join('、')}${ranges.length > 2 ? ' 等' : ''}` : '<em>作息未设定，留白待书</em>', adds ? `<b>${adds}</b> 处临时调整` : '']);
+  const active = list => list.filter(item => item.status === 'active');
+  const appointments = active(snapshot.events).filter(item => item.kind === 'appointment');
+  const events = active(snapshot.events).filter(item => item.kind !== 'appointment');
+  const tasks = active(snapshot.tasks);
+  const pendingTasks = tasks.filter(task => task.deadline_at === null || task.estimate_minutes === null).length;
+  set('work', [`<b>${appointments.length}</b> 件约定 · <b>${tasks.length}</b> 件截止之事`, pendingTasks ? `<em>${pendingTasks} 件待书</em>` : '']);
+  const pendingEvents = events.filter(item => !item.start_at || !item.end_at).length;
+  set('event', [`<b>${events.length}</b> 处点墨`, events.slice(0, 2).map(item => escapeHTML(item.title)).join('、'), pendingEvents ? `<em>${pendingEvents} 处时间待书</em>` : '']);
 }
 function busy(button, value, idle, working) {
   button.disabled = value;
@@ -107,6 +151,8 @@ function commit(next, { render = 'all', unlock = false } = {}) {
   scheduleCalendar();
 }
 function showOnPage(element, block = 'start') {
+  const roll = element.closest('[data-roll]');
+  if (roll) openRoll(roll.dataset.roll);
   const page = element.closest('[data-page]')?.dataset.page;
   if (page) window.SixuRouter?.go(page);
   element.scrollIntoView({ behavior: scrollBehavior(), block });
@@ -183,11 +229,13 @@ function fitCalendar() {
   const rows = Number(week.style.getPropertyValue('--rows')) || 14;
   const head = week.querySelector('.cal-head-day')?.getBoundingClientRect().height || 0;
   const top = week.getBoundingClientRect().top + window.scrollY;
-  const row = Math.max(20, Math.min(46, Math.floor((window.innerHeight - top - head - 44) / rows)));
+  const mount = week.closest('.scroll-mount');
+  const below = mount ? parseFloat(window.getComputedStyle(mount).borderBottomWidth) || 0 : 0;
+  const row = Math.max(20, Math.min(46, Math.floor((window.innerHeight - top - head - below - 44) / rows)));
   week.style.setProperty('--row', `${row}px`);
   $('calendarView').style.setProperty('--cal-fit-height', `${Math.max(240, row * rows + head)}px`);
   const side = $('calendarView').querySelector('.scroll-side');
-  if (side) side.style.maxHeight = `${Math.ceil(week.getBoundingClientRect().height) + 2}px`;
+  if (side) side.style.maxHeight = `${Math.ceil((mount || week).getBoundingClientRect().height) + 2}px`;
 }
 window.addEventListener('resize', fitCalendar);
 
@@ -202,6 +250,7 @@ function undefinedCount() {
   return tasks + events;
 }
 function renderBadges() {
+  renderRollFaces();
   const count = undefinedCount();
   $('itemsCount').textContent = count ? String(count) : '';
   $('conflictCount').textContent = calendarResult?.conflicts.length ? String(calendarResult.conflicts.length) : '';
@@ -290,8 +339,7 @@ function renderDayGrid() {
 const weekdayText = days => days.map(day => WEEKDAY_NAMES[day - 1].slice(1)).join('、');
 const dateText = value => { const [, month, day] = value.split('-').map(Number); return `${month}月${day}日`; };
 function renderRoutines() {
-  $('routinesConfirmed').checked = snapshot.routines_confirmed;
-  $('routineList').innerHTML = snapshot.routines.length ? `<ul class="plain-list">${snapshot.routines.map(routine => `<li id="routine-${escapeHTML(routine.id)}"><div><strong>${escapeHTML(routine.title)}</strong><span>每周${weekdayText(routine.weekdays)} ${routine.start}–${routine.end}${routine.week_interval === 2 ? '（隔周）' : ''} · ${dateText(routine.from)}起${routine.until ? `至${dateText(routine.until)}` : ''}${routine.location ? ` · ${escapeHTML(routine.location)}` : ''}</span></div><button type="button" class="danger-text" data-remove="${escapeHTML(routine.id)}">删除</button></li>`).join('')}</ul>` : `<p class="empty-note">${snapshot.routines_confirmed ? '已确认没有每周照例的事。' : '还没有铺底色。没铺时，留白可能偏多。'}</p>`;
+  $('routineList').innerHTML = snapshot.routines.length ? `<ul class="plain-list">${snapshot.routines.map(routine => `<li id="routine-${escapeHTML(routine.id)}"><div><strong>${escapeHTML(routine.title)}</strong><span>每周${weekdayText(routine.weekdays)} ${routine.start}–${routine.end}${routine.week_interval === 2 ? '（隔周）' : ''} · ${dateText(routine.from)}起${routine.until ? `至${dateText(routine.until)}` : ''}${routine.location ? ` · ${escapeHTML(routine.location)}` : ''}</span></div><button type="button" class="danger-text" data-remove="${escapeHTML(routine.id)}">删除</button></li>`).join('')}</ul>` : '<p class="empty-note">还没有底色。底色可以不铺，叠墨照样能查；铺上课表后，留白和落笔会更准。</p>';
   $('routineWeekdays').innerHTML = WEEKDAY_NAMES.map((name, index) => `<label class="check-row"><input type="checkbox" value="${index + 1}">${name}</label>`).join('');
 }
 function renderAdjustments() {
@@ -310,13 +358,14 @@ let parseTimer = null;
 function showParseProgress(mode) {
   const started = Date.now();
   $('parseProgress').hidden = false;
+  $('inkwell').classList.add('is-grinding');
   $('parseStep').textContent = mode === 'model' ? '正在连接服务，随后由模型阅读原文' : '正在按规则读取原文';
   $('parseHint').textContent = mode === 'model' ? '模型提取通常需要几秒到一分钟。' : '';
   $('parseElapsed').textContent = '';
   window.clearInterval(parseTimer);
   parseTimer = window.setInterval(() => { $('parseElapsed').textContent = `已用 ${Math.round((Date.now() - started) / 1000)} 秒。`; }, 1000);
 }
-function hideParseProgress() { window.clearInterval(parseTimer); parseTimer = null; $('parseProgress').hidden = true; }
+function hideParseProgress() { window.clearInterval(parseTimer); parseTimer = null; $('parseProgress').hidden = true; $('inkwell').classList.remove('is-grinding'); }
 function importSummary(imported) {
   const pending = imported.tasks.filter(task => task.estimate_minutes === null && task.deadline_at !== null).length;
   const noDeadline = imported.tasks.filter(task => task.deadline_at === null).length;
@@ -352,14 +401,76 @@ $('noticeForm').addEventListener('submit', async event => {
     if (ticket !== parseSequence || base !== apiBase) return;
     if (text.startsWith('【虚构示例】')) imported.source.kind = 'synthetic';
     commit(addImported(snapshot, imported));
-    $('importSummary').innerHTML = importSummary(imported);
+    $('importSummary').innerHTML = importSummary(imported) + endAskMarkup(imported);
     $('importSummary').hidden = false;
     $('noticeText').value = '';
+    estimateEnds('rules', imported.source.text);
   } catch (error) {
     if (ticket === parseSequence) tell(`导入未完成：${error.message} 原文仍在输入框里。`, 'error');
   } finally {
     if (ticket === parseSequence) { busy($('parseNotice'), false, '导入'); hideParseProgress(); }
   }
+});
+// ---- 大约几点结束？ Many notices give only a start. Right after import each such 点墨 gets a
+// suggested end (rules by kind of event, or DeepSeek reading the notice on request); the user
+// adjusts it and saves, or leaves it 待书.
+const beijingDay = iso => new Date(Date.parse(iso) + 8 * 3600000).toISOString().slice(0, 10);
+const beijingClock = iso => new Date(Date.parse(iso) + 8 * 3600000).toISOString().slice(11, 16);
+let endSource = '';
+function endAskMarkup(imported) {
+  const open = imported.events.filter(event => event.start_at && !event.end_at);
+  if (!open.length) return '';
+  const rows = open.map(event => `<li class="end-row" data-end-for="${escapeHTML(event.id)}" data-start="${escapeHTML(event.start_at)}"><div><strong>${escapeHTML(event.title)}</strong><span>${beijingDay(event.start_at).slice(5).replace('-', '月')}日 ${beijingClock(event.start_at)} 开始</span></div><label>大约<input type="time" data-end-input aria-label="${escapeHTML(event.title)}大约几点结束">结束</label><button type="button" data-end-save>就这样</button><em class="end-reason" data-end-reason>正在估计…</em></li>`).join('');
+  return `<section class="end-ask" aria-labelledby="endAskHeading"><h3 id="endAskHeading">这些点墨只写了开始，大约几点结束？</h3><p>先按活动类型估了一个时间，改一改再保存；不填也行，它会先作为待书。</p><ul>${rows}</ul><div class="inline-actions"><button type="button" class="primary-button" data-end-save-all>全部按此保存</button><button type="button" data-end-model hidden>结合原文问问模型</button></div></section>`;
+}
+async function estimateEnds(mode, sourceText) {
+  const rows = [...$('importSummary').querySelectorAll('.end-row:not(.is-saved)')];
+  if (!rows.length) return;
+  endSource = sourceText ?? endSource;
+  const base = apiBase;
+  const button = $('importSummary').querySelector('[data-end-model]');
+  try {
+    const result = await ensureHealth(base);
+    if (button) button.hidden = !result.timetable_model?.configured;
+    if (!result.capabilities.includes('end_estimate_v1')) throw new Error('计算服务还不支持估计结束时间，请重启到1.19或更新。');
+    if (mode === 'model' && button) busy(button, true, '结合原文问问模型', '模型正在读原文…');
+    const items = rows.map(row => ({ id: row.dataset.endFor, title: snapshot.events.find(event => event.id === row.dataset.endFor)?.title || '活动', start_at: row.dataset.start, context: endSource.slice(0, 4000) }));
+    const { estimates } = await request('/api/v3/estimate-end', { mode, items }, base, mode === 'model' ? 60000 : 15000);
+    for (const estimate of estimates) {
+      const row = rows.find(item => item.dataset.endFor === estimate.id);
+      if (!row) continue;
+      row.querySelector('[data-end-input]').value = beijingClock(estimate.end_at);
+      row.querySelector('[data-end-reason]').textContent = `${estimate.basis === 'model' ? '模型：' : ''}${estimate.reason}`;
+    }
+  } catch (error) {
+    for (const row of rows) if (row.querySelector('[data-end-reason]').textContent === '正在估计…') row.querySelector('[data-end-reason]').textContent = '填一下大约几点结束。';
+    if (mode === 'model') tell(`模型没能估计：${error.message}`, 'error');
+  } finally {
+    if (mode === 'model' && button) busy(button, false, '结合原文问问模型');
+  }
+}
+function saveEnd(row) {
+  const value = row.querySelector('[data-end-input]').value;
+  if (!/^\d{2}:\d{2}$/.test(value)) { row.querySelector('[data-end-reason]').textContent = '请先填一个结束时刻。'; return false; }
+  const start = row.dataset.start;
+  let end = Date.parse(`${beijingDay(start)}T${value}:00+08:00`);
+  if (end <= Date.parse(start)) end += 86400000;
+  const endAt = new Date(end + 8 * 3600000).toISOString().slice(0, 19) + '+08:00';
+  try { commit(updateEvent(snapshot, row.dataset.endFor, { end_at: endAt })); } catch (error) { row.querySelector('[data-end-reason]').textContent = error.message; return false; }
+  row.classList.add('is-saved');
+  row.querySelector('[data-end-reason]').textContent = `已补上：${beijingClock(endAt)} 结束${end - Date.parse(start) >= 86400000 ? '（次日）' : ''}`;
+  return true;
+}
+$('importSummary').addEventListener('click', event => {
+  const one = event.target.closest('[data-end-save]');
+  if (one) { saveEnd(one.closest('.end-row')); return; }
+  if (event.target.closest('[data-end-save-all]')) {
+    const rows = [...$('importSummary').querySelectorAll('.end-row:not(.is-saved)')];
+    const saved = rows.filter(saveEnd).length;
+    if (saved) tell(`已补上 ${saved} 处点墨的结束时间。`);
+    return;
+  }
+  if (event.target.closest('[data-end-model]')) estimateEnds('model');
 });
 for (const id of ['noticeText', 'noticeDate', 'extractionMode']) $(id).addEventListener('input', () => { parseSequence += 1; busy($('parseNotice'), false, '导入'); hideParseProgress(); });
 
@@ -413,6 +524,7 @@ ocrAsTimetable.addEventListener('click', () => {
   $('noticeText').dispatchEvent(new window.Event('input', { bubbles: true }));
   ocrStatus('已把这张图交给课表截图识别，结果在“铺纸”页的“从课表铺底色”里。');
   window.SixuRouter?.go('time');
+  openRoll('routine');
   $('timetableSection').scrollIntoView({ behavior: scrollBehavior(), block: 'start' });
   runTimetable('image', file);
 });
@@ -540,7 +652,6 @@ $('referenceTime').addEventListener('change', event => {
   renderCalendar();
 });
 $('useCurrentTime').addEventListener('click', () => { calendarWeek = null; commit(setReferenceTime(snapshot, currentMinuteISO())); });
-$('routinesConfirmed').addEventListener('change', event => commit(setRoutinesConfirmed(snapshot, event.target.checked)));
 $('addRoutine').addEventListener('click', () => {
   $('routineForm').hidden = false;
   $('routineFrom').value = localDate(Date.parse(snapshot.reference_time));
@@ -696,7 +807,8 @@ $('calendarView').addEventListener('click', event => {
     computeCalendar();
     return;
   }
-  if (event.target.closest('[data-cal-goto="time"]')) { window.SixuRouter?.go('time'); return; }
+  const goto = event.target.closest('[data-cal-goto="time"]');
+  if (goto) { window.SixuRouter?.go('time'); openRoll(goto.dataset.calRoll || 'free'); return; }
   if (event.target.closest('[data-strategy-undo]')) { undoStrategy(); return; }
   const option = event.target.closest('[data-strategy]');
   if (option) { applyStrategy(option.dataset.strategy); return; }
@@ -714,7 +826,7 @@ function applyStrategy(key) {
   const params = strategy.params;
   if (strategy.action === 'review') {
     const element = params.item ? $(`item-${params.item}`) : null;
-    if (element) showOnPage(element, 'center'); else window.SixuRouter?.go(params.page);
+    if (element) showOnPage(element, 'center'); else { window.SixuRouter?.go(params.page); if (params.page === 'time') openRoll('routine'); }
     return;
   }
   let next;

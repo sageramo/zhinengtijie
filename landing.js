@@ -1,4 +1,4 @@
-// Landing page motion: the looping hero film over its still (assets/hero-meadow-loop.mp4, hero-meadow-plate.webp), words that
+// Landing page motion: the looping hero film over its still (assets/hero-ribbon-loop.mp4, hero-ribbon-plate.jpg), words that
 // pull up into place once, and an about paragraph whose characters brighten as it scrolls through. Reduced
 // motion keeps the film on its poster frame and shows all text at full strength.
 (() => {
@@ -34,22 +34,18 @@
   // Timers, not requestAnimationFrame: background tabs never run rAF, and the text must not wait on it.
   const playHero = () => heroBlocks.forEach(block => block.classList.add('is-in'));
 
-  // Intro (index.html, html.intro): plays for 2.3s, then the iris opens; any click, key or scroll skips it.
-  const intro = root.classList.contains('intro') ? document.getElementById('intro') : null;
-  let introOut = false;
-  function endIntro() {
-    if (introOut) return;
-    introOut = true;
-    root.classList.add('intro-out');
-    window.setTimeout(playHero, 250);
-    window.setTimeout(() => { root.classList.remove('intro', 'intro-out'); intro.remove(); }, 850);
+  // Opening (html.intro, set before paint): the same 墨韵 veil as entering the workbench (router.js),
+  // blooming from the centre over paper and melting onto the hero; any click, key or scroll skips it.
+  document.getElementById('intro')?.remove();
+  if (root.classList.contains('intro') && window.SixuVeil) {
+    const skip = window.SixuVeil.intro(() => { root.classList.remove('intro'); window.setTimeout(playHero, 120); });
+    window.addEventListener('pointerdown', skip, { once: true });
+    window.addEventListener('keydown', skip, { once: true });
+    window.addEventListener('wheel', skip, { once: true, passive: true });
+  } else {
+    root.classList.remove('intro');
+    window.setTimeout(playHero, calm.matches ? 0 : 60);
   }
-  if (intro) {
-    window.setTimeout(endIntro, 2300);
-    intro.addEventListener('pointerdown', endIntro);
-    window.addEventListener('keydown', endIntro, { once: true });
-    window.addEventListener('wheel', endIntro, { once: true, passive: true });
-  } else window.setTimeout(playHero, calm.matches ? 0 : 60);
 
   // Scroll-linked reveal: characters go from 0.2 to full opacity as the paragraph crosses the viewport.
   const reveal = document.querySelector('[data-reveal]');

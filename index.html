@@ -4,17 +4,17 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="description" content="把校园通知整理成可核对的事项，用真实空闲生成经过校验的个人安排。">
-  <meta name="sixu-ui-version" content="2026.11.07.7">
+  <meta name="sixu-ui-version" content="2026.11.07.30">
   <title>司序 Marshal · 知所先后</title>
   <link rel="icon" href="./assets/sixu-mark.svg" type="image/svg+xml">
   <script>{ const h = location.hash; document.documentElement.dataset.current = h.startsWith('#/') && ['import', 'items', 'time', 'calendar', 'review', 'plan'].includes(h.slice(2)) ? ({ review: 'items', plan: 'calendar' }[h.slice(2)] || h.slice(2)) : 'home'; if (document.documentElement.dataset.current === 'home' && !matchMedia('(prefers-reduced-motion: reduce)').matches) document.documentElement.classList.add('intro'); }</script>
-  <link rel="preload" as="image" href="./assets/hero-meadow-plate.webp">
-  <link rel="stylesheet" href="./agent.css?v=2026.11.07.7">
+  <link rel="preload" as="image" href="./assets/hero-ribbon-plate.jpg">
+  <link rel="stylesheet" href="./agent.css?v=2026.11.07.30">
 </head>
 <body>
   <div class="intro" id="intro" aria-hidden="true">
     <div class="intro-stage">
-      <svg class="intro-mark" viewBox="0 0 100 100"><circle class="intro-ghost" cx="50" cy="50" r="43" fill="none" stroke="currentColor" stroke-width="5"/><g class="intro-ring" fill="none" stroke="currentColor" stroke-width="5" stroke-linecap="round"><path pathLength="1" d="M58.94 7.94A43 43 0 0 1 92.06 41.06"/><path pathLength="1" d="M92.06 58.94A43 43 0 0 1 58.94 92.06"/><path pathLength="1" d="M41.06 92.06A43 43 0 0 1 7.94 58.94"/><path pathLength="1" d="M7.94 41.06A43 43 0 0 1 41.06 7.94"/></g><g class="intro-needle"><path class="intro-north" d="M50 2Q54.6 45.4 75 50H25Q45.4 45.4 50 2Z"/><path class="intro-south" pathLength="1" d="M27.5 50Q46 54.6 50 82Q54 54.6 72.5 50" fill="none" stroke="currentColor" stroke-width="4.5" stroke-linejoin="round" stroke-linecap="round"/></g></svg>
+      <svg class="intro-mark" viewBox="0 0 100 100"><path class="intro-letter" d="M22 86V28H30.56L50 63.64L69.44 28H78V86H70V43.69L54.56 72H45.44L30 43.69V86Z" fill="currentColor"/><g class="intro-needle"><path class="intro-north" d="M50 14L53.2 40.4H46.8Z"/><path class="intro-south" pathLength="1" d="M46.8 40.4L50 62L53.2 40.4" fill="none" stroke="currentColor" stroke-width="1.8"/></g></svg>
       <p class="intro-word"><span class="intro-name">司序</span><span class="intro-motto">知所先后</span></p>
     </div>
   </div>
@@ -22,16 +22,16 @@
   <div class="landing" id="home" data-page="home">
     <section class="hero" aria-labelledby="heroTitle">
       <div class="hero-frame">
-        <div class="hero-scene" aria-hidden="true"><img class="hero-plate" src="./assets/hero-meadow-plate.webp" alt=""><video class="hero-video" id="heroVideo" muted loop playsinline preload="auto" aria-hidden="true"><source src="./assets/hero-meadow-loop.mp4" type="video/mp4"></video></div>
+        <div class="hero-scene" aria-hidden="true"><img class="hero-plate" src="./assets/hero-ribbon-plate.jpg" alt=""><video class="hero-video" id="heroVideo" muted loop playsinline preload="auto" aria-hidden="true"><source src="./assets/hero-ribbon-loop.mp4" type="video/mp4"></video></div>
         <div class="hero-shade" aria-hidden="true"></div>
         <header class="hero-bar" data-drop>
-          <a class="hero-logo" href="#home" aria-label="司序 Marshal"><svg viewBox="0 0 100 100" width="30" height="30" aria-hidden="true"><path d="M92.06 58.94A43 43 0 0 1 58.94 92.06M41.06 92.06A43 43 0 0 1 7.94 58.94M7.94 41.06A43 43 0 0 1 41.06 7.94M58.94 7.94A43 43 0 0 1 92.06 41.06" fill="none" stroke="currentColor" stroke-width="7" stroke-linecap="round"/><path d="M50 2Q54.6 45.4 75 50H25Q45.4 45.4 50 2Z" fill="currentColor"/><path d="M27.5 50Q46 54.6 50 82Q54 54.6 72.5 50" fill="none" stroke="currentColor" stroke-width="6" stroke-linejoin="round" stroke-linecap="round"/></svg><span>Marshal</span></a>
+          <a class="hero-logo mk-lockup" href="#home" aria-label="司序 Marshal · 知所先后"><svg class="mk-mark" viewBox="14 10 72 80" aria-hidden="true"><path d="M22 86V28H30.56L50 63.64L69.44 28H78V86H70V43.69L54.56 72H45.44L30 43.69V86Z" fill="currentColor"/><g class="mark-needle"><path d="M50 14L53.2 40.4H46.8Z" fill="currentColor"/><path d="M46.8 40.4L50 62L53.2 40.4" fill="none" stroke="currentColor" stroke-width="2.6"/></g></svg><span class="mk-rule" aria-hidden="true"></span><span class="mk-words" aria-hidden="true"><span class="mk-en">MARSHAL</span><span class="mk-cn">司序 · 知所先后</span></span></a>
           <nav class="hero-nav" aria-label="首页导航"><a href="#about">知所先后</a><a href="#features">四步</a><a href="./algorithm.html">计算说明</a></nav>
           <a class="hero-join" href="#/time">开始</a>
         </header>
         <div class="hero-copy">
           <p class="hero-kicker" data-rise style="--d:.1s">Marshal · Know What Comes First</p>
-          <h1 class="hero-title" id="heroTitle" data-pull><span class="sr-only">司序·知所先后 Marshal · Know What Comes First</span><span class="hero-line" aria-hidden="true"><span class="w" style="--i:0">司序</span><svg class="hero-star" viewBox="0 0 100 100" aria-hidden="true"><path class="mark-ring" d="M92.06 58.94A43 43 0 0 1 58.94 92.06M41.06 92.06A43 43 0 0 1 7.94 58.94M7.94 41.06A43 43 0 0 1 41.06 7.94M58.94 7.94A43 43 0 0 1 92.06 41.06" fill="none" stroke="currentColor" stroke-width="6" stroke-linecap="round"/><path d="M50 2Q54.6 45.4 75 50H25Q45.4 45.4 50 2Z" fill="currentColor"/><path d="M27.5 50Q46 54.6 50 82Q54 54.6 72.5 50" fill="none" stroke="currentColor" stroke-width="5" stroke-linejoin="round" stroke-linecap="round"/></svg></span><span class="hero-line hero-line-sub" aria-hidden="true"><span class="w" style="--i:1">知所先后</span></span></h1>
+          <h1 class="hero-title" id="heroTitle" data-pull><span class="sr-only">司序·知所先后 Marshal · Know What Comes First</span><span class="hero-line" aria-hidden="true"><span class="w" style="--i:0">司序</span><svg class="hero-star" viewBox="0 0 24 120" aria-hidden="true"><g class="hero-needle"><path d="M12 2L16.6 52H7.4Z" fill="currentColor"/><path d="M7.4 52L12 112L16.6 52" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/><circle cx="12" cy="52" r="2.6" fill="#fff" stroke="currentColor" stroke-width="1.4"/></g></svg></span><span class="hero-line hero-line-sub" aria-hidden="true"><span class="w" style="--i:1">知所先后</span></span></h1>
           <p class="hero-desc" data-rise style="--d:.75s">把群通知、课程要求和自己的安排，整理成一件件可以核对的事；再按你真正能用的时间，排出一份做得到的安排。</p>
           <div class="hero-actions" data-rise style="--d:.9s"><a class="cta" href="#/time">开始安排<svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><path d="M9 6l6 6-6 6" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></svg></a><a class="cta-ghost" href="#features"><svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><path d="M8.5 6.2v11.6a1 1 0 0 0 1.5.86l9.2-5.8a1 1 0 0 0 0-1.72L10 5.34a1 1 0 0 0-1.5.86z" fill="currentColor"/></svg>看看四步</a></div>
         </div>
@@ -43,7 +43,7 @@
         <canvas class="about-sky" id="aboutSky" aria-hidden="true"></canvas>
         <p class="about-label">出自《大学》</p>
         <h2 class="about-title" id="aboutTitle" data-pull><span class="w serif" style="--i:0">物</span><span class="w serif" style="--i:1">有</span><span class="w serif" style="--i:2">本</span><span class="w serif" style="--i:3">末</span><span class="w serif" style="--i:4">，</span><span class="w serif" style="--i:5">事</span><span class="w serif" style="--i:6">有</span><span class="w serif" style="--i:7">终</span><span class="w serif" style="--i:8">始</span><span class="w serif" style="--i:9">。</span><span class="w kai" style="--i:10">知</span><span class="w kai" style="--i:11">所</span><span class="w kai" style="--i:12">先</span><span class="w kai" style="--i:13">后</span><span class="w kai" style="--i:14">，</span><span class="w serif" style="--i:15">则</span><span class="w serif" style="--i:16">近</span><span class="w serif" style="--i:17">道</span><span class="w serif" style="--i:18">矣</span><span class="w serif" style="--i:19">。</span></h2>
-        <p class="about-body" data-reveal>司序不替你做决定。它把一周看作一张纸：每周照例的课程与例会是底色，自己能支配的时间是留白，在留白里落下约定与截止之事是落笔，讲座、考试这类外部安排的一次性事项是点墨。两件事落在同一处叫叠墨，还没写清楚的先记作待书。每一项都能回看原文依据，取舍留给你。</p>
+        <p class="about-body" data-reveal>司序不替你做决定。它把一周看作一张纸：每周照例的课程与例会是底色，自己能支配的时间是留白，在留白里落下约定与截止之事是落笔，讲座、考试、突发事务这类临时、突发的事项是点墨。两件事落在同一处叫叠墨，还没写清楚的先记作待书。每一项都能回看原文依据，取舍留给你。</p>
       </div>
     </section>
     <section class="features" id="features" aria-labelledby="featuresTitle">
@@ -55,33 +55,31 @@
   </div>
   <div class="app" data-app>
   <header class="site-header">
-    <a class="brand-lockup brand-title" href="#/" aria-label="司序·知所先后，回到首页"><svg class="brand-mark" viewBox="0 0 100 100" width="32" height="32" aria-hidden="true"><path class="mark-ring" d="M92.06 58.94A43 43 0 0 1 58.94 92.06M41.06 92.06A43 43 0 0 1 7.94 58.94M7.94 41.06A43 43 0 0 1 41.06 7.94M58.94 7.94A43 43 0 0 1 92.06 41.06" fill="none" stroke="currentColor" stroke-width="6" stroke-linecap="round"/><path d="M50 2Q54.6 45.4 75 50H25Q45.4 45.4 50 2Z" fill="currentColor"/><path d="M27.5 50Q46 54.6 50 82Q54 54.6 72.5 50" fill="none" stroke="currentColor" stroke-width="5" stroke-linejoin="round" stroke-linecap="round"/></svg><span class="brand-name">司序</span><span class="brand-dot">·</span><span class="brand-sub">知所先后</span></a>
+    <a class="brand-lockup brand-title mk-lockup" href="#/" aria-label="司序 Marshal · 知所先后，回到首页"><svg class="brand-mark mk-mark" viewBox="14 10 72 80" aria-hidden="true"><path d="M22 86V28H30.56L50 63.64L69.44 28H78V86H70V43.69L54.56 72H45.44L30 43.69V86Z" fill="currentColor"/><g class="mark-needle"><path d="M50 14L53.2 40.4H46.8Z" fill="currentColor"/><path d="M46.8 40.4L50 62L53.2 40.4" fill="none" stroke="currentColor" stroke-width="2.6"/></g></svg><span class="mk-rule" aria-hidden="true"></span><span class="mk-words" aria-hidden="true"><span class="mk-en">MARSHAL</span><span class="mk-cn">司序 · 知所先后</span></span></a>
     <nav class="page-tabs" aria-label="功能页面"><a href="#/time" data-tab="time"><span class="tab-no">1</span><span class="tab-name">铺纸</span><span class="tab-sub">底色与留白</span></a><a href="#/import" data-tab="import"><span class="tab-no">2</span><span class="tab-name">研墨</span><span class="tab-sub">导入通知</span></a><a href="#/items" data-tab="items"><span class="tab-no">3</span><span class="tab-name">笔墨</span><span class="tab-sub">落笔与点墨</span><span class="tab-count" id="itemsCount" aria-label="项待书"></span></a><a href="#/calendar" data-tab="calendar"><span class="tab-no">4</span><span class="tab-name">画卷</span><span class="tab-sub">一周日历</span><span class="tab-count is-alert" id="conflictCount" aria-label="处叠墨"></span></a></nav>
+    <div class="page-status"><p class="save-state" id="saveState" role="status">清单保存在当前浏览器</p><div class="list-actions" aria-label="清单"><button type="button" id="exportSnapshot" title="导出清单"><svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true"><path d="M12 4v11M7 10l5 5 5-5M5 20h14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg><span class="btn-text">导出清单</span></button><button class="danger-text" type="button" id="clearSnapshot" title="清空清单"><svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true"><path d="M5 7h14M10 7V4h4v3M7 7l1 13h8l1-13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg><span class="btn-text">清空清单</span></button></div></div>
     <nav class="aux-nav" aria-label="辅助入口"><a href="#/">回到首页</a><a href="./algorithm.html">计算说明</a></nav>
   </header>
   <main class="workspace">
-    <div class="page-status"><h1 class="sr-only" id="workbenchHeading" tabindex="-1">司序工作台</h1><p class="save-state" id="saveState" role="status">清单保存在当前浏览器</p><div class="list-actions" aria-label="清单"><button type="button" id="exportSnapshot"><svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true"><path d="M12 4v11M7 10l5 5 5-5M5 20h14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>导出清单</button><button class="danger-text" type="button" id="clearSnapshot"><svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true"><path d="M5 7h14M10 7V4h4v3M7 7l1 13h8l1-13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>清空清单</button></div></div>
-    <div id="appMessage" class="message" role="status" aria-live="polite" hidden></div>
+    <h1 class="sr-only" id="workbenchHeading" tabindex="-1">司序工作台</h1>
+    <div id="appMessage" class="message toast" role="status" aria-live="polite" hidden></div>
     <div id="storageConflict" class="message warning" hidden><p>清单在另一个标签页发生了变化。为避免覆盖，请先导出当前内容，再载入最新清单。</p><button type="button" id="reloadLatest">载入最新清单</button></div>
     <div class="page page-import" data-page="import">
         <section class="surface" id="noticeSection" aria-labelledby="noticeHeading">
-          <h2 id="noticeHeading">导入一份通知</h2>
-          <p class="section-note">有起止时间的活动直接作为点墨放进日历，有截止的事直接进入落笔；没写清楚的先记作“待书”，随时补。</p>
+          <div class="ink-head"><svg class="inkstone" viewBox="0 0 120 84" aria-hidden="true"><defs><radialGradient id="inkPool" cx="50%" cy="45%" r="60%"><stop offset="0" stop-color="#1d4f94"/><stop offset=".7" stop-color="#2563b8"/><stop offset="1" stop-color="#3f86d6"/></radialGradient><linearGradient id="inkStone" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#e3eaf3"/><stop offset="1" stop-color="#b9c7d8"/></linearGradient></defs><ellipse cx="60" cy="52" rx="56" ry="28" fill="url(#inkStone)"/><ellipse cx="60" cy="48" rx="47" ry="21" fill="#f6f9fc"/><ellipse class="inkstone-pool" cx="60" cy="50" rx="38" ry="15" fill="url(#inkPool)"/><path class="inkstone-swirl" d="M44 50c4-7 18-9 26-4s4 12-6 11-10-7-3-9" fill="none" stroke="#9fcdf5" stroke-width="1.6" stroke-linecap="round" opacity=".8"/><g class="inkstone-stick"><rect x="74" y="6" width="13" height="40" rx="3" transform="rotate(24 80 26)" fill="#1f2d3d"/><rect x="74" y="10" width="13" height="7" transform="rotate(24 80 26)" fill="#e09a35" opacity=".9"/></g></svg><div><h2 id="noticeHeading">研墨 <span class="layer-gloss">导入一份通知，研成可落笔的墨</span></h2>
+          <p class="section-note">有起止时间的活动成为点墨，有截止的事进入落笔；没写清楚的先记作“待书”。</p></div></div>
           <form id="noticeForm">
-            <label for="noticeText">通知原文</label>
-            <textarea id="noticeText" rows="9" maxlength="100000" placeholder="粘贴通知。时间、地点和材料要求尽量保留原样。" aria-describedby="ocrHelp" required></textarea>
-            <div class="ocr-row"><button type="button" id="chooseNoticeImage" aria-describedby="ocrHelp">从截图识别文字</button><input type="file" id="noticeImage" accept="image/png,image/jpeg,image/webp,image/gif,image/bmp" hidden></div>
-            <p class="field-help" id="ocrHelp">也可以直接把截图粘贴到上面的输入框。截图只在本机浏览器里识别，不会上传；首次识别需加载约6MB识别数据。识别结果可能有错字和漏字，请对照截图修改后再导入。</p>
+            <div class="inkwell" id="inkwell"><label for="noticeText">通知原文</label>
+            <textarea id="noticeText" rows="9" maxlength="100000" placeholder="粘贴通知。时间、地点和材料要求尽量保留原样。" required></textarea><span class="inkwell-ripple" aria-hidden="true"></span></div>
+            <div class="ocr-row"><button type="button" id="chooseNoticeImage">从截图识别文字</button><input type="file" id="noticeImage" accept="image/png,image/jpeg,image/webp,image/gif,image/bmp" hidden></div>
             <p class="field-help" id="ocrStatus" role="status"></p>
             <figure class="ocr-preview" id="ocrPreview" hidden><img id="ocrPreviewImage" alt="正在识别或刚识别的通知截图"><figcaption>对照这张截图检查上面的文字。</figcaption></figure>
             <div class="field-grid">
-              <label>通知的参照日期 <span class="optional">可选</span><input id="noticeDate" type="date" aria-describedby="noticeDateHelp"></label>
-              <label>提取方式<select id="extractionMode" aria-describedby="extractionModeHelp"><option value="rules">规则提取</option><option value="model">模型提取 · Dify</option></select></label>
+              <label>通知的参照日期 <span class="optional">可选</span><input id="noticeDate" type="date"></label>
+              <label>提取方式<select id="extractionMode"><option value="rules">规则提取</option><option value="model">模型提取 · Dify</option></select></label>
             </div>
-            <p class="field-help" id="noticeDateHelp">原文缺少年份或写“今天、明天”时，选一下通知是哪天发的。</p>
-            <p class="field-help" id="extractionModeHelp">规则提取在本机即时完成，不调用模型；模型提取需要先启动本地模型服务，原文会发往 Dify 及所选模型。</p>
             <button class="primary-button full-width" type="submit" id="parseNotice">导入</button>
-            <div class="parse-progress" id="parseProgress" hidden><svg class="progress-needle" viewBox="0 0 100 100" width="36" height="36" aria-hidden="true"><path class="mark-ring" d="M92.06 58.94A43 43 0 0 1 58.94 92.06M41.06 92.06A43 43 0 0 1 7.94 58.94M7.94 41.06A43 43 0 0 1 41.06 7.94M58.94 7.94A43 43 0 0 1 92.06 41.06" fill="none" stroke="currentColor" stroke-width="6" stroke-linecap="round"/><g class="spin"><path d="M50 2Q54.6 45.4 75 50H25Q45.4 45.4 50 2Z" fill="currentColor"/><path d="M27.5 50Q46 54.6 50 82Q54 54.6 72.5 50" fill="none" stroke="currentColor" stroke-width="5" stroke-linejoin="round" stroke-linecap="round"/></g></svg><div><p id="parseStep" role="status">正在提取</p><p class="field-help"><span id="parseElapsed" aria-hidden="true"></span><span id="parseHint"></span></p></div></div>
+            <div class="parse-progress" id="parseProgress" hidden><span class="ink-swirl" aria-hidden="true"></span><div><p id="parseStep" role="status">正在提取</p><p class="field-help"><span id="parseElapsed" aria-hidden="true"></span><span id="parseHint"></span></p></div></div>
           </form>
           <div class="import-summary" id="importSummary" role="status" hidden></div>
           <div class="example-actions"><button class="text-button" id="fillExample" type="button">填入虚构通知</button><button class="text-button" id="loadDemoWeek" type="button">试试示例一周</button></div>
@@ -93,6 +91,8 @@
       </aside>
     </div>
     <div class="page" data-page="items">
+        <div class="rolls" data-rolls>
+        <article class="roll" data-roll="work"><button type="button" class="roll-face" data-roll-open="work" aria-controls="roll-work"><span class="roll-rod" aria-hidden="true"></span><span class="roll-paper"><span class="roll-name">落笔</span><span class="roll-gloss">约定与截止之事</span><span class="roll-summary" id="rollSummary-work"></span><span class="roll-hint">展开<svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true"><path d="M6 9l6 6 6-6" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></span></span><span class="roll-rod" aria-hidden="true"></span></button><div class="roll-body" id="roll-work"><div class="roll-bar"><button type="button" class="roll-back" data-roll-close><svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true"><path d="M15 5l-7 7 7 7" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>返回</button></div>
         <section class="surface" id="taskSection" aria-labelledby="taskHeading">
           <h2 id="taskHeading">落笔 <span class="layer-gloss">在留白里落下约定与截止之事</span></h2>
           <div class="section-top sub-top"><div><h3 id="appointmentHeading">约定</h3><p class="section-note">自己约好的事，比如周末和朋友出去玩。有固定的起止，占用留白。</p></div><button type="button" id="addAppointment">添加约定</button></div>
@@ -100,22 +100,22 @@
           <div class="section-top sub-top"><div><h3 id="deadlineHeading">截止之事</h3><p class="section-note">有截止的事。填了预计用时，日历会在截止前的留白里为它落笔。</p></div><button type="button" id="addTask">添加截止之事</button></div>
           <div id="taskList"></div>
         </section>
+        </div></article>
+        <article class="roll" data-roll="event"><button type="button" class="roll-face" data-roll-open="event" aria-controls="roll-event"><span class="roll-rod" aria-hidden="true"></span><span class="roll-paper"><span class="roll-name">点墨</span><span class="roll-gloss">临时、突发事项</span><span class="roll-summary" id="rollSummary-event"></span><span class="roll-hint">展开<svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true"><path d="M6 9l6 6 6-6" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></span></span><span class="roll-rod" aria-hidden="true"></span></button><div class="roll-body" id="roll-event"><div class="roll-bar"><button type="button" class="roll-back" data-roll-close><svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true"><path d="M15 5l-7 7 7 7" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>返回</button></div>
         <section class="surface" id="eventSection" aria-labelledby="eventHeading">
-          <div class="section-top"><div><h2 id="eventHeading">点墨 <span class="layer-gloss">一次性的安排</span></h2><p class="section-note">讲座、考试、面试、突发事务这类由外部定好时间的一次性事项。</p></div><button type="button" id="addEvent">添加点墨</button></div>
+          <div class="section-top"><div><h2 id="eventHeading">点墨 <span class="layer-gloss">临时、突发事项</span></h2><p class="section-note">讲座、考试、面试、突发事务这类临时、突发的事项，时间多由别人定。</p></div><button type="button" id="addEvent">添加点墨</button></div>
           <div id="eventList"></div>
         </section>
+        </div></article>
+        </div>
         <a class="next-step" href="#/calendar">下一步：画卷 · 一周日历<svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><path d="M5 12h14M13 6l6 6-6 6" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></a>
     </div>
     <div class="page" data-page="time">
-        <section class="surface" id="windowSection" aria-labelledby="windowHeading">
-          <div class="section-top"><div><h2 id="windowHeading">留白 <span class="layer-gloss">自己能支配的时间</span></h2><p class="section-note">先定每天的作息范围。留白 = 作息范围 − 底色 − 点墨与约定。</p></div><button type="button" id="presetWindow">一键填入常用作息</button></div>
-          <form id="windowForm"><div class="day-grid" id="dayGrid"></div><div class="inline-actions"><button type="submit" class="primary-button">保存作息范围</button><button type="button" class="text-button" id="clearWindow">清除（自由时间改为未定义）</button></div><p class="field-error" id="windowError" role="status"></p></form>
-          <label for="referenceTime">从什么时刻开始安排</label><div class="reference-row"><input type="datetime-local" id="referenceTime" aria-describedby="referenceTimeHelp" required><button type="button" id="useCurrentTime">使用当前时间</button></div><p class="field-help" id="referenceTimeHelp">工作时间只会排在这个时刻之后。所有时间按北京时间（UTC+8）。</p>
-        </section>
+        <div class="rolls" data-rolls>
+        <article class="roll" data-roll="routine"><button type="button" class="roll-face" data-roll-open="routine" aria-controls="roll-routine"><span class="roll-rod" aria-hidden="true"></span><span class="roll-paper"><span class="roll-name">底色</span><span class="roll-gloss">每周照例的占用</span><span class="roll-summary" id="rollSummary-routine"></span><span class="roll-hint">展开<svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true"><path d="M6 9l6 6 6-6" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></span></span><span class="roll-rod" aria-hidden="true"></span></button><div class="roll-body" id="roll-routine"><div class="roll-bar"><button type="button" class="roll-back" data-roll-close><svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true"><path d="M15 5l-7 7 7 7" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>返回</button></div>
         <section class="surface" id="routineSection" aria-labelledby="routineHeading">
           <div class="section-top"><div><h2 id="routineHeading">底色 <span class="layer-gloss">每周照例的占用</span></h2><p class="section-note">课表、每周例会、固定出行这类每周重复的事。</p></div><button type="button" id="addRoutine">手动添加</button></div>
-          <label class="check-row"><input type="checkbox" id="routinesConfirmed">底色已经铺好（没有例行的事也勾选）</label>
-          <div id="routineList"></div>
+                    <div id="routineList"></div>
           <form class="routine-form" id="routineForm" hidden>
             <div class="field-grid"><label class="field-wide">名称<input id="routineTitle" required maxlength="200"></label>
               <fieldset class="field-wide weekday-picks"><legend>每周哪几天</legend><div id="routineWeekdays"></div></fieldset>
@@ -137,11 +137,20 @@
           </form>
           <div id="timetablePreview" role="status"></div>
         </section>
+        </div></article>
+        <article class="roll" data-roll="free"><button type="button" class="roll-face" data-roll-open="free" aria-controls="roll-free"><span class="roll-rod" aria-hidden="true"></span><span class="roll-paper"><span class="roll-name">留白</span><span class="roll-gloss">自己能支配的时间</span><span class="roll-summary" id="rollSummary-free"></span><span class="roll-hint">展开<svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true"><path d="M6 9l6 6 6-6" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></span></span><span class="roll-rod" aria-hidden="true"></span></button><div class="roll-body" id="roll-free"><div class="roll-bar"><button type="button" class="roll-back" data-roll-close><svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true"><path d="M15 5l-7 7 7 7" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>返回</button></div>
+        <section class="surface" id="windowSection" aria-labelledby="windowHeading">
+          <div class="section-top"><div><h2 id="windowHeading">留白 <span class="layer-gloss">自己能支配的时间</span></h2><p class="section-note">先定每天的作息范围。留白 = 作息范围 − 底色 − 点墨与约定。</p></div><button type="button" id="presetWindow">一键填入常用作息</button></div>
+          <form id="windowForm"><div class="day-grid" id="dayGrid"></div><div class="inline-actions"><button type="submit" class="primary-button">保存作息范围</button><button type="button" class="text-button" id="clearWindow">清除（自由时间改为未定义）</button></div><p class="field-error" id="windowError" role="status"></p></form>
+          <label for="referenceTime">从什么时刻开始安排</label><div class="reference-row"><input type="datetime-local" id="referenceTime" aria-describedby="referenceTimeHelp" required><button type="button" id="useCurrentTime">使用当前时间</button></div><p class="field-help" id="referenceTimeHelp">工作时间只会排在这个时刻之后。所有时间按北京时间（UTC+8）。</p>
+        </section>
         <section class="surface" id="adjustSection" aria-labelledby="adjustHeading">
           <div class="section-top"><div><h2 id="adjustHeading">调整留白</h2><p class="section-note">临时多出或少掉的留白：比如周六下午回家、某晚多学一小时。</p></div><button type="button" id="addAdjustment">添加调整</button></div>
           <div id="adjustmentList"></div>
           <form class="availability-form" id="adjustmentForm" hidden><label>类型<select id="adjustmentKind"><option value="remove">扣除留白</option><option value="add">增加留白</option></select></label><label>备注 <span class="optional">可选</span><input id="adjustmentNote" maxlength="500"></label><label>开始<input type="datetime-local" id="adjustmentStart" required></label><label>结束<input type="datetime-local" id="adjustmentEnd" required></label><div class="inline-actions"><button type="submit">保存</button><button type="button" class="text-button" id="cancelAdjustment">取消</button></div><p class="field-error" id="adjustmentError" role="status"></p></form>
         </section>
+        </div></article>
+        </div>
         <a class="next-step" href="#/import">下一步：研墨 · 导入通知<svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><path d="M5 12h14M13 6l6 6-6 6" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></a>
     </div>
     <div class="page page-calendar" data-page="calendar">
@@ -151,14 +160,15 @@
       <form id="apiForm"><label for="apiBase">解析与计算服务地址</label><input id="apiBase" type="url" inputmode="url" required><button type="submit">保存地址并检查连接</button><p class="field-help" id="connectionStatus" role="status">尚未检查连接</p></form>
       <div class="backup-actions"><button type="button" id="importSnapshot">导入清单</button><input type="file" id="importFile" accept="application/json,.json" hidden></div>
       <p class="field-help">导出文件包含原文与个人安排，请妥善保存。</p>
-      <p class="field-help" id="uiVersion">界面版本 2026.11.07.7</p>
+      <p class="field-help" id="uiVersion">界面版本 2026.11.07.30</p>
     </details>
     <footer class="page-footer"><span>以确认后的信息计算，把取舍留给你。</span></footer>
   </main>
+  <nav class="page-arrows" aria-label="翻页"><button type="button" class="page-arrow is-prev" data-page-step="-1" hidden><svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true"><path d="M15 5l-7 7 7 7" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg><span class="page-arrow-label"></span></button><button type="button" class="page-arrow is-next" data-page-step="1" hidden><span class="page-arrow-label"></span><svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true"><path d="M9 5l7 7-7 7" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg></button></nav>
   </div>
-  <div class="route-veil" id="routeVeil" aria-hidden="true"><svg class="veil-mark" viewBox="0 0 100 100"><path class="mark-ring" d="M92.06 58.94A43 43 0 0 1 58.94 92.06M41.06 92.06A43 43 0 0 1 7.94 58.94M7.94 41.06A43 43 0 0 1 41.06 7.94M58.94 7.94A43 43 0 0 1 92.06 41.06" fill="none" stroke="currentColor" stroke-width="5" stroke-linecap="round"/><g class="veil-needle"><path d="M50 2Q54.6 45.4 75 50H25Q45.4 45.4 50 2Z" fill="currentColor"/><path d="M27.5 50Q46 54.6 50 82Q54 54.6 72.5 50" fill="none" stroke="currentColor" stroke-width="5" stroke-linejoin="round" stroke-linecap="round"/></g></svg></div>
+  <div class="route-veil" id="routeVeil" aria-hidden="true"><i class="ink ink-1"></i><i class="ink ink-2"></i><i class="ink ink-3"></i><svg class="veil-mark" viewBox="0 0 100 100"><path class="mark-ring" d="M22 86V28H30.56L50 63.64L69.44 28H78V86H70V43.69L54.56 72H45.44L30 43.69V86Z" fill="currentColor"/><g class="veil-needle"><path d="M50 14L53.2 40.4H46.8Z" fill="currentColor"/><path d="M46.8 40.4L50 62L53.2 40.4" fill="none" stroke="currentColor" stroke-width="1.8"/></g></svg><p class="veil-word"><span>司序</span><span>知所先后</span></p></div>
   <noscript>此页面需要启用JavaScript才能编辑和计算任务。</noscript>
-  <script type="importmap">{"imports":{"./task-state.js":"./task-state.js?v=2026.11.07.7","./snapshot-store.js":"./snapshot-store.js?v=2026.11.07.7","./model-candidates.js":"./model-candidates.js?v=2026.11.07.7","./time-review.js":"./time-review.js?v=2026.11.07.7","./planning-result.js":"./planning-result.js?v=2026.11.07.7","./calendar.js":"./calendar.js?v=2026.11.07.7","./time-state.js":"./time-state.js?v=2026.11.07.7","./scenario.js":"./scenario.js?v=2026.11.07.7","./screenshot-ocr.js":"./screenshot-ocr.js?v=2026.11.07.7"}}</script>
-  <script src="./router.js?v=2026.11.07.7"></script><script src="./about-sky.js?v=2026.11.07.7"></script><script src="./landing.js?v=2026.11.07.7"></script><script src="./api-config.js?v=2026.11.07.7"></script><script type="module" src="./agent.js?v=2026.11.07.7"></script>
+  <script type="importmap">{"imports":{"./task-state.js":"./task-state.js?v=2026.11.07.30","./snapshot-store.js":"./snapshot-store.js?v=2026.11.07.30","./model-candidates.js":"./model-candidates.js?v=2026.11.07.30","./time-review.js":"./time-review.js?v=2026.11.07.30","./planning-result.js":"./planning-result.js?v=2026.11.07.30","./calendar.js":"./calendar.js?v=2026.11.07.30","./time-state.js":"./time-state.js?v=2026.11.07.30","./scenario.js":"./scenario.js?v=2026.11.07.30","./screenshot-ocr.js":"./screenshot-ocr.js?v=2026.11.07.30"}}</script>
+  <script src="./router.js?v=2026.11.07.30"></script><script src="./about-sky.js?v=2026.11.07.30"></script><script src="./landing.js?v=2026.11.07.30"></script><script src="./api-config.js?v=2026.11.07.30"></script><script type="module" src="./agent.js?v=2026.11.07.30"></script>
 </body>
 </html>

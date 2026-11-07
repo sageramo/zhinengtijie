@@ -264,10 +264,7 @@ test('routines are added by hand and the routines-filled switch is saved', async
   app.find('#routineList [data-remove]').click();
   await settle();
   assert.equal(app.stored().routines.length, 0);
-  app.find('#routinesConfirmed').checked = false;
-  app.find('#routinesConfirmed').dispatchEvent(new app.window.Event('change', { bubbles: true }));
-  await settle();
-  assert.equal(app.stored().routines_confirmed, false);
+  assert.match(app.find('#routineList').textContent, /底色可以不铺/);
   app.click('#addRoutine');
   app.set('#routineTitle', '空', 'input');
   app.submit('#routineForm');
@@ -304,7 +301,7 @@ test('timetable: needs a configured key, sends parsed period times, previews and
   await settle();
   assert.equal(posted[0].mode, 'model');
   assert.equal(posted[0].term_start, '2026-09-07');
-  assert.deepEqual(posted[0].periods['1'], { start: '08:00', end: '08:45' });
+  assert.deepEqual(posted[0].periods['1'], { start: '08:00', end: '08:50' });
   assert.equal(Object.keys(posted[0].periods).length, 12);
   assert.match(app.find('#timetablePreview').textContent, /整理出 2 处底色/);
   assert.equal(app.stored(), null, 'nothing is saved before the user imports');
@@ -334,7 +331,7 @@ test('timetable notes are not shown as rejected courses; only real rejections ar
 
 test('timetable screenshot: uploads the image, fills the transcript and offers the period times seen in it', async t => {
   const posted = [];
-  const seen = { '1': { start: '08:00', end: '08:50' }, '2': { start: '09:00', end: '09:50' } };
+  const seen = { '1': { start: '08:00', end: '08:45' }, '2': { start: '08:55', end: '09:40' } };
   const answer = { ...structuredClone(API.timetable), mode: 'image', periods_seen: seen,
     source: { ...API.timetable.source, text: '周一 第1-2节 高等数学 @主楼301' } };
   const routes = { '/api/v3/timetable': async body => { posted.push(body); return [200, structuredClone(answer)]; } };
@@ -351,7 +348,7 @@ test('timetable screenshot: uploads the image, fills the transcript and offers t
   assert.match(app.find('#timetablePreview').textContent, /截图上的节次时间与下面填的不同/);
   app.click('#usePeriodsSeen');
   await settle();
-  assert.match(app.find('#periodText').value, /^1 08:00-08:50\n2 09:00-09:50$/);
+  assert.match(app.find('#periodText').value, /^1 08:00-08:45\n2 08:55-09:40$/);
   assert.equal(posted[1].mode, 'convert');
   assert.equal(posted[1].text, '周一 第1-2节 高等数学 @主楼301');
   assert.deepEqual(posted[1].periods, seen);
@@ -529,3 +526,59 @@ test('the fictional example notice is written so rules extraction can read every
   assert.match(text, /\d{4}年\d{1,2}月\d{1,2}日18:00-20:00举行/);
   assert.doesNotMatch(text, /\d{4}-\d{2}-\d{2}\d{2}:/);
 });
+
+test('铺纸 and 笔墨 show two rolled cards; one unrolls at a time and 返回 rolls it up', async t => {
+  const app = await boot(t);
+  const group = app.find('[data-roll="routine"]').closest('[data-rolls]');
+  assert.match(app.find('#rollSummary-routine').textContent, /没有底色也能算/);
+  assert.match(app.find('#rollSummary-free').textContent, /作息未设定/);
+  app.click('[data-roll-open="routine"]');
+  assert.equal(group.dataset.open, 'routine');
+  assert.ok(app.find('[data-roll="routine"]').classList.contains('is-open'));
+  assert.equal(app.find('[data-roll-open="routine"]').getAttribute('aria-expanded'), 'true');
+  app.click('[data-roll="routine"] [data-roll-close]');
+  assert.equal(group.dataset.open, undefined);
+  assert.match(app.find('#rollSummary-work').textContent, /0.*件约定/);
+});
+
+test('messages float and fade on their own; a click dismisses them', async t => {
+  const app = await boot(t);
+  app.click('#fillExample');
+  app.find('#appMessage').hidden = false;
+  app.find('#appMessage').textContent = '提示';
+  app.click('#appMessage');
+  assert.equal(app.find('#appMessage').hidden, true);
+  assert.ok(app.find('#appMessage').classList.contains('toast'));
+});
+
+test('after import, 点墨 with only a start are asked 大约几点结束 with a suggested time, saved on one click', async t => {
+  const extract = structuredClone(API.extract);
+  extract.events = [{ ...extract.events[0], id: 'e-open', title: '学术讲座', end_at: null, evidence: [] }];
+  const estimates = [];
+  const routes = {
+    '/api/v3/extract': async () => [200, structuredClone(extract)],
+    '/api/v3/estimate-end': async body => { estimates.push(body); return [200, { estimates: [{ id: 'e-open', minutes: 90, end_at: '2026-11-10T19:30:00+08:00', basis: body.mode, reason: '按常见讲座时长估计约1小时30分钟。' }] }]; },
+  };
+  const app = await boot(t, { routes, health: { capabilities: [...CAPABILITIES, 'end_estimate_v1'], timetable_model: { configured: true } } });
+  app.set('#noticeText', API.notice, 'input');
+  app.submit('#noticeForm');
+  await settle();
+  assert.match(app.find('#importSummary').textContent, /大约几点结束/);
+  assert.equal(estimates[0].mode, 'rules');
+  assert.equal(estimates[0].items[0].start_at, '2026-11-10T18:00:00+08:00');
+  assert.match(estimates[0].items[0].context, /讲座/);
+  assert.equal(app.find('[data-end-for="e-open"] [data-end-input]').value, '19:30');
+  assert.equal(app.find('[data-end-model]').hidden, false);
+  app.find('[data-end-for="e-open"] [data-end-input]').value = '20:00';
+  app.click('[data-end-for="e-open"] [data-end-save]');
+  await settle();
+  assert.equal(app.stored().events.find(event => event.id === 'e-open').end_at, '2026-11-10T20:00:00+08:00');
+  assert.match(app.find('[data-end-for="e-open"]').textContent, /已补上：20:00 结束/);
+});
+
+test('page styles never show one page on another: only the current page is displayed', () => {
+  const css = readFileSync(new URL('../agent.css', import.meta.url), 'utf8');
+  // A bare .page-* rule must not set display, or that page appears under every tab.
+  for (const rule of css.match(/^\.page-(?:import|calendar|items|time)\s*\{[^}]*\}/gm) || []) assert.doesNotMatch(rule, /display\s*:/, rule);
+});
+
