@@ -121,7 +121,7 @@ function conflictCard(conflict, result) {
 function sideLists(result, undo) {
   const conflicts = result.conflicts.map(conflict => conflictCard(conflict, result)).join('');
   const undefinedRows = result.undefined.map(item => {
-    const target = item.id ? `data-cal-item="${escape(item.id)}" data-cal-layer="${item.type.startsWith('event_') ? 'event' : 'task'}"` : `data-cal-goto="time"`;
+    const target = item.id ? `data-cal-item="${escape(item.id)}" data-cal-layer="${item.type.startsWith('event_') ? 'event' : 'task'}"` : `data-cal-goto="time" data-cal-roll="${item.type === 'routines_unconfirmed' ? 'routine' : 'free'}"`;
     return `<li><button type="button" class="cal-issue is-undefined" ${target}><strong>${escape(item.title || (item.type === 'free_time_undefined' ? '留白' : '底色'))}</strong><span>${escape(item.reason)}</span></button></li>`;
   }).join('');
   const undoBar = undo ? `<p class="cx-undo">已采用：${escape(undo)}<button type="button" class="text-button" data-strategy-undo>撤销</button></p>` : '';
@@ -220,7 +220,7 @@ export function calendarMarkup({ result, start, now, loading = false, error = ''
       ${status}
       <div class="cal-pending">${side}</div>
       <ul class="cal-stats" aria-label="本周统计">${stat(count('routine'), '底色')}${stat(count('work') + count('appointment'), '落笔')}${stat(count('temporary'), '点墨')}${stat(count('deadline'), '截止')}${stat(Number(freeHours.toFixed(1)), '时留白')}</ul>
-      <ul class="cal-legend" aria-label="图例"><li class="lg-routine">底色 · 每周照例</li><li class="lg-free">留白 · 自己支配</li><li class="lg-work">落笔 · 约定与截止之事</li><li class="lg-temporary">点墨 · 一次性安排</li><li class="lg-deadline">截止</li><li class="lg-conflict">叠墨 · 相撞</li><li class="lg-now">此刻</li></ul>
+      <ul class="cal-legend" aria-label="图例"><li class="lg-routine">底色 · 每周照例</li><li class="lg-free">留白 · 自己支配</li><li class="lg-work">落笔 · 约定与截止之事</li><li class="lg-temporary">点墨 · 临时突发</li><li class="lg-deadline">截止</li><li class="lg-conflict">叠墨 · 相撞</li><li class="lg-now">此刻</li></ul>
     </aside>
     <div class="scroll-mount"><div class="cal-board">
       <div class="cal-week" style="--rows:${last - first}">

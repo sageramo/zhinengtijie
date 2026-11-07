@@ -5,6 +5,7 @@
 /* Landing display faces (OFL): Grandstander 900 for Marshal and the Latin lines, Zen Maru Gothic Black for
    the 司序 / 知所先后 headline only; both subset to what the landing shows. */
 @font-face { font-family: "Sixu Display"; src: url("./fonts/Grandstander-sixu.woff2") format("woff2"); font-weight: 900; font-display: swap; }
+@font-face { font-family: "Sixu Lockup"; src: url("./fonts/BodoniModa-sixu.woff2") format("woff2"); font-weight: 400; font-display: swap; }
 @font-face { font-family: "Sixu Round"; src: url("./fonts/ZenMaruGothic-sixu.woff2") format("woff2"); font-weight: 900; font-display: swap; }
 :root {
   /* 暮光暖纸: warm paper, ink-brown text, amber for action, grass green for done and free time. */
@@ -80,6 +81,9 @@ summary { cursor: pointer; color: var(--accent-deep); min-height: 40px; padding:
 .brand-lockup { display: inline-flex; align-items: center; white-space: nowrap; text-decoration: none; color: inherit; }
 .brand-lockup:hover { color: inherit; }
 .brand-mark { display: block; flex: none; margin-right: 12px; color: var(--moon); }
+/* 金针 M: the letter takes the text colour, the needle is gold. */
+.mark-needle { color: #b08a3e; }
+.hero-logo .mark-needle { color: #f1d48c; }
 .brand-name { font-family: var(--font-serif); font-size: 1.625rem; font-weight: 900; letter-spacing: .12em; line-height: 1.3; }
 .brand-dot { color: var(--gold); font-weight: 900; margin: 0 .1em 0 -.02em; font-size: 1.25rem; }
 .brand-sub { font-family: var(--font-kai); font-size: 1.125rem; letter-spacing: .28em; color: var(--gold-soft); }
@@ -409,11 +413,10 @@ html.intro .intro { position: fixed; inset: 0; z-index: 60; display: grid; place
 .intro-mark { width: clamp(88px, 16vmin, 140px); height: auto; overflow: visible; filter: drop-shadow(0 4px 18px rgba(28, 70, 120, .3)); }
 /* A faint track under the ring, for the segments to draw along. */
 .intro-ghost { opacity: .1; }
-.intro-ring path { stroke-dasharray: 1; stroke-dashoffset: 1; animation: intro-draw 700ms cubic-bezier(.6, 0, .2, 1) forwards; }
-.intro-ring path:nth-child(2) { animation-delay: 120ms; }
-.intro-ring path:nth-child(3) { animation-delay: 240ms; }
-.intro-ring path:nth-child(4) { animation-delay: 360ms; }
-.intro-needle { transform-box: view-box; transform-origin: 50px 50px; opacity: 0; animation: intro-spin 1500ms cubic-bezier(.25, .8, .3, 1) 320ms forwards; }
+.intro-letter { clip-path: inset(100% 0 0 0); animation: intro-letter 800ms cubic-bezier(.6, 0, .2, 1) 80ms forwards; }
+@keyframes intro-letter { to { clip-path: inset(0 0 0 0); } }
+/* The needle of the 金针 M turns about its own middle. */
+.intro-needle { transform-box: view-box; transform-origin: 50px 38px; opacity: 0; animation: intro-spin 1500ms cubic-bezier(.25, .8, .3, 1) 320ms forwards; }
 .intro-north { fill: #fff3c4; }
 .intro-south { stroke-dasharray: 1; stroke-dashoffset: 1; animation: intro-draw 600ms ease-out 700ms forwards; }
 .intro-word { display: grid; justify-items: center; gap: 10px; margin: 0; }
@@ -432,7 +435,7 @@ html.intro-out .intro-stage { animation: intro-lift 520ms cubic-bezier(.5, 0, .2
 .route-veil.is-out { animation: veil-wipe 520ms cubic-bezier(.7, 0, .2, 1) both; }
 .veil-mark { width: 112px; height: 112px; }
 .veil-mark .mark-ring { color: #fff; }
-.veil-needle { transform-box: view-box; transform-origin: 50px 50px; }
+.veil-needle { transform-box: view-box; transform-origin: 50px 38px; }
 .route-veil.is-on .veil-needle { animation: needle-settle 900ms cubic-bezier(.2, .7, .2, 1) 120ms both; }
 @keyframes veil-grow { from { clip-path: circle(0 at var(--x, 50%) var(--y, 50%)); } to { clip-path: circle(150vmax at var(--x, 50%) var(--y, 50%)); } }
 @keyframes veil-wipe { from { clip-path: inset(0 0 0 0); } to { clip-path: inset(0 0 100% 0); } }
@@ -743,13 +746,6 @@ html:not([data-current="home"]), html:not([data-current="home"]) body { backgrou
 /* A line near the bottom of the day keeps its label above itself, clear of the roller. */
 .cal .cal-deadline.is-low span { top: -19px; }
 
-/* The mount: silk border, paper inside, wooden rollers top and bottom. */
-.scroll-mount { position: relative; padding: 14px 14px; border-radius: 4px; background: repeating-linear-gradient(45deg, rgba(255, 255, 255, .25) 0 2px, transparent 2px 6px), linear-gradient(180deg, #dfe9f4, #e9f0f8 50%, #dfe9f4); box-shadow: 0 24px 50px rgba(29, 42, 56, .14), 0 2px 0 rgba(29, 42, 56, .05); }
-.scroll-mount::before, .scroll-mount::after { content: ""; position: absolute; left: -12px; right: -12px; height: 12px; border-radius: 6px; background: linear-gradient(180deg, #8a6440 0%, #5a3d25 45%, #3b2716 100%); box-shadow: 0 3px 8px rgba(43, 28, 15, .35); }
-.scroll-mount::before { top: -6px; }
-.scroll-mount::after { bottom: -6px; }
-.scroll-mount .cal-board { border: 0; border-radius: 2px; box-shadow: 0 0 0 1px rgba(29, 42, 56, .08); }
-html[data-current="calendar"] .page-status { margin-bottom: 8px; }
 html[data-current="calendar"] .cal { padding: 22px 26px 24px; }
 html[data-current="calendar"] .cal-head-day { flex-direction: row; justify-content: center; gap: 6px; padding: 6px 4px; }
 html[data-current="calendar"] .cal-head-day strong { width: 30px; height: 30px; font-size: 1.05rem; }
@@ -758,9 +754,362 @@ html[data-current="calendar"] .cal-head-day.is-today strong { box-shadow: 0 0 0 
   .scroll { grid-template-columns: minmax(0, 1fr); gap: 20px; }
   .scroll-side { max-height: none !important; overflow: visible; }
 }
-@media (max-width: 760px) { .scroll-mount { padding: 10px 8px; } .scroll-mount::before, .scroll-mount::after { left: -6px; right: -6px; } }
 @media (prefers-reduced-motion: reduce) { .cx-card, .cal .cal-block.is-lit { transition: none; transform: none; } }
 
 /* A faint compass mark rests in the lower right of every workbench page. */
 html:not([data-current="home"]) body { background: transparent; }
-html:not([data-current="home"]) body::after { content: ""; position: fixed; right: -70px; bottom: -80px; z-index: -1; width: min(46vw, 460px); aspect-ratio: 1; pointer-events: none; opacity: .07; transform: rotate(-14deg); background: center / contain no-repeat url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100' color='%232563b8'%3E%3Cpath d='M92.06 58.94A43 43 0 0 1 58.94 92.06M41.06 92.06A43 43 0 0 1 7.94 58.94M7.94 41.06A43 43 0 0 1 41.06 7.94M58.94 7.94A43 43 0 0 1 92.06 41.06' fill='none' stroke='%232563b8' stroke-width='5' stroke-linecap='round'/%3E%3Cpath d='M50 2Q54.6 45.4 75 50H25Q45.4 45.4 50 2Z' fill='%232563b8'/%3E%3Cpath d='M27.5 50Q46 54.6 50 82Q54 54.6 72.5 50' fill='none' stroke='%232563b8' stroke-width='4' stroke-linejoin='round' stroke-linecap='round'/%3E%3C/svg%3E"); }
+html:not([data-current="home"]) body::after { content: ""; position: fixed; right: -70px; bottom: -80px; z-index: -1; width: min(46vw, 460px); aspect-ratio: 1; pointer-events: none; opacity: .07; transform: rotate(-14deg); background: center / contain no-repeat url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Cpath d='M22 86V28H30.56L50 63.64L69.44 28H78V86H70V43.69L54.56 72H45.44L30 43.69V86Z' fill='%232563b8'/%3E%3Cpath d='M50 14L53.2 40.4H46.8Z' fill='%232563b8'/%3E%3Cpath d='M46.8 40.4L50 62L53.2 40.4' fill='none' stroke='%232563b8' stroke-width='1.6'/%3E%3C/svg%3E"); }
+
+/* ---- 画卷 mount, drawn after a handscroll but in the bright palette: ivory paper with fine fibres, a
+   gold double frame with cloud corners, and two rolled paper rollers with gold caps at left and right.
+   --paper / --clouds / --roller are shared with the rolled cards on 铺纸 and 笔墨. */
+[data-app] { --paper: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='220' height='220'%3E%3Cfilter id='f'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.9' numOctaves='3' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 .55 0 0 0 0 .45 0 0 0 0 .3 0 0 0 .06 0'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23f)'/%3E%3C/svg%3E"), linear-gradient(180deg, #fffdf8, #fbf6ea); --clouds: url("data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%2060%2060%22%20fill%3D%22none%22%20stroke%3D%22%23c99a4b%22%20stroke-linecap%3D%22round%22%3E%3Cg%20transform%3D%22%22%3E%3Cpath%20d%3D%22M3%2046V16Q3%203%2016%203H46%22%20stroke-width%3D%221.3%22%2F%3E%3Cpath%20d%3D%22M8%2052V20Q8%208%2020%208H52%22%20stroke-width%3D%22.8%22%20opacity%3D%22.6%22%2F%3E%3Cpath%20d%3D%22M14%2030c0-9%206-16%2015-16%206%200%2011%205%2011%2011%200%205-4%209-9%209-4%200-7-3-7-7%200-3%202-5%205-5%22%20stroke-width%3D%221.4%22%2F%3E%3Cpath%20d%3D%22M30%2014c4-6%2012-7%2017-3M14%2030c-6%204-7%2012-3%2017%22%20stroke-width%3D%221.1%22%2F%3E%3C%2Fg%3E%3C%2Fsvg%3E") left top / var(--cloud) no-repeat, url("data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%2060%2060%22%20fill%3D%22none%22%20stroke%3D%22%23c99a4b%22%20stroke-linecap%3D%22round%22%3E%3Cg%20transform%3D%22translate%2860%200%29%20scale%28-1%201%29%22%3E%3Cpath%20d%3D%22M3%2046V16Q3%203%2016%203H46%22%20stroke-width%3D%221.3%22%2F%3E%3Cpath%20d%3D%22M8%2052V20Q8%208%2020%208H52%22%20stroke-width%3D%22.8%22%20opacity%3D%22.6%22%2F%3E%3Cpath%20d%3D%22M14%2030c0-9%206-16%2015-16%206%200%2011%205%2011%2011%200%205-4%209-9%209-4%200-7-3-7-7%200-3%202-5%205-5%22%20stroke-width%3D%221.4%22%2F%3E%3Cpath%20d%3D%22M30%2014c4-6%2012-7%2017-3M14%2030c-6%204-7%2012-3%2017%22%20stroke-width%3D%221.1%22%2F%3E%3C%2Fg%3E%3C%2Fsvg%3E") right top / var(--cloud) no-repeat, url("data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%2060%2060%22%20fill%3D%22none%22%20stroke%3D%22%23c99a4b%22%20stroke-linecap%3D%22round%22%3E%3Cg%20transform%3D%22translate%280%2060%29%20scale%281%20-1%29%22%3E%3Cpath%20d%3D%22M3%2046V16Q3%203%2016%203H46%22%20stroke-width%3D%221.3%22%2F%3E%3Cpath%20d%3D%22M8%2052V20Q8%208%2020%208H52%22%20stroke-width%3D%22.8%22%20opacity%3D%22.6%22%2F%3E%3Cpath%20d%3D%22M14%2030c0-9%206-16%2015-16%206%200%2011%205%2011%2011%200%205-4%209-9%209-4%200-7-3-7-7%200-3%202-5%205-5%22%20stroke-width%3D%221.4%22%2F%3E%3Cpath%20d%3D%22M30%2014c4-6%2012-7%2017-3M14%2030c-6%204-7%2012-3%2017%22%20stroke-width%3D%221.1%22%2F%3E%3C%2Fg%3E%3C%2Fsvg%3E") left bottom / var(--cloud) no-repeat, url("data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%2060%2060%22%20fill%3D%22none%22%20stroke%3D%22%23c99a4b%22%20stroke-linecap%3D%22round%22%3E%3Cg%20transform%3D%22translate%2860%2060%29%20scale%28-1%20-1%29%22%3E%3Cpath%20d%3D%22M3%2046V16Q3%203%2016%203H46%22%20stroke-width%3D%221.3%22%2F%3E%3Cpath%20d%3D%22M8%2052V20Q8%208%2020%208H52%22%20stroke-width%3D%22.8%22%20opacity%3D%22.6%22%2F%3E%3Cpath%20d%3D%22M14%2030c0-9%206-16%2015-16%206%200%2011%205%2011%2011%200%205-4%209-9%209-4%200-7-3-7-7%200-3%202-5%205-5%22%20stroke-width%3D%221.4%22%2F%3E%3Cpath%20d%3D%22M30%2014c4-6%2012-7%2017-3M14%2030c-6%204-7%2012-3%2017%22%20stroke-width%3D%221.1%22%2F%3E%3C%2Fg%3E%3C%2Fsvg%3E") right bottom / var(--cloud) no-repeat; --cloud: 54px;
+  --roller-x: linear-gradient(90deg, #e3d7bf, #fffbf2 38%, #f4ead6 62%, #d6c6a6);
+  --roller-y: linear-gradient(180deg, #e3d7bf, #fffbf2 38%, #f4ead6 62%, #d6c6a6);
+  --cap: linear-gradient(180deg, #f6d48e, #d9a24c 55%, #b07a2e); }
+.scroll-mount { position: relative; margin: 14px 30px; padding: 26px 28px; background: var(--clouds), var(--paper); background-origin: padding-box; box-shadow: inset 16px 0 16px -14px rgba(150, 115, 60, .3), inset -16px 0 16px -14px rgba(150, 115, 60, .3), 0 18px 40px rgba(29, 42, 56, .1); }
+.scroll-mount { background-position: 8px 8px, calc(100% - 8px) 8px, 8px calc(100% - 8px), calc(100% - 8px) calc(100% - 8px), 0 0, 0 0; }
+.scroll-mount::before, .scroll-mount::after { content: ""; position: absolute; top: -14px; bottom: -14px; z-index: 2; width: 30px; border-radius: 6px; pointer-events: none;
+  background: linear-gradient(90deg, transparent 5px, #c99042 5px, #f6d48e 11px, #e0a956 19px, #b07a2e 25px, transparent 25px) top / 100% 14px no-repeat,
+    linear-gradient(90deg, transparent 5px, #c99042 5px, #f6d48e 11px, #e0a956 19px, #b07a2e 25px, transparent 25px) bottom / 100% 14px no-repeat,
+    linear-gradient(180deg, transparent 40px, rgba(217, 162, 76, .75) 40px 43px, transparent 43px 47px, rgba(217, 162, 76, .5) 47px 48px, transparent 48px calc(100% - 48px), rgba(217, 162, 76, .5) calc(100% - 48px) calc(100% - 47px), transparent calc(100% - 47px) calc(100% - 43px), rgba(217, 162, 76, .75) calc(100% - 43px) calc(100% - 40px), transparent calc(100% - 40px)) center / 100% calc(100% - 28px) no-repeat,
+    var(--roller-x) center / 100% calc(100% - 28px) no-repeat;
+  filter: drop-shadow(0 6px 8px rgba(120, 90, 40, .22)); }
+.scroll-mount::before { left: -28px; }
+.scroll-mount::after { right: -28px; }
+.scroll-mount .cal-board, [data-app] .scroll-mount .cal-board { border: 3px double rgba(201, 154, 75, .75); border-radius: 0; outline: 1px solid rgba(201, 154, 75, .35); outline-offset: 5px; background: rgba(255, 255, 255, .45); box-shadow: none; }
+.scroll-mount .cal-corner, .scroll-mount .cal-head-day { border-bottom-color: rgba(150, 115, 60, .22); }
+.scroll-mount .cal-head-day, .scroll-mount .cal-day { border-left-color: rgba(150, 115, 60, .12); }
+.scroll-mount .cal-day { background-image: linear-gradient(rgba(150, 115, 60, .1) 1px, transparent 1px); }
+.scroll-mount .cal-empty p { font-family: var(--font-kai); }
+@media (max-width: 760px) { .scroll-mount { --cloud: 32px; margin: 10px 14px; padding: 14px 10px; } .scroll-mount::before, .scroll-mount::after { width: 18px; } .scroll-mount::before { left: -16px; } .scroll-mount::after { right: -16px; } }
+
+/* ---- Messages float under the header and fade; they take no room on the page. */
+[data-app] .message.toast { position: fixed; top: 84px; left: 50%; z-index: 40; width: max-content; max-width: min(640px, calc(100vw - 32px)); margin: 0; box-shadow: 0 16px 40px rgba(29, 42, 56, .18); cursor: pointer; transform: translateX(-50%); animation: toast-in .35s cubic-bezier(.22, 1, .36, 1); }
+@keyframes toast-in { from { opacity: 0; transform: translate(-50%, -10px); } }
+
+/* ---- List status and actions live in the header now; the page starts right below it. */
+[data-app] .site-header .page-status { display: flex; align-items: center; gap: 8px; margin: 0 0 0 auto; flex-wrap: nowrap; }
+[data-app] .site-header .save-state { max-width: 11em; overflow: hidden; color: var(--muted); font-size: .75rem; white-space: nowrap; text-overflow: ellipsis; }
+[data-app] .site-header .list-actions { display: flex; gap: 6px; }
+[data-app] .site-header .list-actions button { display: inline-flex; align-items: center; gap: 6px; min-height: 34px; padding: 4px 12px; border-radius: 999px; font-size: .8125rem; }
+[data-app] .site-header .page-status + .aux-nav { margin-left: 4px; }
+.workspace { padding-top: 24px; }
+@media (max-width: 1360px) { [data-app] .site-header .save-state { display: none; } }
+@media (max-width: 1240px) { [data-app] .site-header .btn-text { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; } [data-app] .site-header .list-actions button { padding: 4px 10px; } }
+
+/* ---- Rolls (铺纸, 笔墨): two rolled cards side by side; one unrolls to full width, 返回 rolls it up. */
+.rolls { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: clamp(20px, 4vw, 56px); max-width: 1080px; margin: 12px auto 0; }
+.rolls[data-open] { grid-template-columns: minmax(0, 1fr); max-width: 1180px; }
+.rolls[data-open] .roll:not(.is-open) { display: none; }
+.roll-body { display: none; }
+.roll.is-open .roll-face { display: none; }
+.roll.is-open .roll-body { display: grid; gap: 20px; }
+.roll { position: relative; }
+.roll-face { display: grid; grid-template-rows: auto 1fr auto; width: 100%; min-height: 0; padding: 0 6px; border: 0; border-radius: 0; background: transparent; color: #3a2a18; text-align: center; cursor: pointer; }
+.roll-face:hover, .roll-face:active { background: transparent; }
+.roll-rod { position: relative; z-index: 1; display: block; height: 22px; margin: 0 -6px; border-radius: 6px; background: linear-gradient(90deg, transparent 30px, rgba(217, 162, 76, .75) 30px 33px, transparent 33px calc(100% - 33px), rgba(217, 162, 76, .75) calc(100% - 33px) calc(100% - 30px), transparent calc(100% - 30px)), var(--roller-y); box-shadow: 0 5px 10px rgba(120, 90, 40, .2); }
+.roll-rod::before, .roll-rod::after { content: ""; position: absolute; top: 3px; bottom: 3px; width: 12px; border-radius: 3px; background: var(--cap); }
+.roll-rod::before { left: -8px; }
+.roll-rod::after { right: -8px; }
+.roll-paper { position: relative; display: grid; align-content: center; justify-items: center; gap: 10px; min-height: clamp(280px, 46vh, 420px); margin: -2px 0; padding: 36px 28px; --cloud: 46px; background: var(--clouds), var(--paper); background-position: 22px 20px, calc(100% - 22px) 20px, 22px calc(100% - 20px), calc(100% - 22px) calc(100% - 20px), 0 0, 0 0; box-shadow: inset 0 12px 14px -12px rgba(150, 115, 60, .35), inset 0 -12px 14px -12px rgba(150, 115, 60, .35), 0 12px 30px rgba(29, 42, 56, .08); transition: min-height .5s cubic-bezier(.22, 1, .36, 1), padding .5s cubic-bezier(.22, 1, .36, 1); }
+.roll-paper::before { content: ""; position: absolute; inset: 14px 16px; border: 3px double rgba(201, 154, 75, .7); outline: 1px solid rgba(201, 154, 75, .3); outline-offset: 4px; pointer-events: none; }
+.roll-face:hover .roll-paper, .roll-face:focus-visible .roll-paper { min-height: clamp(300px, 50vh, 450px); }
+.roll-name { font-family: var(--font-serif); font-size: clamp(2.6rem, 5vw, 4rem); font-weight: 800; letter-spacing: .18em; line-height: 1.1; color: #2b1d0e; }
+.roll-gloss { font-family: var(--font-kai); font-size: 1rem; letter-spacing: .2em; color: rgba(74, 52, 28, .8); }
+.roll-summary { display: grid; gap: 4px; margin-top: 8px; font-size: .875rem; color: #4a341c; }
+.roll-summary b { font-family: var(--font-serif); font-size: 1.15rem; color: #2b1d0e; }
+.roll-summary em { font-style: normal; color: var(--danger); }
+.roll-hint { display: inline-flex; align-items: center; gap: 4px; margin-top: 10px; padding: 4px 14px; border: 1px solid rgba(176, 134, 58, .6); border-radius: 999px; color: #7a5530; font-size: .8125rem; letter-spacing: .1em; transition: background-color .2s ease; }
+.roll-face:hover .roll-hint { background: rgba(176, 134, 58, .14); }
+/* Unrolled: paper between a top rod and a bottom rod that travels down as the paper opens. */
+.roll-body { position: relative; padding: 34px clamp(16px, 3vw, 36px) 40px; background: var(--paper); box-shadow: inset 0 0 0 1px rgba(201, 154, 75, .3), 0 18px 40px rgba(29, 42, 56, .08); }
+.roll-body::before, .roll-body::after { content: ""; position: absolute; left: -12px; right: -12px; z-index: 2; height: 22px; border-radius: 6px; background: linear-gradient(90deg, transparent 2px, #c99042 2px 14px, transparent 14px calc(100% - 14px), #c99042 calc(100% - 14px) calc(100% - 2px), transparent calc(100% - 2px)), linear-gradient(90deg, transparent 40px, rgba(217, 162, 76, .75) 40px 43px, transparent 43px calc(100% - 43px), rgba(217, 162, 76, .75) calc(100% - 43px) calc(100% - 40px), transparent calc(100% - 40px)), var(--roller-y); box-shadow: 0 5px 10px rgba(120, 90, 40, .2); }
+.roll-body::before { top: -11px; }
+.roll-body::after { top: calc(100% - 11px); }
+.roll.is-open .roll-body { animation: roll-open .8s cubic-bezier(.22, 1, .36, 1) both; }
+.roll.is-open .roll-body::after { animation: roll-rod .8s cubic-bezier(.22, 1, .36, 1) both; }
+@keyframes roll-open { from { clip-path: inset(-14px -16px calc(100% - 14px) -16px); } to { clip-path: inset(-14px -16px -24px -16px); } }
+@keyframes roll-rod { from { top: -11px; } to { top: calc(100% - 11px); } }
+.roll-bar { position: sticky; top: 76px; z-index: 3; display: flex; justify-content: flex-start; margin: -6px 0 -4px; pointer-events: none; }
+.roll .roll-back { display: inline-flex; align-items: center; gap: 4px; min-height: 34px; padding: 4px 14px 4px 10px; border: 1px solid var(--line); border-radius: 999px; background: rgba(255, 255, 255, .95); color: var(--accent-deep); pointer-events: auto; box-shadow: 0 4px 12px rgba(43, 28, 15, .12); }
+.roll .roll-back:hover { border-color: #7a5530; background: #fff; }
+.roll-body > .surface { margin: 0; background: rgba(255, 255, 255, .82); border-color: rgba(176, 134, 58, .3); backdrop-filter: blur(2px); }
+@media (max-width: 760px) {
+  .rolls { grid-template-columns: minmax(0, 1fr); gap: 24px; }
+  .roll-paper { min-height: 200px; }
+  .roll-face:hover .roll-paper { min-height: 200px; }
+}
+@media (prefers-reduced-motion: reduce) { .roll.is-open .roll-body, .roll.is-open .roll-body::after, [data-app] .message.toast { animation: none; } .roll-paper { transition: none; } }
+
+/* 大约几点结束？ under the import summary */
+.end-ask { margin-top: 14px; padding-top: 12px; border-top: 1px dashed rgba(63, 138, 92, .4); color: var(--text); }
+.end-ask h3 { margin: 0 0 4px; font-family: var(--font-serif); font-size: 1rem; color: var(--text); }
+.end-ask > p { color: var(--muted); font-size: .8125rem; }
+.end-ask ul { display: grid; gap: 8px; margin: 10px 0; padding: 0; list-style: none; color: var(--text); font-size: .875rem; }
+.end-row { display: grid; grid-template-columns: minmax(0, 1fr) auto auto; align-items: center; gap: 6px 12px; padding: 10px 12px; border: 1px solid var(--line); border-radius: 10px; background: #fff; }
+.end-row div { display: grid; gap: 2px; min-width: 0; }
+.end-row div span { color: var(--muted); font-size: .75rem; }
+.end-row label { display: inline-flex; align-items: center; gap: 6px; margin: 0; font-size: .8125rem; white-space: nowrap; }
+.end-row input { width: 7.5em; margin: 0; }
+.end-row .end-reason { grid-column: 1 / -1; color: var(--muted); font-size: .75rem; font-style: normal; }
+.end-row.is-saved { border-color: var(--sage); background: var(--sage-soft); }
+.end-row.is-saved .end-reason { color: var(--sage-deep); }
+.end-row.is-saved input, .end-row.is-saved button { opacity: .55; }
+@media (max-width: 760px) { .end-row { grid-template-columns: minmax(0, 1fr) auto; } .end-row div { grid-column: 1 / -1; } }
+
+/* ---- Brand lockup: 司序 and 知所先后 sit on one baseline (the mark stays centred). */
+.brand-lockup { align-items: baseline; }
+.brand-lockup .brand-mark { align-self: center; }
+
+/* ---- Layer colours as one ink palette on the ivory paper:
+   底色 花青 (soft indigo), 留白 a faint 天青 wash that keeps the paper showing, 落笔 赭/缃 (ochre and
+   pale buff for 约定), 点墨 墨 (ink), 叠墨 胭脂 red. */
+.cal { --c-routine: linear-gradient(160deg, #7f9cb9, #63829f); --c-routine-solid: #6f8dab;
+  --c-free: rgba(140, 186, 202, .16); --c-free-edge: rgba(98, 152, 172, .55); --c-free-text: #4c7d90;
+  --c-work: linear-gradient(160deg, #e3a466, #c47c45); --c-work-solid: #d18f55;
+  --c-appt: linear-gradient(160deg, #f8e3b8, #efca8e); --c-appt-edge: #c98b35; --c-appt-text: #5a3a12; }
+.cal .cal-routine { background: var(--c-routine); color: #fff; box-shadow: 0 4px 12px rgba(70, 100, 130, .2); }
+.cal .cal-routine:hover { background: linear-gradient(160deg, #8aa7c3, #6c8ba8); }
+.cal .cal-free { border-left: 2px solid var(--c-free-edge); background: var(--c-free); color: var(--c-free-text); }
+.cal .cal-free:hover { background: rgba(140, 186, 202, .26); border-color: #4c7d90; }
+.cal .cal-work { background: var(--c-work); color: #fff; box-shadow: inset 0 0 0 1px rgba(255, 236, 205, .35), 0 6px 16px rgba(196, 124, 69, .28); }
+.cal .cal-work:hover { background: linear-gradient(160deg, #e9b075, #cc864f); }
+.cal .cal-appointment { background: var(--c-appt); color: var(--c-appt-text); box-shadow: inset 3px 0 0 var(--c-appt-edge), 0 4px 12px rgba(201, 139, 53, .2); }
+.cal .cal-appointment:hover { background: linear-gradient(160deg, #fae9c6, #f2d29c); }
+.cal-legend .lg-routine::before { background: var(--c-routine-solid); }
+.cal-legend .lg-free::before { border-left: 2px solid var(--c-free-edge); background: rgba(140, 186, 202, .3); }
+.cal-legend .lg-work::before { background: var(--c-work); box-shadow: none; }
+.cx-routine { background: var(--c-routine-solid); }
+.cx-work { background: var(--c-work); }
+.cx-appointment { background: var(--c-appt); box-shadow: inset 3px 0 0 var(--c-appt-edge); }
+.cx-free { background: rgba(98, 152, 172, .5); }
+.cal .cal-row-work { background: var(--c-work); }
+.cal .cal-row-free { background: var(--c-free); color: var(--c-free-text); }
+.cal .cal-row-appointment { border-left-color: var(--c-appt-edge); }
+
+/* ---- 墨韵 route transition (router.js): deep blue, sky blue and paper-white washes bloom from the
+   click point with a ragged, fibrous edge; the white settles into the workbench, the mark appears
+   in blue, and the veil melts away. Only transform, opacity and filter animate. */
+.route-veil { background: transparent; color: #2563b8; overflow: hidden; }
+.route-veil.is-on { animation: none; }
+.route-veil .ink { position: absolute; left: var(--x, 50%); top: var(--y, 50%); width: 160vmax; height: 160vmax; border-radius: 50%; transform: translate(-50%, -50%) scale(0) rotate(var(--r, 0deg)); -webkit-mask: var(--blot) center / 100% 100% no-repeat; mask: var(--blot) center / 100% 100% no-repeat; will-change: transform; }
+.route-veil .ink-1 { --r: 0deg; background: radial-gradient(circle, #1d4f94 0%, #2563b8 55%, #3f86d6 100%); }
+.route-veil .ink-2 { --r: 70deg; background: radial-gradient(circle, #5ea3e6 0%, #9fcdf5 100%); }
+.route-veil .ink-3 { --r: 150deg; background: radial-gradient(circle, #ffffff 0%, #f4f8fc 70%); }
+.route-veil.is-on .ink-1 { animation: ink-bloom 900ms cubic-bezier(.16, .8, .22, 1) both; }
+.route-veil.is-on .ink-2 { animation: ink-bloom 950ms cubic-bezier(.16, .8, .22, 1) 170ms both; }
+.route-veil.is-on .ink-3 { animation: ink-bloom 1000ms cubic-bezier(.16, .8, .22, 1) 340ms both; }
+@keyframes ink-bloom { from { transform: translate(-50%, -50%) scale(0) rotate(var(--r)); } to { transform: translate(-50%, -50%) scale(3) rotate(calc(var(--r) + 24deg)); } }
+.route-veil .veil-mark { position: relative; z-index: 1; opacity: 0; }
+.route-veil .veil-mark .mark-ring { color: #2563b8; }
+.route-veil.is-on .veil-mark { animation: veil-mark-in 600ms ease 520ms both; }
+@keyframes veil-mark-in { from { opacity: 0; transform: scale(.86); filter: blur(6px); } to { opacity: 1; transform: none; filter: none; } }
+.route-veil.is-out { animation: ink-melt 600ms cubic-bezier(.4, 0, .2, 1) both; }
+@keyframes ink-melt { from { opacity: 1; filter: blur(0); } to { opacity: 0; filter: blur(10px); } }
+
+/* ---- 首页: the ink film fills the hero frame; its first frame is the still under it. */
+.hero-scene { left: 0; top: 0; width: 100%; height: 100%; aspect-ratio: auto; transform: none; }
+.hero-plate, .hero-video { position: absolute; inset: 0; top: 0; width: 100%; height: 100%; object-fit: cover; }
+@media (max-width: 760px) { .hero-scene { left: 0; transform: none; } .hero-plate, .hero-video { object-position: 50% 30%; } }
+.hero-nav { background: rgba(255, 255, 255, .14); border-color: rgba(255, 255, 255, .32); }
+.hero-frame { background: #1d4f94; }
+
+/* ---- 研墨: one wide column. The notice is ground in a pale blue-stone inkwell; while importing, ink
+   swirls in the well. The kept originals sit below as a row of cards. */
+.page-import { max-width: 1080px; }
+html[data-current="import"] [data-page="import"] { display: block; }
+.import-side { margin-top: 22px; }
+.import-side .source-section { padding: 0; }
+#sourceList { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 12px; }
+#sourceList details { padding: 12px 14px; border: 1px solid var(--line); border-radius: 12px; background: #fff; }
+#sourceList details[open] { grid-column: 1 / -1; }
+#sourceList .empty-note { margin: 0; }
+.ink-head { display: flex; align-items: center; gap: 18px; margin-bottom: 8px; }
+.ink-head h2 { margin: 0; font-size: 1.75rem; }
+.ink-head .section-note { margin: 4px 0 0; }
+.inkstone { flex: none; width: 108px; height: auto; filter: drop-shadow(0 8px 14px rgba(29, 79, 148, .18)); }
+.inkstone-stick { transform-box: view-box; transform-origin: 60px 50px; }
+.inkstone-swirl { transform-box: view-box; transform-origin: 60px 50px; }
+.inkwell { position: relative; margin-top: 16px; padding: 14px 16px 18px; border-radius: 28px; background: radial-gradient(120% 90% at 50% 0%, #eef3f9, #d6e0ec 70%, #c7d4e4); box-shadow: inset 0 2px 0 rgba(255, 255, 255, .9), inset 0 -6px 14px rgba(29, 79, 148, .12), 0 14px 30px rgba(29, 79, 148, .1); overflow: hidden; }
+.inkwell label { margin-left: 6px; color: #3c5778; }
+.inkwell textarea { position: relative; z-index: 1; margin-top: 8px; border: 1px solid rgba(29, 79, 148, .18); border-radius: 18px; background: rgba(255, 255, 255, .88); box-shadow: inset 0 3px 10px rgba(29, 79, 148, .08); }
+.inkwell textarea:focus { border-color: var(--accent); background: #fff; }
+.inkwell-ripple { position: absolute; left: 50%; top: 58%; z-index: 2; width: 70%; aspect-ratio: 1; border-radius: 50%; pointer-events: none; opacity: 0; transform: translate(-50%, -50%) scale(.2); background: conic-gradient(from 0deg, rgba(37, 99, 184, 0), rgba(37, 99, 184, .55), rgba(159, 205, 245, .2), rgba(29, 79, 148, .6), rgba(37, 99, 184, 0)); filter: blur(18px); mix-blend-mode: multiply; }
+.inkwell.is-grinding .inkwell-ripple { animation: ink-grind 2.4s linear infinite, ink-grind-in .6s ease both; }
+.inkwell.is-grinding textarea { color: transparent; text-shadow: 0 0 6px rgba(29, 79, 148, .45); transition: color .4s ease, text-shadow .4s ease; }
+@keyframes ink-grind { from { transform: translate(-50%, -50%) scale(1) rotate(0); } to { transform: translate(-50%, -50%) scale(1) rotate(360deg); } }
+@keyframes ink-grind-in { from { opacity: 0; } to { opacity: .9; } }
+#parseNotice { margin-top: 16px; letter-spacing: .3em; font-size: 1rem; }
+.ink-swirl { flex: none; width: 34px; height: 34px; border-radius: 50%; background: conic-gradient(#1d4f94, #9fcdf5, #2563b8, #e6effa, #1d4f94); -webkit-mask: radial-gradient(circle, transparent 38%, #000 40%); mask: radial-gradient(circle, transparent 38%, #000 40%); animation: ink-grind-mini 1.4s linear infinite; }
+@keyframes ink-grind-mini { to { transform: rotate(360deg); } }
+@media (max-width: 760px) { .ink-head { gap: 12px; } .inkstone { width: 72px; } .ink-head h2 { font-size: 1.375rem; } }
+@media (prefers-reduced-motion: reduce) { .inkwell.is-grinding .inkwell-ripple, .ink-swirl { animation: none; opacity: .6; } }
+.cta-ghost { background: rgba(255, 255, 255, .16); text-shadow: 0 1px 6px rgba(20, 50, 100, .3); }
+.cta-ghost:hover { background: rgba(255, 255, 255, .26); }
+
+/* ---- 首页 over the ink film: book-like type instead of the round meadow faces. 司序 in a heavy
+   serif, 知所先后 set vertically in kai beside it with a vermilion seal, everything aligned to the
+   left over the deep ink, so the lighter water stays open on the right and below. The meadow green
+   accents become the workbench blues. */
+.landing { --meadow: #2563b8; --meadow-deep: #1d4f94; --meadow-soft: #e6effa; }
+.hero-shade { background: radial-gradient(ellipse 60% 70% at 18% 38%, rgba(12, 36, 80, .38), rgba(12, 36, 80, 0) 70%), linear-gradient(to bottom, rgba(12, 36, 80, .28), rgba(12, 36, 80, 0) 22%, rgba(12, 36, 80, 0) 80%, rgba(12, 36, 80, .12)); }
+.hero-logo { font-family: var(--font-serif); font-size: 1.375rem; font-weight: 700; letter-spacing: .12em; }
+.hero-nav { gap: 34px; padding: 10px 30px; font-family: var(--font-serif); font-size: .9375rem; letter-spacing: .12em; }
+.hero-join { color: #1d4f94; font-family: var(--font-serif); letter-spacing: .2em; }
+.hero-copy { left: clamp(24px, 8vw, 150px); right: auto; top: clamp(110px, 20cqh, 220px); align-items: flex-start; padding: 0; text-align: left; }
+.hero-kicker { display: flex; align-items: center; gap: 16px; margin: 0 0 1.4em; font-family: var(--font-serif); font-size: clamp(.75rem, .95vw, .9375rem); font-weight: 500; letter-spacing: .42em; text-shadow: 0 2px 10px rgba(12, 36, 80, .4); }
+.hero-kicker::before { content: ""; width: 56px; height: 1px; background: rgba(255, 255, 255, .7); }
+.hero-title { flex-direction: row; align-items: stretch; gap: clamp(14px, 2vw, 28px); font-family: var(--font-serif); font-weight: 900; text-shadow: 0 6px 30px rgba(12, 36, 80, .35); }
+.hero-line { font-size: clamp(5.2rem, 12.5cqw, 12.5rem); letter-spacing: .06em; line-height: .92; }
+.hero-line-sub { display: flex; align-items: center; padding: .15em 0 .15em clamp(14px, 1.6vw, 24px); border-left: 1px solid rgba(255, 255, 255, .5); font-family: var(--font-kai); font-size: clamp(1.5rem, 2.6cqw, 2.6rem); font-weight: 400; letter-spacing: .38em; line-height: 1; writing-mode: vertical-rl; margin-right: 0; }
+.hero-star { top: auto; bottom: .08em; right: -.42em; width: .32em; height: .32em; padding: .045em; border-radius: .05em; background: #c4412d; color: #fff3e3; filter: none; box-shadow: 0 6px 16px rgba(120, 30, 20, .3); }
+.hero-desc { max-width: 27em; margin-top: 30px; font-family: var(--font-serif); font-size: clamp(.9375rem, 1.2vw, 1.15rem); line-height: 1.95; letter-spacing: .04em; text-shadow: 0 2px 12px rgba(12, 36, 80, .5); }
+.hero-actions { justify-content: flex-start; margin-top: 34px; }
+.cta { color: #1d4f94; font-family: var(--font-serif); letter-spacing: .14em; }
+.cta:hover { color: #123a73; }
+.cta-ghost { font-family: var(--font-serif); letter-spacing: .14em; }
+@media (max-width: 760px) {
+  .hero-copy { left: 20px; right: 20px; top: 104px; }
+  .hero-kicker { letter-spacing: .24em; }
+  .hero-kicker::before { width: 28px; }
+  .hero-line { font-size: 4.6rem; }
+  .hero-line-sub { font-size: 1.35rem; }
+}
+.hero-title { position: relative; }
+.hero-title .hero-line:not(.hero-line-sub) { position: static; }
+.hero-title .hero-star { right: calc(-.32em - 14px); bottom: .04em; width: .26em; height: .26em; }
+.hero-desc { max-width: 31em; }
+
+/* ---- Page arrows: a glass button on each side steps through 铺纸 → 研墨 → 笔墨 → 画卷 (the arrow keys
+   too); the label of the page it leads to slides out on hover. */
+.page-arrows { display: contents; }
+.page-arrow { position: fixed; top: 50%; z-index: 30; display: inline-flex; align-items: center; gap: 0; min-height: 0; height: 52px; padding: 0 14px; border: 1px solid rgba(37, 99, 184, .22); border-radius: 999px; background: rgba(255, 255, 255, .78); color: #1d4f94; box-shadow: 0 10px 28px rgba(29, 79, 148, .16); backdrop-filter: blur(10px) saturate(1.3); transform: translateY(-50%); transition: gap .3s ease, padding .3s ease, background-color .2s ease, box-shadow .2s ease; }
+.page-arrow[hidden] { display: none; }
+.page-arrow.is-prev { left: 18px; }
+.page-arrow.is-next { right: 18px; }
+.page-arrow-label { max-width: 0; overflow: hidden; font-family: var(--font-serif); font-size: .9375rem; font-weight: 700; letter-spacing: .2em; white-space: nowrap; opacity: 0; transition: max-width .35s ease, opacity .25s ease; }
+.page-arrow:hover, .page-arrow:focus-visible { gap: 8px; padding: 0 18px; background: #fff; border-color: rgba(37, 99, 184, .45); box-shadow: 0 14px 34px rgba(29, 79, 148, .24); }
+.page-arrow:hover .page-arrow-label, .page-arrow:focus-visible .page-arrow-label { max-width: 4em; opacity: 1; }
+.page-arrow:active { transform: translateY(-50%) scale(.96); }
+html[data-current="home"] .page-arrow { display: none; }
+@media (max-width: 1240px) { .page-arrow { top: auto; bottom: 18px; transform: none; height: 46px; } .page-arrow:active { transform: scale(.96); } }
+
+/* ---- Page turn: the old page drifts back and blurs away; the new one unrolls from the side it comes
+   from (right for 下一页, left for 上一页) while its colour settles in. Header and tabs stay put. */
+.workspace { view-transition-name: sixu-page; }
+::view-transition-group(sixu-page) { animation-duration: 700ms; }
+::view-transition-old(sixu-page) { animation: page-leave-next 520ms cubic-bezier(.4, 0, .2, 1) both; }
+::view-transition-new(sixu-page) { animation: page-unroll-next 720ms cubic-bezier(.16, .8, .2, 1) both; }
+html[data-dir="prev"]::view-transition-old(sixu-page) { animation-name: page-leave-prev; }
+html[data-dir="prev"]::view-transition-new(sixu-page) { animation-name: page-unroll-prev; }
+@keyframes page-leave-next { to { opacity: 0; transform: translateX(-7%) scale(.97); filter: blur(8px); } }
+@keyframes page-leave-prev { to { opacity: 0; transform: translateX(7%) scale(.97); filter: blur(8px); } }
+@keyframes page-unroll-next { from { clip-path: inset(0 0 0 100%); transform: translateX(5%); filter: saturate(.6); } 60% { filter: saturate(1.05); } to { clip-path: inset(0 0 0 0); transform: none; filter: none; } }
+@keyframes page-unroll-prev { from { clip-path: inset(0 100% 0 0); transform: translateX(-5%); filter: saturate(.6); } 60% { filter: saturate(1.05); } to { clip-path: inset(0 0 0 0); transform: none; filter: none; } }
+@media (prefers-reduced-motion: reduce) { ::view-transition-old(sixu-page), ::view-transition-new(sixu-page) { animation: none; } .page-arrow, .page-arrow-label { transition: none; } }
+/* Headings the router focuses for screen readers do not need a visible ring. */
+[data-page] h1[tabindex="-1"]:focus, [data-page] h2[tabindex="-1"]:focus { outline: none; }
+
+/* ---- 首页 over the pale ribbon film: the film is light (lavender, sky, white), so the hero type turns
+   ink-dark, a soft white wash sits behind the copy on the left, and the buttons become filled blue
+   and white glass. Layout and faces stay as set for the ink film. */
+.hero { color: #13284a; }
+.hero :focus-visible { outline-color: #2563b8; }
+.hero-frame { background: #eef1fb; }
+.hero-shade { background: radial-gradient(ellipse 58% 75% at 16% 42%, rgba(255, 255, 255, .62), rgba(255, 255, 255, 0) 72%), linear-gradient(to bottom, rgba(255, 255, 255, .35), rgba(255, 255, 255, 0) 20%); }
+.hero-logo, .hero-logo:hover { color: #13284a; }
+.hero-logo svg { filter: none; }
+.hero-nav { background: rgba(255, 255, 255, .55); border-color: rgba(37, 99, 184, .18); box-shadow: 0 6px 20px rgba(29, 79, 148, .08); }
+.hero-nav a, .hero-nav a:hover { color: #1d4f94; }
+.hero-join { background: #2563b8; color: #fff; box-shadow: 0 8px 20px rgba(37, 99, 184, .28); }
+.hero-join:hover { background: #1d4f94; color: #fff; }
+.hero-kicker { color: #1d4f94; text-shadow: none; }
+.hero-kicker::before { background: rgba(29, 79, 148, .5); }
+.hero-title { color: #13284a; text-shadow: 0 2px 24px rgba(255, 255, 255, .6); }
+.hero-line-sub { color: #1d4f94; border-left-color: rgba(29, 79, 148, .35); }
+.hero-desc { color: #34465e; text-shadow: none; }
+.cta { background: #2563b8; color: #fff; box-shadow: 0 12px 28px rgba(37, 99, 184, .3); }
+.cta:hover { background: #1d4f94; color: #fff; }
+.cta-ghost { border-color: rgba(37, 99, 184, .3); background: rgba(255, 255, 255, .6); color: #1d4f94; text-shadow: none; }
+.cta-ghost:hover { background: rgba(255, 255, 255, .85); color: #1d4f94; }
+.hero-logo .mark-needle { color: #b08a3e; }
+
+/* ---- Marshal lockup ----
+   The whole logo, as on the brand sheet: the 金针 M, a hairline rule, MARSHAL in Bodoni Moda with wide
+   tracking, and 司序 · 知所先后 beneath it. Everything is sized in em, so one font-size scales the set;
+   the letter takes the text colour and the needle stays gold. (assets/marshal-lockup*.svg is the same
+   lockup with the text outlined, for use outside the site.) */
+.mk-lockup { display: inline-flex; align-items: center; gap: .9em; color: inherit; font-size: 15px; font-weight: 400; letter-spacing: normal; line-height: 1; text-decoration: none; white-space: nowrap; }
+.mk-lockup:hover { color: inherit; }
+.mk-lockup .mk-mark { display: block; flex: none; width: auto; height: 2.7em; margin: 0; filter: none; }
+.mk-rule { flex: none; width: 1px; height: 2.6em; background: currentColor; opacity: .32; }
+.mk-words { display: grid; gap: .5em; }
+.mk-en { font-family: "Sixu Lockup", "Bodoni Moda", "Didot", "Bodoni 72", serif; font-size: 1.45em; font-weight: 400; letter-spacing: .3em; margin-right: -.3em; }
+.mk-cn { font-family: var(--font-serif); font-size: .7em; letter-spacing: .62em; margin-right: -.62em; opacity: .75; }
+.mk-lockup .mark-needle { color: #b08a3e; }
+.hero-logo.mk-lockup { font-size: 15px; color: #13284a; text-shadow: none; }
+.brand-lockup.mk-lockup { align-items: center; font-size: 13px; }
+[data-app] .brand-lockup.mk-lockup .brand-mark { color: var(--text); align-self: center; }
+@media (max-width: 820px) { .hero-logo.mk-lockup { font-size: 12px; } .brand-lockup.mk-lockup { font-size: 11px; } }
+
+/* ---- Opening and return in 墨韵 (router.js playIntro / playRecede). Before any script runs, html.intro
+   shows the veil as plain paper so the landing never flashes; the old iris intro is retired. */
+html.intro .intro { display: none; }
+html.intro .route-veil { display: grid; background: #f4f8fc; }
+.route-veil.is-intro { background: #f4f8fc; }
+.route-veil .veil-word { position: absolute; left: 0; right: 0; top: calc(50% + 78px); z-index: 1; display: none; justify-items: center; gap: 8px; margin: 0; color: #1d4f94; text-align: center; white-space: nowrap; }
+.route-veil.is-intro .veil-word { display: grid; animation: veil-mark-in 700ms ease 720ms both; }
+.veil-word span:first-child { font-family: var(--font-serif); font-size: clamp(1.6rem, 3.6vmin, 2.2rem); font-weight: 900; letter-spacing: .3em; margin-right: -.3em; }
+.veil-word span:last-child { font-family: var(--font-kai); font-size: clamp(.95rem, 2vmin, 1.15rem); letter-spacing: .6em; margin-right: -.6em; color: #3f6fae; }
+.route-veil.is-back { display: grid; animation: ink-gather 260ms cubic-bezier(.4, 0, .2, 1) both; }
+.route-veil.is-back .ink { transform: translate(-50%, -50%) scale(3) rotate(calc(var(--r) + 24deg)); }
+.route-veil.is-back .veil-mark { opacity: 1; }
+.route-veil.is-back.is-recede { animation: none; }
+.route-veil.is-recede .ink-3 { animation: ink-recede 460ms linear both; }
+.route-veil.is-recede .ink-2 { animation: ink-recede 480ms linear 90ms both; }
+.route-veil.is-recede .ink-1 { animation: ink-recede 500ms linear 180ms both; }
+.route-veil.is-recede .veil-mark { animation: ink-melt 200ms ease both; }
+@keyframes ink-gather { from { opacity: 0; filter: blur(10px); } to { opacity: 1; filter: none; } }
+/* Above scale ~1.3 a wash still covers the screen, so that stretch passes quickly and the visible
+   shrinking gets most of the time. */
+@keyframes ink-recede {
+  from { transform: translate(-50%, -50%) scale(3) rotate(calc(var(--r) + 24deg)); animation-timing-function: cubic-bezier(.3, 0, .7, 1); }
+  20% { transform: translate(-50%, -50%) scale(1.35) rotate(calc(var(--r) + 16deg)); animation-timing-function: cubic-bezier(.35, 0, .65, 1); }
+  to { transform: translate(-50%, -50%) scale(0) rotate(var(--r)); }
+}
+
+/* ---- Page turn, direction made explicit: 下一页 slides the page out to the left and brings the next
+   one in from the right (revealed from its right edge); 上一页 is the exact mirror. */
+::view-transition-old(sixu-page) { animation: page-out-left 480ms cubic-bezier(.4, 0, .2, 1) both; }
+::view-transition-new(sixu-page) { animation: page-in-right 640ms cubic-bezier(.16, .8, .2, 1) both; }
+html[data-dir="prev"]::view-transition-old(sixu-page) { animation-name: page-out-right; }
+html[data-dir="prev"]::view-transition-new(sixu-page) { animation-name: page-in-left; }
+@keyframes page-out-left { to { opacity: 0; transform: translateX(-14%); filter: blur(6px); } }
+@keyframes page-out-right { to { opacity: 0; transform: translateX(14%); filter: blur(6px); } }
+@keyframes page-in-right { from { opacity: 0; transform: translateX(16%); clip-path: inset(0 0 0 35%); } to { opacity: 1; transform: none; clip-path: inset(0); } }
+@keyframes page-in-left { from { opacity: 0; transform: translateX(-16%); clip-path: inset(0 35% 0 0); } to { opacity: 1; transform: none; clip-path: inset(0); } }
+@media (prefers-reduced-motion: reduce) { html.intro .route-veil { display: none; } .route-veil.is-back, .route-veil.is-recede .ink { animation: none; } }
+
+/* ---- The vermilion seal beside 知所先后 becomes a standing gold needle (the needle of the 金针 M mark):
+   it settles like a compass needle when the title comes in. */
+.hero-title .hero-star { top: .08em; bottom: auto; right: calc(-.2em - 12px); width: .11em; height: .62em; padding: 0; border-radius: 0; background: none; box-shadow: none; color: #b08a3e; filter: drop-shadow(0 2px 6px rgba(176, 138, 62, .25)); overflow: visible; }
+.hero-needle { transform-box: view-box; transform-origin: 12px 52px; }
+.hero-title.is-in .hero-needle { animation: hero-needle-settle 1600ms cubic-bezier(.2, .7, .2, 1) 700ms both; }
+@keyframes hero-needle-settle { 0% { transform: rotate(-38deg); } 45% { transform: rotate(14deg); } 70% { transform: rotate(-6deg); } 85% { transform: rotate(2deg); } 100% { transform: rotate(0); } }
+@media (prefers-reduced-motion: reduce) { .hero-title.is-in .hero-needle { animation: none; } }
+
+/* ---- Phone fixes: smaller, lighter page arrows with room left under the content; the 研墨 heading
+   stacks its gloss under the name; the English kicker stays on one line. */
+@media (max-width: 760px) {
+  .page-arrow { bottom: 14px; height: 40px; padding: 0 10px; background: rgba(255, 255, 255, .86); }
+  .page-arrow.is-prev { left: 12px; }
+  .page-arrow.is-next { right: 12px; }
+  .page-arrow svg { width: 18px; height: 18px; }
+  html:not([data-current="home"]) .workspace { padding-bottom: 76px; }
+  .ink-head { align-items: flex-start; }
+  .ink-head .layer-gloss { display: block; margin: 4px 0 0; }
+  .inkwell { padding: 10px 10px 14px; border-radius: 20px; }
+  .hero-kicker { gap: 10px; font-size: .625rem; letter-spacing: .14em; white-space: nowrap; }
+  .hero-kicker::before { width: 20px; }
+}
