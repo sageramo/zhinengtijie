@@ -49,11 +49,11 @@ async function boot(t, { routes = {}, health = {}, initial = {}, ocrEngine = nul
   const fetch = async (url, options = {}) => {
     const path = new URL(url).pathname;
     const body = options.body ? JSON.parse(options.body) : undefined;
-    calls.push({ path, body });
+    calls.push({ path, body, headers: options.headers || {} });
     let status = 200;
     let payload;
     if (path === '/api/health') payload = { version: '1.13', capabilities: CAPABILITIES, model_extraction: { configured: false }, timetable_model: { configured: false }, ...health };
-    else if (routes[path]) [status, payload] = await routes[path](body);
+    else if (routes[path]) [status, payload] = await routes[path](body, options.headers || {});
     else if (path === '/api/v3/calendar') payload = calendarAnswer(body);
     else throw new Error(`Unexpected request: ${path}`);
     return { ok: status < 300, status, async text() { return JSON.stringify(payload); } };
@@ -582,3 +582,40 @@ test('page styles never show one page on another: only the current page is displ
   for (const rule of css.match(/^\.page-(?:import|calendar|items|time)\s*\{[^}]*\}/gm) || []) assert.doesNotMatch(rule, /display\s*:/, rule);
 });
 
+
+test('on the public site a model call asks for the access code once, keeps it and sends it', async t => {
+  let seen = 0;
+  const routes = { '/api/v3/extract': async (body, headers) => {
+    seen += 1;
+    if (headers['X-Sixu-Access'] !== 'ink-and-paper') return [401, { error: '使用模型功能需要访问口令。', code: 'access_code_required' }];
+    return [200, structuredClone(API.extract)];
+  } };
+  const app = await boot(t, { routes, health: { model_extraction: { configured: true } } });
+  app.set('#noticeText', API.notice, 'input');
+  app.set('#extractionMode', 'model', 'input');
+  app.submit('#noticeForm');
+  await settle();
+  assert.equal(app.find('#accessAsk').hidden, false, 'the code is asked for');
+  app.set('#accessCode', 'ink-and-paper', 'input');
+  app.submit('#accessForm');
+  await settle();
+  assert.equal(app.find('#accessAsk').hidden, true);
+  assert.equal(seen, 2, 'the call is retried once with the code');
+  assert.equal(app.data.get('sixu.model-access'), 'ink-and-paper');
+  assert.equal(app.stored().events.length + app.stored().tasks.length > 0, true, 'the notice was imported');
+  const calendarCalls = app.calls.filter(call => call.path === '/api/v3/calendar');
+  assert.ok(calendarCalls.every(call => !call.headers['X-Sixu-Access']), 'the code goes only with model calls');
+});
+
+test('cancelling the access code leaves the notice in the box and calls no model', async t => {
+  const routes = { '/api/v3/extract': async () => [401, { error: '使用模型功能需要访问口令。', code: 'access_code_required' }] };
+  const app = await boot(t, { routes, health: { model_extraction: { configured: true } } });
+  app.set('#noticeText', API.notice, 'input');
+  app.set('#extractionMode', 'model', 'input');
+  app.submit('#noticeForm');
+  await settle();
+  app.click('#accessCancel');
+  await settle();
+  assert.match(app.message(), /没有输入访问口令/);
+  assert.equal(app.find('#noticeText').value, API.notice);
+});

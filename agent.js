@@ -167,20 +167,59 @@ function normalizeApiBase(value) {
   if (!['http:', 'https:'].includes(url.protocol) || url.username || url.password || url.search || url.hash) throw new Error('请填写不含账号、查询参数或片段的HTTP/HTTPS服务地址。');
   return url.href.replace(/\/$/, '');
 }
-async function request(path, body, base, timeoutMs = 30000) {
+async function request(path, body, base, timeoutMs = 30000, extraHeaders = {}) {
   const controller = new AbortController();
   const timeout = window.setTimeout(() => controller.abort(), timeoutMs);
   try {
-    const response = await fetch(`${base}${path}`, { method: body === undefined ? 'GET' : 'POST', headers: body === undefined ? {} : { 'Content-Type': 'application/json' }, body: body === undefined ? undefined : JSON.stringify(body), credentials: 'omit', referrerPolicy: 'no-referrer', signal: controller.signal });
+    const headers = body === undefined ? { ...extraHeaders } : { 'Content-Type': 'application/json', ...extraHeaders };
+    const response = await fetch(`${base}${path}`, { method: body === undefined ? 'GET' : 'POST', headers, body: body === undefined ? undefined : JSON.stringify(body), credentials: 'omit', referrerPolicy: 'no-referrer', signal: controller.signal });
     const text = await response.text();
     let data;
     try { data = JSON.parse(text); } catch { throw new Error(`服务没有返回可读取的数据（HTTP ${response.status}），请检查服务地址。`); }
-    if (!response.ok) throw new Error(data.error || `服务返回HTTP ${response.status}`);
+    if (!response.ok) throw Object.assign(new Error(data.error || `服务返回HTTP ${response.status}`), { code: data.code });
     return data;
   } catch (error) {
     if (error.name === 'AbortError') throw new Error('连接超时，请稍后重试；当前清单仍保留。');
     throw error;
   } finally { window.clearTimeout(timeout); }
+}
+// Model calls from the public site need the access code the author set on the server. It is asked
+// for once, kept in this browser, and sent only with model calls; a wrong one is asked again.
+const ACCESS_KEY = 'sixu.model-access';
+function savedAccessCode() { try { return storage?.getItem(ACCESS_KEY) || ''; } catch { return ''; } }
+function askAccessCode(wrong) {
+  return new Promise(resolve => {
+    const box = $('accessAsk');
+    $('accessHint').textContent = wrong ? '口令不对，请重新输入。' : '线上使用模型功能需要访问口令，可以向作者索取。口令只保存在这个浏览器里。';
+    $('accessCode').value = '';
+    box.hidden = false;
+    $('accessCode').focus();
+    const finish = value => {
+      box.hidden = true;
+      $('accessForm').removeEventListener('submit', submit);
+      $('accessCancel').removeEventListener('click', cancel);
+      resolve(value);
+    };
+    const submit = event => { event.preventDefault(); finish($('accessCode').value.trim()); };
+    const cancel = () => finish('');
+    $('accessForm').addEventListener('submit', submit);
+    $('accessCancel').addEventListener('click', cancel);
+  });
+}
+async function modelRequest(path, body, base, timeoutMs) {
+  let code = savedAccessCode();
+  for (let attempt = 0; attempt < 3; attempt += 1) {
+    try {
+      return await request(path, body, base, timeoutMs, code ? { 'X-Sixu-Access': code } : {});
+    } catch (error) {
+      if (!['access_code_required', 'access_code_invalid'].includes(error.code)) throw error;
+      if (error.code === 'access_code_invalid') { try { storage?.removeItem(ACCESS_KEY); } catch { /* nothing kept */ } }
+      code = await askAccessCode(error.code === 'access_code_invalid');
+      if (!code) throw new Error('没有输入访问口令，模型功能未调用；可以先用规则提取。');
+      try { storage?.setItem(ACCESS_KEY, code); } catch { /* kept for this call only */ }
+    }
+  }
+  throw new Error('访问口令不对，模型功能未调用。');
 }
 async function ensureHealth(base, { fresh = false } = {}) {
   if (!fresh && healthBase === base) return health;
@@ -397,7 +436,7 @@ $('noticeForm').addEventListener('submit', async event => {
     const result = await ensureHealth(base, { fresh: mode === 'model' });
     if (mode === 'model' && !result.model_extraction?.configured) throw new Error('当前服务没有启用模型提取。请用本地模型服务启动后端，或改用规则提取。');
     $('parseStep').textContent = mode === 'model' ? '模型正在阅读原文，找出事项、时间和地点' : '正在整理事项与时间';
-    const imported = await request('/api/v3/extract', { text, reference_date: referenceDate, mode }, base, mode === 'model' ? 100000 : 30000);
+    const imported = await (mode === 'model' ? modelRequest : request)('/api/v3/extract', { text, reference_date: referenceDate, mode }, base, mode === 'model' ? 100000 : 30000);
     if (ticket !== parseSequence || base !== apiBase) return;
     if (text.startsWith('【虚构示例】')) imported.source.kind = 'synthetic';
     commit(addImported(snapshot, imported));
@@ -435,7 +474,7 @@ async function estimateEnds(mode, sourceText) {
     if (!result.capabilities.includes('end_estimate_v1')) throw new Error('计算服务还不支持估计结束时间，请重启到1.19或更新。');
     if (mode === 'model' && button) busy(button, true, '结合原文问问模型', '模型正在读原文…');
     const items = rows.map(row => ({ id: row.dataset.endFor, title: snapshot.events.find(event => event.id === row.dataset.endFor)?.title || '活动', start_at: row.dataset.start, context: endSource.slice(0, 4000) }));
-    const { estimates } = await request('/api/v3/estimate-end', { mode, items }, base, mode === 'model' ? 60000 : 15000);
+    const { estimates } = await (mode === 'model' ? modelRequest : request)('/api/v3/estimate-end', { mode, items }, base, mode === 'model' ? 60000 : 15000);
     for (const estimate of estimates) {
       const row = rows.find(item => item.dataset.endFor === estimate.id);
       if (!row) continue;
@@ -762,7 +801,7 @@ async function runTimetable(mode, file = null) {
     const result = await ensureHealth(base, { fresh: mode !== 'convert' });
     if (!result.capabilities.includes(mode === 'image' ? 'timetable_image_v3' : 'timetable_v3')) throw new Error(`计算服务还不支持${mode === 'image' ? '课表截图识别（需要后端1.15或更新）' : '课表识别（需要后端1.13或更新）'}。`);
     if (mode !== 'convert' && !result.timetable_model?.configured) throw new Error('本地服务没有配置 DeepSeek Key。重启服务时输入 Key 后再试。');
-    const data = await request('/api/v3/timetable', body, base, mode === 'convert' ? 30000 : 100000);
+    const data = await (mode === 'convert' ? request : modelRequest)('/api/v3/timetable', body, base, mode === 'convert' ? 30000 : 100000);
     if (ticket !== timetableSequence) return;
     if (mode === 'image') $('timetableText').value = data.source.text;
     lastTimetable = { text: mode === 'image' ? data.source.text : text, result: data };

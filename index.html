@@ -4,12 +4,12 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="description" content="把校园通知整理成可核对的事项，用真实空闲生成经过校验的个人安排。">
-  <meta name="sixu-ui-version" content="2026.11.07.30">
+  <meta name="sixu-ui-version" content="2026.11.07.31">
   <title>司序 Marshal · 知所先后</title>
   <link rel="icon" href="./assets/sixu-mark.svg" type="image/svg+xml">
   <script>{ const h = location.hash; document.documentElement.dataset.current = h.startsWith('#/') && ['import', 'items', 'time', 'calendar', 'review', 'plan'].includes(h.slice(2)) ? ({ review: 'items', plan: 'calendar' }[h.slice(2)] || h.slice(2)) : 'home'; if (document.documentElement.dataset.current === 'home' && !matchMedia('(prefers-reduced-motion: reduce)').matches) document.documentElement.classList.add('intro'); }</script>
   <link rel="preload" as="image" href="./assets/hero-ribbon-plate.jpg">
-  <link rel="stylesheet" href="./agent.css?v=2026.11.07.30">
+  <link rel="stylesheet" href="./agent.css?v=2026.11.07.31">
 </head>
 <body>
   <div class="intro" id="intro" aria-hidden="true">
@@ -160,15 +160,16 @@
       <form id="apiForm"><label for="apiBase">解析与计算服务地址</label><input id="apiBase" type="url" inputmode="url" required><button type="submit">保存地址并检查连接</button><p class="field-help" id="connectionStatus" role="status">尚未检查连接</p></form>
       <div class="backup-actions"><button type="button" id="importSnapshot">导入清单</button><input type="file" id="importFile" accept="application/json,.json" hidden></div>
       <p class="field-help">导出文件包含原文与个人安排，请妥善保存。</p>
-      <p class="field-help" id="uiVersion">界面版本 2026.11.07.30</p>
+      <p class="field-help" id="uiVersion">界面版本 2026.11.07.31</p>
     </details>
     <footer class="page-footer"><span>以确认后的信息计算，把取舍留给你。</span></footer>
   </main>
   <nav class="page-arrows" aria-label="翻页"><button type="button" class="page-arrow is-prev" data-page-step="-1" hidden><svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true"><path d="M15 5l-7 7 7 7" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg><span class="page-arrow-label"></span></button><button type="button" class="page-arrow is-next" data-page-step="1" hidden><span class="page-arrow-label"></span><svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true"><path d="M9 5l7 7-7 7" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg></button></nav>
   </div>
+  <div class="access-ask" id="accessAsk" role="dialog" aria-modal="true" aria-labelledby="accessTitle" hidden><form class="access-card" id="accessForm"><h2 id="accessTitle">访问口令</h2><p class="field-help" id="accessHint"></p><label for="accessCode">口令</label><input id="accessCode" type="password" autocomplete="off" maxlength="200" required><div class="inline-actions"><button type="submit" class="primary-button">确定</button><button type="button" class="text-button" id="accessCancel">取消</button></div></form></div>
   <div class="route-veil" id="routeVeil" aria-hidden="true"><i class="ink ink-1"></i><i class="ink ink-2"></i><i class="ink ink-3"></i><svg class="veil-mark" viewBox="0 0 100 100"><path class="mark-ring" d="M22 86V28H30.56L50 63.64L69.44 28H78V86H70V43.69L54.56 72H45.44L30 43.69V86Z" fill="currentColor"/><g class="veil-needle"><path d="M50 14L53.2 40.4H46.8Z" fill="currentColor"/><path d="M46.8 40.4L50 62L53.2 40.4" fill="none" stroke="currentColor" stroke-width="1.8"/></g></svg><p class="veil-word"><span>司序</span><span>知所先后</span></p></div>
   <noscript>此页面需要启用JavaScript才能编辑和计算任务。</noscript>
-  <script type="importmap">{"imports":{"./task-state.js":"./task-state.js?v=2026.11.07.30","./snapshot-store.js":"./snapshot-store.js?v=2026.11.07.30","./model-candidates.js":"./model-candidates.js?v=2026.11.07.30","./time-review.js":"./time-review.js?v=2026.11.07.30","./planning-result.js":"./planning-result.js?v=2026.11.07.30","./calendar.js":"./calendar.js?v=2026.11.07.30","./time-state.js":"./time-state.js?v=2026.11.07.30","./scenario.js":"./scenario.js?v=2026.11.07.30","./screenshot-ocr.js":"./screenshot-ocr.js?v=2026.11.07.30"}}</script>
-  <script src="./router.js?v=2026.11.07.30"></script><script src="./about-sky.js?v=2026.11.07.30"></script><script src="./landing.js?v=2026.11.07.30"></script><script src="./api-config.js?v=2026.11.07.30"></script><script type="module" src="./agent.js?v=2026.11.07.30"></script>
+  <script type="importmap">{"imports":{"./task-state.js":"./task-state.js?v=2026.11.07.31","./snapshot-store.js":"./snapshot-store.js?v=2026.11.07.31","./model-candidates.js":"./model-candidates.js?v=2026.11.07.31","./time-review.js":"./time-review.js?v=2026.11.07.31","./planning-result.js":"./planning-result.js?v=2026.11.07.31","./calendar.js":"./calendar.js?v=2026.11.07.31","./time-state.js":"./time-state.js?v=2026.11.07.31","./scenario.js":"./scenario.js?v=2026.11.07.31","./screenshot-ocr.js":"./screenshot-ocr.js?v=2026.11.07.31"}}</script>
+  <script src="./router.js?v=2026.11.07.31"></script><script src="./about-sky.js?v=2026.11.07.31"></script><script src="./landing.js?v=2026.11.07.31"></script><script src="./api-config.js?v=2026.11.07.31"></script><script type="module" src="./agent.js?v=2026.11.07.31"></script>
 </body>
 </html>

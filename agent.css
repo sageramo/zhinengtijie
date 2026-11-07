@@ -1113,3 +1113,22 @@ html[data-dir="prev"]::view-transition-new(sixu-page) { animation-name: page-in-
   .hero-kicker { gap: 10px; font-size: .625rem; letter-spacing: .14em; white-space: nowrap; }
   .hero-kicker::before { width: 20px; }
 }
+
+/* ---- Access code prompt for model calls on the public site. */
+.access-ask { position: fixed; inset: 0; z-index: 70; display: grid; place-items: center; padding: 20px; background: rgba(19, 40, 74, .35); backdrop-filter: blur(4px); }
+.access-ask[hidden] { display: none; }
+.access-card { width: min(380px, 100%); padding: 22px 22px 18px; border: 1px solid var(--line); border-radius: 16px; background: #fff; box-shadow: 0 24px 60px rgba(19, 40, 74, .25); }
+.access-card h2 { margin: 0 0 6px; font-family: var(--font-serif); }
+.access-card input { width: 100%; margin: 6px 0 12px; }
+
+/* ---- Phones: the header is tall, so messages float above the page arrows at the bottom instead. */
+@media (max-width: 760px) {
+  [data-app] .message.toast { top: auto; bottom: 66px; width: calc(100vw - 32px); }
+  @keyframes toast-in { from { opacity: 0; transform: translate(-50%, 10px); } }
+}
+.access-card { color: #1d2a38; }
+.access-card .primary-button { background: #2563b8; border-color: #2563b8; color: #fff; }
+.access-card .primary-button:hover { background: #1d4f94; border-color: #1d4f94; }
+.access-card .text-button { color: #1d4f94; }
+.access-card input { background: #fff; border-color: #c9d5e3; }
+.access-card input:focus { border-color: #2563b8; outline-color: #2563b8; }
