@@ -7,6 +7,7 @@ import {
 } from './time-state.js';
 import { calendarMarkup, weekStart, weekRange } from './calendar.js';
 import { createRecognizer, imageProblem } from './screenshot-ocr.js';
+import { parseJwTimetable, termStartFrom } from './jw-timetable.js';
 
 /*
  * Workbench for the four time layers (backend docs/time_layers_v3.md):
@@ -813,6 +814,37 @@ async function runTimetable(mode, file = null) {
     busy(button, false, idle);
   }
 }
+// 教务网页: a saved 金智「我的课表」page is read here in the browser (jw-timetable.js). Its period table
+// and the week number shown on the page fill the form, and the courses go through the same
+// convert step and preview as the other timetable routes; no model, no access code.
+$('chooseJwPage').addEventListener('click', () => $('jwPage').click());
+$('jwPage').addEventListener('change', async event => {
+  const [file] = event.target.files || [];
+  event.target.value = '';
+  if (!file) return;
+  try {
+    if (!/\.html?$/i.test(file.name) && file.type !== 'text/html') throw new Error('请上传另存下来的 .html 网页文件。');
+    if (file.size > 5_000_000) throw new Error('这个文件太大，不像是课表网页。');
+    const source = typeof file.text === 'function' ? await file.text()
+      : await new Promise((resolve, reject) => { const reader = new window.FileReader(); reader.onload = () => resolve(String(reader.result)); reader.onerror = () => reject(new Error('文件读不出来。')); reader.readAsText(file); });
+    const parsed = parseJwTimetable(source);
+    if (!parsed.courses.length) throw new Error('网页里的课程都没读懂，请改用复制课表文字或截图识别。');
+    $('timetableText').value = parsed.text;
+    const lines = Object.entries(parsed.periods).sort((a, b) => Number(a[0]) - Number(b[0])).map(([number, item]) => `${number} ${item.start}-${item.end}`);
+    if (lines.length) $('periodText').value = lines.join('\n');
+    const savedOn = new Date((file.lastModified || Date.now()) + 8 * 3600000).toISOString().slice(0, 10);
+    const firstMonday = termStartFrom(savedOn, parsed.currentWeek);
+    if (firstMonday) $('termStart').value = firstMonday;
+    lastTimetable = { text: parsed.text, result: { courses: parsed.courses } };
+    await runTimetable('convert');
+    const notes = [`读出 ${parsed.courses.length} 种上课安排`];
+    if (firstMonday) notes.push(`按网页上的「第${parsed.currentWeek}周」（${savedOn}保存）推算第1周周一为 ${firstMonday}，请核对`);
+    if (parsed.skipped.length) notes.push(`${parsed.skipped.length} 个格子没读懂，未采用：${parsed.skipped.join('、')}`);
+    tell(`${notes.join('；')}。`);
+  } catch (error) {
+    tell(`教务网页没有读成：${error.message}`, 'error');
+  }
+});
 $('chooseTimetableImage').addEventListener('click', () => $('timetableImage').click());
 $('timetableImage').addEventListener('change', event => {
   const [file] = event.target.files || [];

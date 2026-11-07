@@ -58,7 +58,7 @@ async function boot(t, { routes = {}, health = {}, initial = {}, ocrEngine = nul
     else throw new Error(`Unexpected request: ${path}`);
     return { ok: status < 300, status, async text() { return JSON.stringify(payload); } };
   };
-  const globals = { window, document: window.document, location: window.location, navigator: window.navigator, fetch };
+  const globals = { window, document: window.document, location: window.location, navigator: window.navigator, fetch, DOMParser: window.DOMParser };
   const original = new Map(Object.keys(globals).map(key => [key, Object.getOwnPropertyDescriptor(globalThis, key)]));
   for (const [key, value] of Object.entries(globals)) Object.defineProperty(globalThis, key, { configurable: true, writable: true, value });
   const errors = [];
@@ -618,4 +618,33 @@ test('cancelling the access code leaves the notice in the box and calls no model
   await settle();
   assert.match(app.message(), /没有输入访问口令/);
   assert.equal(app.find('#noticeText').value, API.notice);
+});
+
+test('a saved 教务网页 fills the timetable, period times and first Monday, then previews without a model', async t => {
+  const posted = [];
+  const routes = { '/api/v3/timetable': async body => { posted.push(body); return [200, { ...structuredClone(API.timetable), mode: 'convert' }]; } };
+  const app = await boot(t, { routes });
+  const html = readFileSync(new URL('./fixtures/jw-timetable.html', import.meta.url), 'utf8');
+  const file = new app.window.File([html], '我的课表.html', { type: 'text/html', lastModified: Date.parse('2026-11-07T10:00:00+08:00') });
+  const picker = app.find('#jwPage');
+  Object.defineProperty(picker, 'files', { value: [file], configurable: true });
+  picker.dispatchEvent(new app.window.Event('change', { bubbles: true }));
+  await settle();
+  assert.equal(posted.length, 1);
+  assert.equal(posted[0].mode, 'convert', 'only the convert step, no model');
+  assert.equal(posted[0].term_start, '2026-09-07');
+  assert.deepEqual(posted[0].periods['1'], { start: '08:00', end: '08:50' });
+  assert.equal(posted[0].courses.length, 4);
+  assert.match(app.find('#timetableText').value, /^高等数学A 1-16周,星期1,08:00-09:50,主楼301/);
+  assert.match(app.message(), /读出 4 种上课安排.*第9周.*2026-09-07.*1 个格子没读懂/);
+});
+
+test('a page that is not a timetable is refused with a hint', async t => {
+  const app = await boot(t);
+  const file = new app.window.File(['<p>请登录</p>'], 'login.html', { type: 'text/html' });
+  const picker = app.find('#jwPage');
+  Object.defineProperty(picker, 'files', { value: [file], configurable: true });
+  picker.dispatchEvent(new app.window.Event('change', { bubbles: true }));
+  await settle();
+  assert.match(app.message(), /没有找到课表格子/);
 });
