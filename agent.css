@@ -1132,3 +1132,70 @@ html[data-dir="prev"]::view-transition-new(sixu-page) { animation-name: page-in-
 .access-card .text-button { color: #1d4f94; }
 .access-card input { background: #fff; border-color: #c9d5e3; }
 .access-card input:focus { border-color: #2563b8; outline-color: #2563b8; }
+
+/* ---- 提醒：铃铛开关（React Bits BellToggle 的原生移植，换成晴空色） ---- */
+.bell-toggle { --bt-clip: 0px; --bt-color: var(--text, #1d2a38); --bt-bg: #fff; --bt-on-color: #fff; --bt-on-bg: var(--accent, #2563b8); --bt-badge: #a2332d; --bt-badge-ink: #fff;
+  --bt-radius: 22px; --bt-fade: 200ms; --bt-pivot: 16%; --bt-h: 40px; --bt-fs: .8125rem; --bt-icon: 16px; --bt-px: 16px; --bt-gap: 8px; --bt-ease-out: cubic-bezier(0.23, 1, 0.32, 1);
+  position: relative; display: inline-grid; grid-template-columns: max-content; user-select: none; -webkit-user-select: none; transition: transform 160ms var(--bt-ease-out); }
+.bell-toggle[data-pressed] { transform: scale(.97); }
+.bell-toggle .bell-toggle__button { grid-area: 1 / 1; display: inline-flex; align-items: center; gap: var(--bt-gap); height: var(--bt-h); min-height: 0; margin: 0; padding: 0 var(--bt-px);
+  border: 1px solid var(--line, #dde5ee); border-radius: var(--bt-radius); background: var(--bt-bg); color: var(--bt-color); font: inherit; font-size: var(--bt-fs); font-weight: 600; line-height: 1;
+  letter-spacing: .02em; white-space: nowrap; cursor: pointer; touch-action: manipulation; -webkit-tap-highlight-color: transparent;
+  clip-path: inset(0 var(--bt-clip) 0 0 round var(--bt-radius)); transition: background-color var(--bt-fade) ease, color var(--bt-fade) ease, border-color var(--bt-fade) ease, clip-path 300ms cubic-bezier(.22, 1, .36, 1); }
+.bell-toggle[data-on="true"] .bell-toggle__button { background: var(--bt-on-bg); border-color: var(--bt-on-bg); color: var(--bt-on-color); box-shadow: 0 4px 14px rgba(37, 99, 184, .25); }
+@media (hover: hover) and (pointer: fine) {
+  .bell-toggle .bell-toggle__button:hover { background: color-mix(in srgb, var(--accent, #2563b8) 7%, var(--bt-bg)); border-color: var(--accent, #2563b8); }
+  .bell-toggle[data-on="true"] .bell-toggle__button:hover { background: var(--accent-deep, #1d4f94); }
+}
+.bell-toggle__bell { position: relative; display: inline-grid; flex: none; width: var(--bt-icon); height: var(--bt-icon); }
+.bell-toggle__glyph { display: inline-grid; place-items: center; grid-area: 1 / 1; width: var(--bt-icon); height: var(--bt-icon); transform-origin: 50% var(--bt-pivot); }
+.bell-toggle__glyph svg, .bell-toggle__clapper svg { display: block; width: 100%; height: 100%; }
+.bell-toggle__clapper { position: absolute; inset: 0; transform-origin: 50% var(--bt-pivot); pointer-events: none; }
+.bell-toggle__wave { position: absolute; top: -3px; width: 14px; height: 14px; fill: none; stroke: currentColor; stroke-width: 1.6; stroke-linecap: round; opacity: 0; pointer-events: none; }
+.bell-toggle__wave--left { right: calc(100% - 2px); transform-origin: 100% 100%; }
+.bell-toggle__wave--right { left: calc(100% - 2px); transform-origin: 0% 100%; }
+.bell-toggle__badge { position: absolute; top: -6px; right: -7px; display: grid; place-items: center; min-width: 14px; height: 14px; padding: 0 3px; box-sizing: border-box; border-radius: 7px;
+  background: var(--bt-badge); color: var(--bt-badge-ink); font-size: 9.5px; font-weight: 700; line-height: 1; opacity: 0; transform: translateY(5px) scale(.6); pointer-events: none;
+  box-shadow: 0 0 0 1.5px var(--bt-on-bg); transition: transform 180ms var(--bt-ease-out), opacity 140ms ease; }
+.bell-toggle__badge[data-show] { opacity: 1; transform: none; transition: transform 280ms cubic-bezier(.34, 1.56, .64, 1), opacity 120ms ease; }
+.bell-toggle__say { display: inline-grid; grid-template-columns: max-content; height: 18px; line-height: 18px; }
+.bell-toggle__face { grid-area: 1 / 1; justify-self: start; opacity: 0; filter: blur(2px); transition: opacity var(--bt-fade) ease, filter var(--bt-fade) ease; }
+.bell-toggle[data-on="false"] .bell-toggle__face--off, .bell-toggle[data-on="true"] .bell-toggle__face--on { opacity: 1; filter: none; }
+@media (prefers-reduced-motion: reduce) {
+  .bell-toggle[data-pressed] { transform: none; }
+  .bell-toggle .bell-toggle__button { transition: background-color var(--bt-fade) ease, color var(--bt-fade) ease; }
+  .bell-toggle__face { filter: none !important; transition: opacity var(--bt-fade) ease; }
+  .bell-toggle__badge, .bell-toggle__badge[data-show] { transform: none; transition: opacity 140ms ease; }
+}
+
+/* 画卷左栏顶部：提醒条 */
+.cal-remind { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.cal-remind select { width: auto; min-height: 40px; padding: 6px 30px 6px 12px; border-radius: 999px; border-color: var(--line); font-size: .8125rem; }
+.cal-remind .text-button { min-height: 40px; font-size: .8125rem; }
+.cal-remind-note { flex-basis: 100%; margin: 0; color: var(--muted); font-size: .75rem; line-height: 1.5; }
+
+/* 本周提要 */
+.cal-brief { margin: 0; padding: 10px 14px; border-radius: 12px; background: var(--accent-soft); color: var(--accent-deep); font-size: .8125rem; line-height: 1.6; list-style: none; }
+.cal-brief li + li { margin-top: 2px; }
+.cal-brief b { font-weight: 700; }
+
+/* 叠墨：模型权衡与请假说明 */
+.cx-weigh { display: flex; align-items: center; gap: 8px; margin: 2px 0 8px; }
+.cx-weigh .text-button { min-height: 30px; padding: 2px 8px; font-size: .75rem; }
+.cx-weigh-status { color: var(--muted); font-size: .75rem; }
+.cx-model { margin: 0 0 8px; padding: 8px 10px; border-left: 3px solid var(--gold); border-radius: 0 8px 8px 0; background: #fff8ec; color: var(--text); font-size: .78rem; line-height: 1.55; }
+.cx-model strong { color: var(--warning); font-weight: 700; margin-right: 4px; }
+.cal .cx-option.is-model-pick { outline: 2px solid var(--gold); outline-offset: 1px; }
+.cx-option-label em.cx-model-tag { background: var(--gold); color: #fff; }
+.cx-note { margin: 8px 0 0; padding: 10px 12px; border-radius: 10px; background: #fff; box-shadow: inset 0 0 0 1px var(--line); }
+.cx-note p { margin: 0 0 6px; color: var(--muted); font-size: .75rem; }
+.cx-note textarea { min-height: 96px; font-size: .8125rem; line-height: 1.6; }
+.cx-note .inline-actions { display: flex; gap: 8px; margin-top: 6px; }
+.cx-note button { min-height: 32px; font-size: .75rem; }
+
+/* 研墨：更省事的导入 */
+.ocr-row { display: flex; flex-wrap: wrap; gap: 8px; }
+.share-help { margin-top: 10px; font-size: .8125rem; color: var(--muted); }
+.share-help summary { min-height: 32px; padding: 4px 0; font-size: .8125rem; }
+.share-help ol { margin: 6px 0 0; padding-left: 1.4em; line-height: 1.7; }
+.share-help code { padding: 1px 5px; border-radius: 4px; background: var(--panel-soft); font-size: .75rem; word-break: break-all; }
