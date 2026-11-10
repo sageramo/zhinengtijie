@@ -1,6 +1,7 @@
 /**
  * Bell toggle, ported from React Bits' <BellToggle /> (JavaScript + CSS variant) to plain DOM:
- * the workbench has no React, so the spring-driven clip becomes a CSS clip-path transition and
+ * the workbench has no React. The original clips a fixed-width pill; ours has a hairline border that a
+ * clip would cut off, so the label box itself animates between the two label widths instead, and
  * the ring stays a Web Animations keyframe run with the same curve (SEG_EASE, WARP, decaying
  * passes, sound waves on each swing, a smaller wobble when the count rises). The bell is drawn
  * inline (no icon package). Props keep the original names where they still apply.
@@ -56,11 +57,10 @@ export function createBellToggle({
   let on = defaultPressed;
   let current = count;
 
-  // The pill reserves the longer label; clip-path hides the part the visible face does not use.
+  // The label box takes the width of the visible face and animates to the other one, border intact.
   function clip() {
-    const a = offFace.offsetWidth;
-    const b = onFace.offsetWidth;
-    root.style.setProperty('--bt-clip', `${Math.max(a, b) - (on ? b : a)}px`);
+    const width = (on ? onFace : offFace).offsetWidth;
+    if (width) root.style.setProperty('--bt-say', `${width}px`);
   }
   function swing(amplitude, passes, duration) {
     if (calm() || typeof glyph.animate !== 'function') return;
@@ -93,7 +93,7 @@ export function createBellToggle({
     if (on) swing(ringAmplitude, ringPasses, ringDuration);
     onChange(on);
   });
-  if (typeof window.ResizeObserver === 'function') new window.ResizeObserver(clip).observe(onFace);
+  if (typeof window.ResizeObserver === 'function') { const observer = new window.ResizeObserver(clip); observer.observe(onFace); observer.observe(offFace); }
   document.fonts?.ready.then(clip);
   paint();
   return {

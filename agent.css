@@ -1134,14 +1134,14 @@ html[data-dir="prev"]::view-transition-new(sixu-page) { animation-name: page-in-
 .access-card input:focus { border-color: #2563b8; outline-color: #2563b8; }
 
 /* ---- 提醒：铃铛开关（React Bits BellToggle 的原生移植，换成晴空色） ---- */
-.bell-toggle { --bt-clip: 0px; --bt-color: var(--text, #1d2a38); --bt-bg: #fff; --bt-on-color: #fff; --bt-on-bg: var(--accent, #2563b8); --bt-badge: #a2332d; --bt-badge-ink: #fff;
+.bell-toggle { --bt-color: var(--text, #1d2a38); --bt-bg: #fff; --bt-on-color: #fff; --bt-on-bg: var(--accent, #2563b8); --bt-badge: #a2332d; --bt-badge-ink: #fff;
   --bt-radius: 22px; --bt-fade: 200ms; --bt-pivot: 16%; --bt-h: 40px; --bt-fs: .8125rem; --bt-icon: 16px; --bt-px: 16px; --bt-gap: 8px; --bt-ease-out: cubic-bezier(0.23, 1, 0.32, 1);
   position: relative; display: inline-grid; grid-template-columns: max-content; user-select: none; -webkit-user-select: none; transition: transform 160ms var(--bt-ease-out); }
 .bell-toggle[data-pressed] { transform: scale(.97); }
 .bell-toggle .bell-toggle__button { grid-area: 1 / 1; display: inline-flex; align-items: center; gap: var(--bt-gap); height: var(--bt-h); min-height: 0; margin: 0; padding: 0 var(--bt-px);
   border: 1px solid var(--line, #dde5ee); border-radius: var(--bt-radius); background: var(--bt-bg); color: var(--bt-color); font: inherit; font-size: var(--bt-fs); font-weight: 600; line-height: 1;
   letter-spacing: .02em; white-space: nowrap; cursor: pointer; touch-action: manipulation; -webkit-tap-highlight-color: transparent;
-  clip-path: inset(0 var(--bt-clip) 0 0 round var(--bt-radius)); transition: background-color var(--bt-fade) ease, color var(--bt-fade) ease, border-color var(--bt-fade) ease, clip-path 300ms cubic-bezier(.22, 1, .36, 1); }
+  transition: background-color var(--bt-fade) ease, color var(--bt-fade) ease, border-color var(--bt-fade) ease; }
 .bell-toggle[data-on="true"] .bell-toggle__button { background: var(--bt-on-bg); border-color: var(--bt-on-bg); color: var(--bt-on-color); box-shadow: 0 4px 14px rgba(37, 99, 184, .25); }
 @media (hover: hover) and (pointer: fine) {
   .bell-toggle .bell-toggle__button:hover { background: color-mix(in srgb, var(--accent, #2563b8) 7%, var(--bt-bg)); border-color: var(--accent, #2563b8); }
@@ -1158,7 +1158,7 @@ html[data-dir="prev"]::view-transition-new(sixu-page) { animation-name: page-in-
   background: var(--bt-badge); color: var(--bt-badge-ink); font-size: 9.5px; font-weight: 700; line-height: 1; opacity: 0; transform: translateY(5px) scale(.6); pointer-events: none;
   box-shadow: 0 0 0 1.5px var(--bt-on-bg); transition: transform 180ms var(--bt-ease-out), opacity 140ms ease; }
 .bell-toggle__badge[data-show] { opacity: 1; transform: none; transition: transform 280ms cubic-bezier(.34, 1.56, .64, 1), opacity 120ms ease; }
-.bell-toggle__say { display: inline-grid; grid-template-columns: max-content; height: 18px; line-height: 18px; }
+.bell-toggle__say { display: inline-grid; grid-template-columns: max-content; width: var(--bt-say, auto); height: 18px; line-height: 18px; overflow: hidden; transition: width 300ms cubic-bezier(.22, 1, .36, 1); }
 .bell-toggle__face { grid-area: 1 / 1; justify-self: start; opacity: 0; filter: blur(2px); transition: opacity var(--bt-fade) ease, filter var(--bt-fade) ease; }
 .bell-toggle[data-on="false"] .bell-toggle__face--off, .bell-toggle[data-on="true"] .bell-toggle__face--on { opacity: 1; filter: none; }
 @media (prefers-reduced-motion: reduce) {
@@ -1170,7 +1170,9 @@ html[data-dir="prev"]::view-transition-new(sixu-page) { animation-name: page-in-
 
 /* 画卷左栏顶部：提醒条 */
 .cal-remind { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
-.cal-remind select { width: auto; min-height: 40px; padding: 6px 30px 6px 12px; border-radius: 999px; border-color: var(--line); font-size: .8125rem; }
+.cal-remind select { width: auto; min-height: 40px; padding: 6px 34px 6px 14px; border-radius: 999px; border-color: var(--line); font-size: .8125rem; cursor: pointer;
+  -webkit-appearance: none; appearance: none; background: #fff url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 12 12'%3E%3Cpath d='M3 4.5 6 7.5 9 4.5' fill='none' stroke='%231d2a38' stroke-width='1.6' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E") no-repeat right 14px center / 12px 12px; }
+.cal-remind select:hover { border-color: var(--accent); }
 .cal-remind .text-button { min-height: 40px; font-size: .8125rem; }
 .cal-remind-note { flex-basis: 100%; margin: 0; color: var(--muted); font-size: .75rem; line-height: 1.5; }
 
