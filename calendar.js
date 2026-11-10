@@ -103,33 +103,70 @@ function conflictPicture(conflict, result) {
   return '';
 }
 
-function conflictCard(conflict, result) {
+/** Stable across recalculations (conflict ids are renumbered every time): type plus the items involved. */
+export const conflictKey = conflict => `${conflict.type}|${conflict.items.map(item => item.id).join(' ')}`;
+
+function weighMarkup(conflict, weigh) {
+  const key = escape(conflictKey(conflict));
+  if (!(conflict.strategies || []).length) return '';
+  if (weigh?.loading) return `<p class="cx-weigh"><span class="cx-weigh-status" role="status">模型正在权衡这几条对策…</span></p>`;
+  const error = weigh?.error ? `<span class="cx-weigh-status" role="status">${escape(weigh.error)}</span>` : '';
+  if (weigh?.reason) return `<p class="cx-model"><strong>模型之见</strong>${escape(weigh.reason)}</p>`;
+  return `<p class="cx-weigh"><button type="button" class="text-button" data-weigh="${key}">请模型权衡</button>${error}</p>`;
+}
+
+function conflictCard(conflict, result, weighs = {}) {
+  const weigh = weighs[conflictKey(conflict)];
+  const pick = weigh?.reason ? weigh.pick : -1;
   const first = conflict.items[0];
   const keys = conflict.items.map(item => item.id).join(' ');
   const when = conflict.start ? `${monthDay(Date.parse(conflict.start))} ${WEEKDAYS[(local(Date.parse(conflict.start)).getUTCDay() + 6) % 7]}` : conflict.end ? `截止 ${monthDay(Date.parse(conflict.end))} ${clock(Date.parse(conflict.end))}` : '';
   const layer = first.layer === 'routine' ? 'routine' : ['temporary', 'appointment'].includes(first.layer) ? 'event' : 'task';
   const id = first.layer === 'routine' ? first.id.split('@')[0] : first.id;
-  const strategies = (conflict.strategies || []).map((strategy, index) => `<li><button type="button" class="cx-option${strategy.recommended ? ' is-recommended' : ''}" data-strategy="${escape(conflict.id)}:${index}" title="${escape(strategy.detail)}"><span class="cx-option-label">${strategy.recommended ? '<em>推荐</em>' : ''}${escape(strategy.label)}</span><span class="cx-option-detail">${escape(strategy.detail)}</span></button></li>`).join('');
+  const strategies = (conflict.strategies || []).map((strategy, index) => `<li><button type="button" class="cx-option${strategy.recommended ? ' is-recommended' : ''}${index === pick ? ' is-model-pick' : ''}" data-strategy="${escape(conflict.id)}:${index}" title="${escape(strategy.detail)}"><span class="cx-option-label">${index === pick ? '<em class="cx-model-tag">模型之选</em>' : ''}${strategy.recommended ? '<em>推荐</em>' : ''}${escape(strategy.label)}</span><span class="cx-option-detail">${escape(strategy.detail)}</span></button></li>`).join('');
   return `<li class="cx-card" data-conflict-keys="${escape(keys)}">
       <button type="button" class="cx-head" data-cal-item="${escape(id)}" data-cal-layer="${layer}"><strong>${escape(CONFLICT_LABEL[conflict.type] || '叠墨')}</strong><span>${when}${conflict.minutes ? ` · ${conflict.minutes}分钟` : ''}</span></button>
       ${conflictPicture(conflict, result)}
       ${conflict.advice ? `<p class="cx-advice">${escape(conflict.advice)}</p>` : `<p class="cx-advice">${escape(conflict.reason)}</p>`}
+      ${weighMarkup(conflict, weigh)}
       ${strategies ? `<ul class="cx-options" aria-label="对策">${strategies}</ul>` : ''}
     </li>`;
 }
 
-function sideLists(result, undo) {
-  const conflicts = result.conflicts.map(conflict => conflictCard(conflict, result)).join('');
+function noteMarkup(note) {
+  if (!note) return '';
+  return `<div class="cx-note"><p>给老师的请假说明（草稿，【】里换成你的信息；司序不会替你发送）</p><textarea id="leaveNote" rows="5" aria-label="请假说明草稿">${escape(note)}</textarea><div class="inline-actions"><button type="button" data-copy-note>复制</button></div></div>`;
+}
+
+function sideLists(result, undo, note, weighs) {
+  const conflicts = result.conflicts.map(conflict => conflictCard(conflict, result, weighs)).join('');
   const undefinedRows = result.undefined.map(item => {
     const target = item.id ? `data-cal-item="${escape(item.id)}" data-cal-layer="${item.type.startsWith('event_') ? 'event' : 'task'}"` : `data-cal-goto="time" data-cal-roll="${item.type === 'routines_unconfirmed' ? 'routine' : 'free'}"`;
     return `<li><button type="button" class="cal-issue is-undefined" ${target}><strong>${escape(item.title || (item.type === 'free_time_undefined' ? '留白' : '底色'))}</strong><span>${escape(item.reason)}</span></button></li>`;
   }).join('');
-  const undoBar = undo ? `<p class="cx-undo">已采用：${escape(undo)}<button type="button" class="text-button" data-strategy-undo>撤销</button></p>` : '';
+  const undoBar = undo ? `<p class="cx-undo">已采用：${escape(undo)}<button type="button" class="text-button" data-strategy-undo>撤销</button></p>${noteMarkup(note)}` : '';
   return `<section class="cal-side-block cx" aria-labelledby="calConflictHeading"><h3 id="calConflictHeading">叠墨 · 对策 <span>${result.conflicts.length}</span></h3>${undoBar}${conflicts ? `<p class="cal-side-note">按规则为每处相叠拟好对策，点一下即采用，画卷随之重算。</p><ol class="cx-list">${conflicts}</ol>` : '<p class="cx-clear">底色、落笔与点墨之间没有相叠，这一卷是干净的。</p>'}</section>
     <section class="cal-side-block" aria-labelledby="calUndefinedHeading"><h3 id="calUndefinedHeading">待书 <span>${result.undefined.length}</span></h3>${undefinedRows ? `<ul>${undefinedRows}</ul>` : '<p>所有信息都已写清楚。</p>'}</section>`;
 }
 
-export function calendarMarkup({ result, start, now, loading = false, error = '', undo = '' }) {
+/** Two or three plain lines about the week: the fullest day and what is due soon. */
+export function weeklyBrief(items, start, now) {
+  const busyTypes = ['routine', 'temporary', 'appointment', 'work'];
+  const hours = Array.from({ length: 7 }, (_, index) => {
+    const dayStart = start + index * DAY;
+    return items.filter(item => busyTypes.includes(item.type)).reduce((sum, item) => sum + Math.max(0, Math.min(item.end, dayStart + DAY) - Math.max(item.start, dayStart)), 0) / HOUR;
+  });
+  const lines = [];
+  const top = hours.indexOf(Math.max(...hours));
+  if (hours[top] >= 1) lines.push(`最满的一天是<b>${WEEKDAYS[top]}</b>，排了 ${Number(hours[top].toFixed(1))} 小时。`);
+  const soon = items.filter(item => item.type === 'deadline' && item.start > now && item.start <= now + 2 * DAY).sort((a, b) => a.start - b.start);
+  if (soon.length) lines.push(`48 小时内有 <b>${soon.length}</b> 个截止，最近的是「${escape(soon[0].title)}」，${monthDay(soon[0].start)} ${clock(soon[0].start)}。`);
+  const starts = items.filter(item => ['temporary', 'appointment'].includes(item.type) && item.start > now && item.start <= now + DAY).sort((a, b) => a.start - b.start);
+  if (starts.length) lines.push(`24 小时内要出门：「${escape(starts[0].title)}」${clock(starts[0].start)} 开始${starts.length > 1 ? `，另有 ${starts.length - 1} 处` : ''}。`);
+  return lines;
+}
+
+export function calendarMarkup({ result, start, now, loading = false, error = '', undo = '', note = '', weighs = {} }) {
   const items = calendarItems(result);
   const days = Array.from({ length: 7 }, (_, index) => start + index * DAY);
   const end = start + 7 * DAY;
@@ -208,7 +245,8 @@ export function calendarMarkup({ result, start, now, loading = false, error = ''
     : result?.status === 'incomplete' ? `<p class="cal-hint" role="status">有 ${result.undefined.length} 项待书，已按写清楚的部分落笔。</p>`
     : result ? '<p class="cal-hint" role="status">没有叠墨，所有信息都已写清楚。</p>' : '';
   const empty = result && !inWeek.length ? '<div class="cal-empty"><p>这一周还是一片空白。</p><span>在「铺纸」里铺好底色、定下留白，再到「研墨」导入通知，事情会落在这里。</span></div>' : '';
-  const side = result ? sideLists(result, undo) : '<section class="cal-side-block"><p>计算完成后，这里列出叠墨的对策和待书。</p></section>';
+  const brief = result ? weeklyBrief(inWeek, start, now) : [];
+  const side = result ? sideLists(result, undo, note, weighs) : '<section class="cal-side-block"><p>计算完成后，这里列出叠墨的对策和待书。</p></section>';
   const stat = (value, label) => `<li><b>${value}</b><span>${label}</span></li>`;
   return `<div class="scroll">
     <aside class="scroll-side" aria-label="这一周">
@@ -217,7 +255,9 @@ export function calendarMarkup({ result, start, now, loading = false, error = ''
         <h2 class="cal-range" id="calendarHeading">${range}</h2>
         <div class="cal-nav"><button type="button" data-cal-week="-1" aria-label="上一周"><svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><path d="M15 5l-7 7 7 7" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></button><button type="button" data-cal-week="0">本周</button><button type="button" data-cal-week="1" aria-label="下一周"><svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><path d="M9 5l7 7-7 7" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></button></div>
       </header>
+      <div class="cal-remind-slot"></div>
       ${status}
+      ${brief.length ? `<ul class="cal-brief" aria-label="本周提要">${brief.map(line => `<li>${line}</li>`).join('')}</ul>` : ''}
       <div class="cal-pending">${side}</div>
       <ul class="cal-stats" aria-label="本周统计">${stat(count('routine'), '底色')}${stat(count('work') + count('appointment'), '落笔')}${stat(count('temporary'), '点墨')}${stat(count('deadline'), '截止')}${stat(Number(freeHours.toFixed(1)), '时留白')}</ul>
       <ul class="cal-legend" aria-label="图例"><li class="lg-routine">底色 · 每周照例</li><li class="lg-free">留白 · 自己支配</li><li class="lg-work">落笔 · 约定与截止之事</li><li class="lg-temporary">点墨 · 临时突发</li><li class="lg-deadline">截止</li><li class="lg-conflict">叠墨 · 相撞</li><li class="lg-now">此刻</li></ul>

@@ -5,7 +5,9 @@ import {
   addImported, updateTask, updateEvent, addTask, addEvent, removeItem, setDailyWindow, addRoutine,
   addAdjustment, addTimetable, setReferenceTime, skipRoutineDate,
 } from './time-state.js';
-import { calendarMarkup, weekStart, weekRange } from './calendar.js';
+import { calendarMarkup, conflictKey, weekStart, weekRange } from './calendar.js';
+import { LEADS, dueReminders, icsCalendar, reminderText, upcomingCount } from './reminders.js';
+import { createBellToggle } from './bell-toggle.js';
 import { createRecognizer, imageProblem } from './screenshot-ocr.js';
 import { parseJwTimetable, termStartFrom } from './jw-timetable.js';
 
@@ -60,7 +62,8 @@ let calendarLoading = false;
 let calendarSequence = 0;
 let calendarTimer = null;
 let calendarWeek = null;
-let strategyUndo = null; // { before, label } of the last 叠墨 strategy applied
+let strategyUndo = null; // { before, label, note } of the last 叠墨 strategy applied
+const weighs = {}; // conflictKey -> { loading, error, pick, reason, note } from 请模型权衡
 let parseSequence = 0;
 let connectionSequence = 0;
 let timetableSequence = 0;
@@ -150,6 +153,7 @@ function commit(next, { render = 'all', unlock = false } = {}) {
   save();
   if (render === 'all') renderAll(); else { renderBadges(); renderItemStates(); }
   scheduleCalendar();
+  remindTick();
 }
 function showOnPage(element, block = 'start') {
   const roll = element.closest('[data-roll]');
@@ -259,7 +263,8 @@ async function computeCalendar() {
   }
 }
 function renderCalendar() {
-  $('calendarView').innerHTML = calendarMarkup({ result: calendarResult, start: shownWeek(), now: Date.now(), loading: calendarLoading && !calendarResult, error: calendarError, undo: strategyUndo?.label || '' });
+  $('calendarView').innerHTML = calendarMarkup({ result: calendarResult, start: shownWeek(), now: Date.now(), loading: calendarLoading && !calendarResult, error: calendarError, undo: strategyUndo?.label || '', note: strategyUndo?.note || '', weighs });
+  $('calendarView').querySelector('.cal-remind-slot')?.append(remindBar);
   fitCalendar();
 }
 /** Size the hour rows so the whole week fits the window below the week header (wide screens only). */
@@ -568,11 +573,46 @@ ocrAsTimetable.addEventListener('click', () => {
   $('timetableSection').scrollIntoView({ behavior: scrollBehavior(), block: 'start' });
   runTimetable('image', file);
 });
+// Several screenshots at once: read one after another, each appended to the inkwell.
+async function recognizeMany(files) {
+  const images = Array.from(files || []).filter(Boolean);
+  for (const [index, file] of images.entries()) {
+    if (images.length > 1) tell(`正在识别第 ${index + 1}/${images.length} 张截图…`);
+    await recognizeNotice(file);
+  }
+  if (images.length > 1) tell(`${images.length} 张截图都已识别，文字依次放进了砚池，请对照核对后再导入。`);
+}
 $('noticeImage').addEventListener('change', event => {
-  const [file] = event.target.files || [];
-  if (file) recognizeNotice(file);
+  recognizeMany(event.target.files);
   event.target.value = '';
 });
+// One tap instead of long-press → 粘贴: text goes into the inkwell, a copied image goes to OCR.
+$('pasteClipboard').addEventListener('click', async () => {
+  const clip = navigator.clipboard;
+  if (!clip) return tell('这个浏览器不让网页读取剪贴板，请在砚池里长按粘贴。', 'warning');
+  try {
+    if (typeof clip.read === 'function') {
+      const entries = await clip.read();
+      const images = [];
+      for (const entry of entries) {
+        const type = entry.types.find(kind => kind.startsWith('image/'));
+        if (type) images.push(new window.File([await entry.getType(type)], `clipboard.${type.split('/')[1]}`, { type }));
+      }
+      if (images.length) return recognizeMany(images);
+    }
+    const text = (await clip.readText()).trim();
+    if (!text) return tell('剪贴板里没有文字。先在微信里长按通知 → 复制，再回来点一下。', 'warning');
+    appendNotice(text);
+    tell('已从剪贴板放进砚池，核对后点“导入”。');
+  } catch {
+    tell('没能读取剪贴板（浏览器需要你允许）。也可以在砚池里长按粘贴。', 'warning');
+  }
+});
+function appendNotice(text) {
+  const box = $('noticeText');
+  box.value = box.value.trim() ? `${box.value.trimEnd()}\n\n${text}` : text;
+  box.dispatchEvent(new window.Event('input', { bubbles: true }));
+}
 $('noticeText').addEventListener('paste', event => {
   const item = Array.from(event.clipboardData?.items || []).find(entry => entry.kind === 'file' && entry.type.startsWith('image/'));
   if (!item) return;
@@ -881,6 +921,9 @@ $('calendarView').addEventListener('click', event => {
   const goto = event.target.closest('[data-cal-goto="time"]');
   if (goto) { window.SixuRouter?.go('time'); openRoll(goto.dataset.calRoll || 'free'); return; }
   if (event.target.closest('[data-strategy-undo]')) { undoStrategy(); return; }
+  const weigh = event.target.closest('[data-weigh]');
+  if (weigh) { weighConflict(weigh.dataset.weigh); return; }
+  if (event.target.closest('[data-copy-note]')) { copyNote(); return; }
   const option = event.target.closest('[data-strategy]');
   if (option) { applyStrategy(option.dataset.strategy); return; }
   const target = event.target.closest('[data-cal-item]');
@@ -910,9 +953,51 @@ function applyStrategy(key) {
     else return;
   } catch (error) { tell(`这条对策没能采用：${error.message}`, 'error'); return; }
   const before = snapshot;
+  const conflict = calendarResult.conflicts.find(item => item.id === conflictId);
+  const weighed = weighs[conflictKey(conflict)];
   commit(next);
-  strategyUndo = { before, label: strategy.label };
+  strategyUndo = { before, label: strategy.label, note: weighed?.pick === Number(index) ? weighed.note || '' : '' };
   tell(`已采用：${strategy.label}`);
+  // Skipping a class leaves one more step: a leave note to the teacher, drafted by the same rules.
+  if (strategy.action === 'skip_routine_date' && !strategyUndo.note) {
+    const undo = strategyUndo;
+    request('/api/v3/advise', { ...advicePayload(conflict), strategies: [strategy].map(adviceOption) }, apiBase)
+      .then(result => { if (strategyUndo === undo && result.note) { undo.note = result.note; renderCalendar(); } })
+      .catch(() => { /* the plan itself is applied; the note is optional */ });
+  }
+}
+
+// ---- 叠墨：请模型权衡 ------------------------------------------------------
+// The rules computed every option; the model only weighs them and says why, by option number.
+const adviceOption = strategy => ({ action: strategy.action, label: strategy.label, detail: strategy.detail, recommended: Boolean(strategy.recommended) });
+function advicePayload(conflict) {
+  const located = item => {
+    if (item.layer === 'routine') return snapshot.routines.find(routine => routine.id === item.id.split('@')[0])?.location || null;
+    return snapshot.events.find(event => event.id === item.id)?.location || null;
+  };
+  const items = conflict.items.slice(0, 2).map(item => ({ title: item.title, layer: item.layer, start: item.start || null, end: item.end || null, location: located(item) }));
+  const sources = new Set(conflict.items.map(item => snapshot.events.find(event => event.id === item.id)?.source_id).filter(Boolean));
+  const context = snapshot.sources.filter(source => sources.has(source.id)).map(source => source.text).join('\n\n').slice(0, 4000);
+  return { type: conflict.type, items, advice: (conflict.advice || '').slice(0, 300), context };
+}
+async function weighConflict(key) {
+  const conflict = calendarResult?.conflicts.find(item => conflictKey(item) === key);
+  if (!conflict || weighs[key]?.loading) return;
+  weighs[key] = { loading: true };
+  renderCalendar();
+  try {
+    const result = await modelRequest('/api/v3/advise', { mode: 'model', ...advicePayload(conflict), strategies: conflict.strategies.map(adviceOption) }, apiBase, 60000);
+    weighs[key] = { pick: result.pick, reason: result.reason, note: result.note || '' };
+  } catch (error) {
+    weighs[key] = { error: `没能权衡：${error.message}` };
+  }
+  renderCalendar();
+}
+async function copyNote() {
+  const box = $('leaveNote');
+  if (!box) return;
+  try { await navigator.clipboard.writeText(box.value); tell('请假说明已复制，记得把【】换成你的信息。'); }
+  catch { box.select(); tell('请长按或用快捷键复制选中的文字。', 'warning'); }
 }
 function undoStrategy() {
   if (!strategyUndo) return;
@@ -1052,7 +1137,112 @@ $('loadDemoWeek').addEventListener('click', () => {
   window.SixuRouter?.go('calendar');
 });
 
+// ---- 提醒 ---------------------------------------------------------------
+// While the page is open, a reminder pops up `lead` minutes before each 截止 and each 点墨 / 约定
+// start (a system notification when allowed, the page's toast always). A web page cannot wake up
+// once closed, so 加到手机日历 writes the same reminders as calendar alarms the phone keeps.
+const REMIND_KEY = 'sixu.remind';
+const FIRED_KEY = 'sixu.remind.fired';
+const readJSON = (key, fallback) => { try { return JSON.parse(storage?.getItem(key) || 'null') ?? fallback; } catch { return fallback; } };
+const writeJSON = (key, value) => { try { storage?.setItem(key, JSON.stringify(value)); } catch { /* kept for this visit */ } };
+const remind = { on: false, lead: 30, ...readJSON(REMIND_KEY, {}) };
+if (!LEADS.includes(remind.lead)) remind.lead = 30;
+const fired = new Set(readJSON(FIRED_KEY, []));
+let swRegistration = null;
+const remindBar = document.createElement('div');
+remindBar.className = 'cal-remind';
+const bell = createBellToggle({ offLabel: '提醒我', onLabel: '已开启提醒', label: '截止和点墨开始前提醒我', defaultPressed: remind.on, onChange: toggleRemind });
+const leadPick = document.createElement('select');
+leadPick.setAttribute('aria-label', '提前多久提醒');
+leadPick.innerHTML = LEADS.map(minutes => `<option value="${minutes}">提前${minutes === 60 ? '1小时' : `${minutes}分钟`}</option>`).join('');
+leadPick.value = String(remind.lead);
+leadPick.addEventListener('change', () => { remind.lead = Number(leadPick.value); writeJSON(REMIND_KEY, remind); remindTick(); });
+const icsButton = Object.assign(document.createElement('button'), { type: 'button', className: 'text-button', textContent: '加到手机日历' });
+icsButton.addEventListener('click', downloadCalendar);
+const remindNote = Object.assign(document.createElement('p'), { className: 'cal-remind-note', textContent: '页面开着时到点弹出提醒；关掉页面也要提醒，就“加到手机日历”，由手机日历按同样的提前量响铃。' });
+remindBar.append(bell.element, leadPick, icsButton, remindNote);
+
+async function toggleRemind(on) {
+  remind.on = on;
+  writeJSON(REMIND_KEY, remind);
+  if (!on) { tell('已关闭提醒。'); return; }
+  if ('Notification' in window && window.Notification.permission === 'default') {
+    try { await window.Notification.requestPermission(); } catch { /* falls back to the toast */ }
+  }
+  const allowed = 'Notification' in window && window.Notification.permission === 'granted';
+  tell(allowed ? `已开启：截止和点墨开始前${remind.lead === 60 ? '1小时' : `${remind.lead}分钟`}提醒。` : '浏览器没有允许通知，页面开着时会用提示条提醒；也可以“加到手机日历”。', allowed ? '' : 'warning');
+  remindTick();
+}
+function showReminder(reminder) {
+  const { title, body } = reminderText(reminder);
+  tell(`${title}（${body}）`, 'warning');
+  if (!('Notification' in window) || window.Notification.permission !== 'granted') return;
+  const options = { body, tag: reminder.key, icon: './assets/icon-192.png', badge: './assets/icon-192.png', data: { url: './#/calendar' } };
+  try {
+    if (swRegistration) swRegistration.showNotification(title, options);
+    else new window.Notification(title, options);
+  } catch { /* the toast already showed it */ }
+}
+function remindTick() {
+  const now = Date.now();
+  bell.setCount(upcomingCount(snapshot, now));
+  if (!remind.on) return;
+  const due = dueReminders(snapshot, { now, lead: remind.lead, fired });
+  if (!due.length) return;
+  for (const reminder of due) { fired.add(reminder.key); showReminder(reminder); }
+  writeJSON(FIRED_KEY, [...fired].slice(-300));
+}
+function downloadCalendar() {
+  const { text, count } = icsCalendar(snapshot, { now: Date.now(), lead: remind.lead });
+  if (!count) return tell('接下来60天里没有截止或点墨，暂时不用加。', 'warning');
+  const url = window.URL.createObjectURL(new window.Blob([text], { type: 'text/calendar;charset=utf-8' }));
+  const link = Object.assign(document.createElement('a'), { href: url, download: '司序-截止与点墨.ics' });
+  document.body.append(link);
+  link.click();
+  link.remove();
+  window.setTimeout(() => window.URL.revokeObjectURL(url), 10000);
+  tell(`已生成 ${count} 项（各带提前${remind.lead === 60 ? '1小时' : `${remind.lead}分钟`}的闹钟）。打开这个文件，选“全部添加”到手机日历。`);
+}
+window.setInterval(remindTick, 30000);
+document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') remindTick(); });
+
+// ---- 外面送进来的通知：快捷指令（#/import?text=…）与系统分享（sw.js 暂存） ----
+$('shortcutUrl').textContent = `${location.origin}${location.pathname}#/import?text=`;
+function takeHashText() {
+  const [route, query] = location.hash.slice(2).split('?');
+  if (route !== 'import' || !query) return;
+  const params = new URLSearchParams(query);
+  const text = params.get('text');
+  history.replaceState(null, '', `${location.pathname}${location.search}#/import`);
+  if (text && text.trim()) { appendNotice(text.trim().slice(0, 100000)); tell('已收到快捷指令送来的通知，核对后点“导入”。'); }
+  if (params.get('shared')) takeShared();
+}
+async function takeShared() {
+  if (!('caches' in window)) return;
+  try {
+    const cache = await window.caches.open('sixu-share');
+    const meta = await cache.match('share/meta');
+    if (!meta) return;
+    const { text, count } = await meta.json();
+    const files = [];
+    for (let index = 0; index < count; index += 1) {
+      const response = await cache.match(`share/file-${index}`);
+      if (response) { const blob = await response.blob(); files.push(new window.File([blob], `shared-${index}`, { type: blob.type })); }
+    }
+    await window.caches.delete('sixu-share');
+    if (text && text.trim()) appendNotice(text.trim());
+    if (files.length) await recognizeMany(files);
+    else if (text) tell('已收到分享来的文字，核对后点“导入”。');
+  } catch { tell('没能读取分享来的内容，请再分享一次或直接粘贴。', 'warning'); }
+}
+window.addEventListener('hashchange', takeHashText);
+if ('serviceWorker' in navigator && (location.protocol === 'https:' || ['localhost', '127.0.0.1'].includes(location.hostname))) {
+  navigator.serviceWorker.register('./sw.js').then(registration => { swRegistration = registration; }).catch(() => { /* reminders still use the toast */ });
+}
+
 renderAll();
+takeHashText();
+remindTick();
 if (recovered.error) tell(`本地清单未能读取：${recovered.error}。为保护原数据，当前修改暂不覆盖保存；请导入备份或明确清空后重建。`, 'warning');
 else if (recovered.migrated) { tell('已把旧版清单转换成四层时间格式；旧数据仍保留在浏览器中，没有删除。'); save(); }
 if (location.protocol === 'file:') tell('请通过本地HTTP服务打开此页面，直接打开文件无法完整加载编辑模块。', 'warning');

@@ -7,7 +7,9 @@
   const aliases = { review: 'items', plan: 'calendar' };
   const routeOf = hash => {
     if (!hash.startsWith('#/')) return hash && root.dataset.current ? root.dataset.current : 'home';
-    const name = aliases[hash.slice(2)] || hash.slice(2);
+    // #/import?text=… (from an iPhone shortcut) and #/import?shared=1 (from the share sheet) open 研墨.
+    const raw = hash.slice(2).split('?')[0];
+    const name = aliases[raw] || raw;
     return Object.hasOwn(titles, name) && name ? name : 'home';
   };
 
@@ -125,6 +127,7 @@
       const ticket = ++turn;
       root.dataset.dir = ORDER.indexOf(route) > ORDER.indexOf(from) ? 'next' : 'prev';
       const transition = document.startViewTransition(() => show(route, options));
+      transition.ready.catch(() => { /* a skipped transition (a newer route won) is not an error */ });
       transition.finished.finally(() => { if (ticket === turn) delete root.dataset.dir; });
     } else show(route, options);
     ready = true;

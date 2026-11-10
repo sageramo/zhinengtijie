@@ -35,7 +35,7 @@ for (const base of ['http://127.0.0.1:8873/', 'https://sageramo.github.io/campus
         }
       };
       inspect(entry.split('?')[0]);
-      assert.deepEqual([...visited].sort(), ['./agent.js', './calendar.js', './jw-timetable.js', './screenshot-ocr.js', './snapshot-store.js', './task-state.js', './time-state.js']);
+      assert.deepEqual([...visited].sort(), ['./agent.js', './bell-toggle.js', './calendar.js', './jw-timetable.js', './reminders.js', './screenshot-ocr.js', './snapshot-store.js', './task-state.js', './time-state.js']);
     } finally { dom.window.close(); }
   });
 }
