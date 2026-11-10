@@ -8,6 +8,7 @@ import {
 import { calendarMarkup, conflictKey, weekStart, weekRange } from './calendar.js';
 import { LEADS, dueReminders, icsCalendar, reminderText, upcomingCount } from './reminders.js';
 import { createBellToggle } from './bell-toggle.js';
+import { readMemory, writeMemory, recordActual, suggestEstimate } from './estimate-memory.js';
 import { createRecognizer, imageProblem } from './screenshot-ocr.js';
 import { parseJwTimetable, termStartFrom } from './jw-timetable.js';
 
@@ -154,6 +155,7 @@ function commit(next, { render = 'all', unlock = false } = {}) {
   if (render === 'all') renderAll(); else { renderBadges(); renderItemStates(); }
   scheduleCalendar();
   remindTick();
+  checkBackup();
 }
 function showOnPage(element, block = 'start') {
   const roll = element.closest('[data-roll]');
@@ -228,7 +230,10 @@ async function modelRequest(path, body, base, timeoutMs) {
 }
 async function ensureHealth(base, { fresh = false } = {}) {
   if (!fresh && healthBase === base) return health;
-  const result = await request('/api/health', undefined, base);
+  // The free server sleeps when idle; waking it takes about half a minute, so wait and say so.
+  const slow = window.setTimeout(() => tell('计算服务正在醒来（免费服务器闲置后第一次要等半分钟左右），请稍候…'), 4000);
+  let result;
+  try { result = await request('/api/health', undefined, base, 90000); } finally { window.clearTimeout(slow); }
   if (!Array.isArray(result.capabilities) || !result.capabilities.includes('time_layers_v3')) throw new Error('计算服务还不是四层时间版本（需要后端1.12或更新），请重启本地服务后再试。');
   if (base === apiBase) { healthBase = base; health = result; }
   $('connectionStatus').textContent = `已连接计算服务 ${result.version}`;
@@ -326,7 +331,9 @@ function eventState(event) {
 const stateBadge = ([text, kind]) => `<span class="item-state${kind ? ` is-${kind}` : ''}" data-item-state>${escapeHTML(text)}</span>`;
 function taskMarkup(task) {
   const active = task.status === 'active';
-  const chips = ESTIMATE_PRESETS.map(preset => `<button type="button" class="chip" data-estimate="${preset.minutes}" aria-pressed="${task.estimate_minutes === preset.minutes}">${preset.label}</button>`).join('');
+  const learned = task.estimate_minutes === null && active ? suggestEstimate(estimateMemory, task.title) : null;
+  const chips = (learned ? `<button type="button" class="chip is-learned" data-estimate="${learned.minutes}" aria-pressed="false" title="按你记录过的实际用时">${escapeHTML(learned.label)}</button>` : '')
+    + ESTIMATE_PRESETS.map(preset => `<button type="button" class="chip" data-estimate="${preset.minutes}" aria-pressed="${task.estimate_minutes === preset.minutes}">${preset.label}</button>`).join('');
   return `<article class="item-card${active ? '' : ' is-inactive'}" data-item-id="${escapeHTML(task.id)}" data-kind="task" id="item-${escapeHTML(task.id)}">
     <div class="item-top"><input class="item-title" data-field="title" value="${escapeHTML(task.title)}" aria-label="工作名称" maxlength="200">${stateBadge(taskState(task))}</div>
     <div class="field-grid">
@@ -445,8 +452,12 @@ $('noticeForm').addEventListener('submit', async event => {
     const imported = await (mode === 'model' ? modelRequest : request)('/api/v3/extract', { text, reference_date: referenceDate, mode }, base, mode === 'model' ? 100000 : 30000);
     if (ticket !== parseSequence || base !== apiBase) return;
     if (text.startsWith('【虚构示例】')) imported.source.kind = 'synthetic';
-    commit(addImported(snapshot, imported));
-    $('importSummary').innerHTML = importSummary(imported) + endAskMarkup(imported);
+    // Nothing on 铺纸 yet: start from the usual 作息 so 留白 and 落笔 work right away; 铺纸 can change it.
+    let next = addImported(snapshot, imported);
+    const defaulted = !next.daily_window;
+    if (defaulted) next = setDailyWindow(next, DEFAULT_WINDOW);
+    commit(next);
+    $('importSummary').innerHTML = importSummary(imported) + (defaulted ? '<p class="field-help">还没在“铺纸”里定作息，先按每天 08:00–23:00（周末 09:00 起）算留白；课表和作息随时可以去铺纸补上。</p>' : '') + endAskMarkup(imported);
     $('importSummary').hidden = false;
     $('noticeText').value = '';
     estimateEnds('rules', imported.source.text);
@@ -655,6 +666,7 @@ function onItemChange(event) {
     itemError(card, '');
     // Changing 点墨/约定 moves the card to the other list.
     commit(next, { render: input.dataset.field === 'kind' ? 'all' : 'none' });
+    if (card.dataset.kind === 'task' && ['title', 'estimate_minutes'].includes(input.dataset.field)) refreshLearned(card);
   } catch (error) {
     input.setAttribute('aria-invalid', 'true');
     itemError(card, `没有保存：${error.message}。`);
@@ -667,6 +679,8 @@ function onItemClick(event) {
   const isTask = card.dataset.kind === 'task';
   const item = isTask ? snapshot.tasks.find(entry => entry.id === id) : snapshot.events.find(entry => entry.id === id);
   try {
+    const actual = event.target.closest('[data-actual]');
+    if (actual) { saveActual(id, actual.dataset.actual); return; }
     const chip = event.target.closest('[data-estimate]');
     if (chip) {
       const minutes = Number(chip.dataset.estimate);
@@ -680,13 +694,44 @@ function onItemClick(event) {
       if (!window.confirm(`删除「${item.title}」？`)) return;
       commit(removeItem(snapshot, id));
     } else if (action === 'complete') {
-      commit(updateTask(snapshot, id, { status: item.status === 'completed' ? 'active' : 'completed' }));
+      const finishing = item.status !== 'completed';
+      commit(updateTask(snapshot, id, { status: finishing ? 'completed' : 'active' }));
+      if (finishing) askActual(id);
     } else if (action === 'cancel') {
       const status = item.status === 'cancelled' ? 'active' : 'cancelled';
       commit(isTask ? updateTask(snapshot, id, { status }) : updateEvent(snapshot, id, { status }));
     }
   } catch (error) { itemError(card, error.message); }
 }
+// ---- 越用越准的估时 -----------------------------------------------------
+let estimateMemory = readMemory(storage);
+const ACTUAL_CHOICES = [[30, '半小时'], [60, '1小时'], [120, '2小时'], [180, '3小时'], [300, '5小时']];
+function askActual(id) {
+  const card = $(`item-${id}`);
+  if (!card) return;
+  const task = snapshot.tasks.find(item => item.id === id);
+  const choices = ACTUAL_CHOICES.map(([minutes, label]) => `<button type="button" class="chip" data-actual="${minutes}"${task?.estimate_minutes === minutes ? ' aria-pressed="true"' : ''}>${label}</button>`).join('');
+  card.querySelector('.item-actions').insertAdjacentHTML('afterend', `<div class="actual-ask" role="group" aria-label="实际用了多久"><span>实际用了多久？记下来，下次同类的事会按你的实际用时估。</span><div class="chips">${choices}<button type="button" class="text-button" data-actual="skip">不记了</button></div></div>`);
+}
+/** A renamed task without an estimate gets (or loses) its learned suggestion without redrawing the card. */
+function refreshLearned(card) {
+  const task = snapshot.tasks.find(item => item.id === card.dataset.itemId);
+  card.querySelector('.chip.is-learned')?.remove();
+  const learned = task && task.status === 'active' && task.estimate_minutes === null ? suggestEstimate(estimateMemory, task.title) : null;
+  if (!learned) return;
+  card.querySelector('.chips[aria-label="预计用时快捷选择"]')?.insertAdjacentHTML('afterbegin', `<button type="button" class="chip is-learned" data-estimate="${learned.minutes}" aria-pressed="false" title="按你记录过的实际用时">${escapeHTML(learned.label)}</button>`);
+}
+function saveActual(id, value) {
+  const card = $(`item-${id}`);
+  card?.querySelector('.actual-ask')?.remove();
+  if (value === 'skip') return;
+  const task = snapshot.tasks.find(item => item.id === id);
+  const before = estimateMemory;
+  estimateMemory = recordActual(estimateMemory, task?.title, Number(value));
+  writeMemory(storage, estimateMemory);
+  tell(estimateMemory === before ? '记下了；这类事还没有归类，暂不用于估时。' : '记下了，下次同类的事会参考这次的实际用时。');
+}
+
 for (const list of ['eventList', 'appointmentList', 'taskList']) {
   $(list).addEventListener('change', onItemChange);
   $(list).addEventListener('click', onItemClick);
@@ -1055,6 +1100,7 @@ $('exportSnapshot').addEventListener('click', () => {
     document.body.append(link); link.click(); link.remove();
     window.setTimeout(() => URL.revokeObjectURL(url), 1000);
     tell('已导出清单，文件包含通知原文与个人安排，请妥善保存。');
+    markBackedUp();
   } catch (error) { tell(error.message, 'error'); }
 });
 $('importSnapshot').addEventListener('click', () => $('importFile').click());
@@ -1137,6 +1183,33 @@ $('loadDemoWeek').addEventListener('click', () => {
   window.SixuRouter?.go('calendar');
 });
 
+// ---- 司序链接：一个人做，全班点开即导入 ----------------------------------
+const SHARE_LIMIT = 1500;
+$('makeShareLink').addEventListener('click', async () => {
+  const text = $('noticeText').value.trim();
+  if (!text) return tell('先把通知粘进砚池，再做成链接。', 'warning');
+  if ([...text].length > SHARE_LIMIT) return tell(`链接最多放${SHARE_LIMIT}字的通知，请删去无关内容后再做。`, 'warning');
+  const link = `${location.origin}${location.pathname}#/import?from=link&text=${encodeURIComponent(text)}`;
+  const firstLine = text.split('\n').find(line => line.trim())?.trim().slice(0, 30) || '通知';
+  const message = `【司序】${firstLine}\n点开即可把这条通知排进你的一周：\n${link}`;
+  try { await navigator.clipboard.writeText(message); tell('司序链接已复制，粘贴到群里即可；同学点开后核对再导入。'); }
+  catch { window.prompt('复制下面这段发到群里：', message); }
+});
+
+// ---- 备份提醒：清单只在这个浏览器里 ----------------------------------------
+const BACKUP_KEY = 'sixu.backup';
+function backupState() { return { at: 0, revision: -1, snoozed: '', ...readJSON(BACKUP_KEY, {}) }; }
+function markBackedUp() { writeJSON(BACKUP_KEY, { ...backupState(), at: Date.now(), revision: snapshot.revision }); $('backupNudge').hidden = true; }
+function checkBackup() {
+  const state = backupState();
+  const items = snapshot.tasks.length + snapshot.events.length + snapshot.routines.length;
+  const today = localDate(Date.now());
+  const stale = !state.at || (Date.now() - state.at > 7 * DAY && snapshot.revision !== state.revision);
+  $('backupNudge').hidden = !(items >= 3 && stale && state.snoozed !== today && !storageLocked);
+}
+$('backupNow').addEventListener('click', () => $('exportSnapshot').click());
+$('backupLater').addEventListener('click', () => { writeJSON(BACKUP_KEY, { ...backupState(), snoozed: localDate(Date.now()) }); $('backupNudge').hidden = true; });
+
 // ---- 提醒 ---------------------------------------------------------------
 // While the page is open, a reminder pops up `lead` minutes before each 截止 and each 点墨 / 约定
 // start (a system notification when allowed, the page's toast always). A web page cannot wake up
@@ -1214,7 +1287,10 @@ function takeHashText() {
   const params = new URLSearchParams(query);
   const text = params.get('text');
   history.replaceState(null, '', `${location.pathname}${location.search}#/import`);
-  if (text && text.trim()) { appendNotice(text.trim().slice(0, 100000)); tell('已收到快捷指令送来的通知，核对后点“导入”。'); }
+  if (text && text.trim()) {
+    appendNotice(text.trim().slice(0, 100000));
+    tell(params.get('from') === 'link' ? '已从司序链接收到一条通知，核对后点“导入”。' : '已收到快捷指令送来的通知，核对后点“导入”。');
+  }
   if (params.get('shared')) takeShared();
 }
 async function takeShared() {
@@ -1243,6 +1319,7 @@ if ('serviceWorker' in navigator && (location.protocol === 'https:' || ['localho
 renderAll();
 takeHashText();
 remindTick();
+checkBackup();
 if (recovered.error) tell(`本地清单未能读取：${recovered.error}。为保护原数据，当前修改暂不覆盖保存；请导入备份或明确清空后重建。`, 'warning');
 else if (recovered.migrated) { tell('已把旧版清单转换成四层时间格式；旧数据仍保留在浏览器中，没有删除。'); save(); }
 if (location.protocol === 'file:') tell('请通过本地HTTP服务打开此页面，直接打开文件无法完整加载编辑模块。', 'warning');
