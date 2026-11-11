@@ -65,6 +65,9 @@ let calendarTimer = null;
 let calendarWeek = null;
 let strategyUndo = null; // { before, label, note } of the last 叠墨 strategy applied
 const weighs = {}; // conflictKey -> { loading, error, pick, reason, note } from 请模型权衡
+let scrollRolled = true; // 画卷 opens as a closed scroll each time the page is entered
+let coverPainted = false; // the 山水 brushes in once per cover, not on every recalculation
+let unrollTimer = null;
 let parseSequence = 0;
 let connectionSequence = 0;
 let timetableSequence = 0;
@@ -268,7 +271,8 @@ async function computeCalendar() {
   }
 }
 function renderCalendar() {
-  $('calendarView').innerHTML = calendarMarkup({ result: calendarResult, start: shownWeek(), now: Date.now(), loading: calendarLoading && !calendarResult, error: calendarError, undo: strategyUndo?.label || '', note: strategyUndo?.note || '', weighs });
+  $('calendarView').innerHTML = calendarMarkup({ result: calendarResult, start: shownWeek(), now: Date.now(), loading: calendarLoading && !calendarResult, error: calendarError, undo: strategyUndo?.label || '', note: strategyUndo?.note || '', weighs, rolled: scrollRolled, unrolling: Boolean(unrollTimer), fresh: !coverPainted });
+  if (scrollRolled && calendarResult) coverPainted = true;
   $('calendarView').querySelector('.cal-remind-slot')?.append(remindBar);
   fitCalendar();
 }
@@ -965,6 +969,8 @@ $('calendarView').addEventListener('click', event => {
   }
   const goto = event.target.closest('[data-cal-goto="time"]');
   if (goto) { window.SixuRouter?.go('time'); openRoll(goto.dataset.calRoll || 'free'); return; }
+  if (event.target.closest('[data-scroll-open]')) { unrollScroll(); return; }
+  if (event.target.closest('[data-scroll-roll]')) { scrollRolled = true; coverPainted = false; renderCalendar(); return; }
   if (event.target.closest('[data-strategy-undo]')) { undoStrategy(); return; }
   const weigh = event.target.closest('[data-weigh]');
   if (weigh) { weighConflict(weigh.dataset.weigh); return; }
@@ -1063,8 +1069,26 @@ for (const [type, lit] of [['mouseover', true], ['mouseout', false], ['focusin',
     }
   });
 }
+// 展开画卷: the paper widens from the centre while both rods roll outward, an ink wash spreads over it,
+// the 山水 shows through and settles into a faint wash as the week appears (agent.css .is-unrolling).
+function unrollScroll() {
+  scrollRolled = false;
+  const calm = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
+  window.clearTimeout(unrollTimer);
+  unrollTimer = calm ? null : window.setTimeout(() => {
+    unrollTimer = null;
+    $('calendarView').querySelector('.scroll')?.classList.remove('is-unrolling');
+  }, 2000);
+  renderCalendar();
+  window.scrollTo({ top: 0, behavior: calm ? 'auto' : 'smooth' });
+  const mount = $('calendarView').querySelector('.scroll-mount');
+  if (mount) mount.style.setProperty('--unroll', `${Math.max(0, mount.getBoundingClientRect().width / 2 - 2)}px`);
+  (window.requestAnimationFrame || window.setTimeout)(fitCalendar);
+}
 document.addEventListener('sixu:route', event => {
-  if (event.detail !== 'calendar') return;
+  if (event.detail !== 'calendar') { scrollRolled = true; coverPainted = false; return; }
+  coverPainted = false; // paint the 山水 when the page is actually entered, even if it was redrawn off screen
+  if (calendarResult) renderCalendar();
   (window.requestAnimationFrame || window.setTimeout)(fitCalendar);
   if (!calendarResult && !calendarLoading) computeCalendar();
 });
