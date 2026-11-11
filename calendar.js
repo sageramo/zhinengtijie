@@ -6,6 +6,8 @@
  * undefined items are listed beside the week. Blocks carry data-cal-item and
  * data-cal-layer so a click can open the matching entry.
  */
+import { shanshuiMarkup } from './shanshui.js';
+
 const DAY = 86400000;
 const HOUR = 3600000;
 const OFFSET = 8 * HOUR;
@@ -125,7 +127,7 @@ function conflictCard(conflict, result, weighs = {}) {
   const id = first.layer === 'routine' ? first.id.split('@')[0] : first.id;
   const strategies = (conflict.strategies || []).map((strategy, index) => `<li><button type="button" class="cx-option${strategy.recommended ? ' is-recommended' : ''}${index === pick ? ' is-model-pick' : ''}" data-strategy="${escape(conflict.id)}:${index}" title="${escape(strategy.detail)}"><span class="cx-option-label">${index === pick ? '<em class="cx-model-tag">模型之选</em>' : ''}${strategy.recommended ? '<em>推荐</em>' : ''}${escape(strategy.label)}</span><span class="cx-option-detail">${escape(strategy.detail)}</span></button></li>`).join('');
   return `<li class="cx-card" data-conflict-keys="${escape(keys)}">
-      <button type="button" class="cx-head" data-cal-item="${escape(id)}" data-cal-layer="${layer}"><strong>${escape(CONFLICT_LABEL[conflict.type] || '叠墨')}</strong><span>${when}${conflict.minutes ? ` · ${conflict.minutes}分钟` : ''}</span></button>
+      <button type="button" class="cx-head" data-cal-item="${escape(id)}" data-cal-layer="${layer}"><strong><svg class="cx-blot" viewBox="0 0 20 20" aria-hidden="true"><path d="M10 2.5c2.3.2 3 2.2 4.6 2.6 1.9.5 3.6 1.4 3.2 3.6-.3 1.6-1.7 2-1.5 3.6.2 1.8-.6 3.9-2.7 4.3-1.6.3-2.4-.9-3.8-.6-1.7.4-3.3 1.6-4.9.5-1.5-1-.9-2.9-1.8-4.1C2.2 11.2.9 9.9 1.8 8.2 2.6 6.7 4.6 7 5.4 5.6 6.3 4 7.8 2.3 10 2.5z"/><circle cx="17.3" cy="15.6" r="1.1"/></svg>${escape(CONFLICT_LABEL[conflict.type] || '叠墨')}</strong><span>${when}${conflict.minutes ? ` · ${conflict.minutes}分钟` : ''}</span></button>
       ${conflictPicture(conflict, result)}
       ${conflict.advice ? `<p class="cx-advice">${escape(conflict.advice)}</p>` : `<p class="cx-advice">${escape(conflict.reason)}</p>`}
       ${weighMarkup(conflict, weigh)}
@@ -166,7 +168,7 @@ export function weeklyBrief(items, start, now) {
   return lines;
 }
 
-export function calendarMarkup({ result, start, now, loading = false, error = '', undo = '', note = '', weighs = {} }) {
+export function calendarMarkup({ result, start, now, loading = false, error = '', undo = '', note = '', weighs = {}, rolled = false, unrolling = false, fresh = false }) {
   const items = calendarItems(result);
   const days = Array.from({ length: 7 }, (_, index) => start + index * DAY);
   const end = start + 7 * DAY;
@@ -248,12 +250,22 @@ export function calendarMarkup({ result, start, now, loading = false, error = ''
   const brief = result ? weeklyBrief(inWeek, start, now) : [];
   const side = result ? sideLists(result, undo, note, weighs) : '<section class="cal-side-block"><p>计算完成后，这里列出叠墨的对策和待书。</p></section>';
   const stat = (value, label) => `<li><b>${value}</b><span>${label}</span></li>`;
-  return `<div class="scroll">
+  // 本周山水: on the cover it is the painting; once the scroll is open it stays as a faint wash behind the week.
+  const painting = result ? shanshuiMarkup({ items: inWeek, start, now, conflicts: result.conflicts, id: rolled ? 'ss-cover' : 'ss-board' }) : '';
+  const cover = `<section class="scroll-cover" aria-labelledby="coverHeading">
+      <header class="cover-head"><p class="cal-eyebrow">本周山水</p><h3 id="coverHeading">峰高是忙，云白是留白</h3></header>
+      <div class="cover-painting">${painting || '<p class="cover-wait">正在铺开这一周…</p>'}</div>
+      <ul class="cover-legend" aria-label="山水图例"><li class="lg-peak">峰 · 这天排了多少</li><li class="lg-cloud">云 · 留白</li><li class="lg-dot">墨点 · 点墨</li><li class="lg-star">金星 · 截止</li><li class="lg-bleed">朱晕 · 叠墨</li><li class="lg-moon">月 · 今天</li></ul>
+      <button type="button" class="primary-button cover-open" data-scroll-open${result ? '' : ' disabled'}><svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><path d="M4 5v14M20 5v14M8 12h8M11 9l-3 3 3 3M13 9l3 3-3 3" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>展开画卷</button>
+    </section>`;
+  const backdrop = painting ? `<div class="ss-backdrop" aria-hidden="true">${painting.replace('role="img"', 'focusable="false"')}</div><i class="unroll-ink" aria-hidden="true"></i>` : '';
+  return `<div class="scroll${rolled ? ' is-rolled' : ''}${rolled && fresh ? ' is-fresh' : ''}${unrolling ? ' is-unrolling' : ''}">
     <aside class="scroll-side" aria-label="这一周">
       <header class="cal-top">
         <p class="cal-eyebrow">${local(start).getUTCFullYear()} · 第 ${weekNumber(start)} 周</p>
         <h2 class="cal-range" id="calendarHeading">${range}</h2>
         <div class="cal-nav"><button type="button" data-cal-week="-1" aria-label="上一周"><svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><path d="M15 5l-7 7 7 7" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></button><button type="button" data-cal-week="0">本周</button><button type="button" data-cal-week="1" aria-label="下一周"><svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><path d="M9 5l7 7-7 7" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></button></div>
+        ${result && !rolled ? '<button type="button" class="text-button cal-roll-up" data-scroll-roll>卷起画卷</button>' : ''}
       </header>
       <div class="cal-remind-slot"></div>
       ${status}
@@ -262,12 +274,12 @@ export function calendarMarkup({ result, start, now, loading = false, error = ''
       <ul class="cal-stats" aria-label="本周统计">${stat(count('routine'), '底色')}${stat(count('work') + count('appointment'), '落笔')}${stat(count('temporary'), '点墨')}${stat(count('deadline'), '截止')}${stat(Number(freeHours.toFixed(1)), '时留白')}</ul>
       <ul class="cal-legend" aria-label="图例"><li class="lg-routine">底色 · 每周照例</li><li class="lg-free">留白 · 自己支配</li><li class="lg-work">落笔 · 约定与截止之事</li><li class="lg-temporary">点墨 · 临时突发</li><li class="lg-deadline">截止</li><li class="lg-conflict">叠墨 · 相撞</li><li class="lg-now">此刻</li></ul>
     </aside>
-    <div class="scroll-mount"><div class="cal-board">
+    ${rolled ? cover : `    <div class="scroll-mount"><div class="cal-board">${backdrop}
       <div class="cal-week" style="--rows:${last - first}">
         <div class="cal-corner" aria-hidden="true"></div>${heads}
         <div class="cal-hours" aria-hidden="true">${hours}</div>${columns}
       </div>${empty}
       <ol class="cal-agenda">${agenda || '<li class="cal-agenda-day"><p>这一周还没有安排。</p></li>'}</ol>
-    </div></div>
+    </div></div>`}
   </div>`;
 }

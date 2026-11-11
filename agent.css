@@ -1212,3 +1212,90 @@ html[data-dir="prev"]::view-transition-new(sixu-page) { animation-name: page-in-
 .actual-ask { margin-top: 10px; padding: 10px 12px; border-radius: 10px; background: var(--accent-soft); color: var(--accent-deep); font-size: .8125rem; }
 .actual-ask .chips { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
 .chip.is-learned { border-color: var(--gold); background: #fff8ec; color: var(--warning); font-weight: 600; }
+
+/* ---- 画卷：先见山水，再展卷 ---- */
+.scroll-cover { display: grid; gap: 14px; align-content: start; margin: 14px 0 0; padding: 22px 24px 24px; border: 3px double rgba(201, 154, 75, .7); outline: 1px solid rgba(201, 154, 75, .3); outline-offset: 5px;
+  background: var(--paper); box-shadow: 0 18px 40px rgba(29, 42, 56, .1); }
+.cover-head { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
+.cover-head .cal-eyebrow { margin: 0; letter-spacing: .3em; color: var(--accent); font-size: .75rem; }
+.cover-head h3 { margin: 0; font-family: var(--font-kai); font-size: 1.15rem; font-weight: 400; color: var(--muted); }
+.cover-painting { overflow: hidden; border-radius: 4px; box-shadow: inset 0 0 0 1px rgba(150, 115, 60, .18); aspect-ratio: 1000 / 420; background: #f4f8fc; }
+.cover-painting .shanshui { display: block; width: 100%; height: 100%; }
+.cover-wait { display: grid; place-items: center; height: 100%; margin: 0; color: var(--muted); font-family: var(--font-kai); }
+.cover-legend { display: flex; flex-wrap: wrap; gap: 6px 16px; margin: 0; padding: 0; list-style: none; color: var(--muted); font-size: .75rem; }
+.cover-legend li::before { content: ""; display: inline-block; width: 12px; height: 12px; margin-right: 6px; border-radius: 50%; vertical-align: -1px; }
+.cover-legend .lg-peak::before { border-radius: 2px 2px 0 0; clip-path: polygon(50% 0, 100% 100%, 0 100%); background: #2d5b8c; }
+.cover-legend .lg-cloud::before { background: #fff; box-shadow: inset 0 0 0 1px #c9d7e6; }
+.cover-legend .lg-dot::before { background: #13284a; }
+.cover-legend .lg-star::before { background: #e09a35; clip-path: polygon(50% 0, 62% 38%, 100% 50%, 62% 62%, 50% 100%, 38% 62%, 0 50%, 38% 38%); border-radius: 0; }
+.cover-legend .lg-bleed::before { background: radial-gradient(circle, rgba(162, 51, 45, .85), rgba(162, 51, 45, .2)); }
+.cover-legend .lg-moon::before { background: #f2b85b; box-shadow: 0 0 6px #f2b85b; }
+.cover-open { justify-self: center; display: inline-flex; align-items: center; gap: 10px; min-height: 52px; padding: 10px 30px; border-radius: 999px; font-family: var(--font-serif); font-size: 1.05rem; letter-spacing: .2em; box-shadow: 0 10px 26px rgba(37, 99, 184, .28); }
+.cal-roll-up { margin-left: 6px; }
+
+/* the painting itself */
+.shanshui .ss-line { fill: none; stroke: #13284a; stroke-width: 2.4; stroke-linecap: round; opacity: .75; }
+.shanshui .ss-cloud { fill: #fff; opacity: .9; }
+.shanshui .ss-dot { fill: #13284a; stroke: rgba(19, 40, 74, .25); stroke-width: 6; }
+.shanshui .ss-star { fill: #e09a35; filter: drop-shadow(0 0 3px rgba(224, 154, 53, .8)); }
+.shanshui .ss-bleed { fill: rgba(162, 51, 45, .55); mix-blend-mode: multiply; }
+.shanshui .ss-moon circle { fill: #f2b85b; }
+.shanshui .ss-moon .ss-moon-glow { fill: rgba(242, 184, 91, .22); }
+.shanshui .ss-water { fill: none; stroke: rgba(45, 91, 140, .25); stroke-width: 1.4; stroke-linecap: round; }
+.shanshui .ss-day { fill: var(--muted); font-family: var(--font-kai); font-size: 20px; text-anchor: middle; }
+.shanshui .ss-day.is-today { fill: var(--accent); font-weight: 700; }
+@media (prefers-reduced-motion: no-preference) {
+  .is-fresh .scroll-cover .ss-far { animation: ss-paint 1.6s .1s cubic-bezier(.4, 0, .2, 1) both; }
+  .is-fresh .scroll-cover .ss-near, .is-fresh .scroll-cover .ss-line { animation: ss-paint 1.8s .3s cubic-bezier(.4, 0, .2, 1) both; }
+  .scroll-cover .ss-cloud { animation: ss-drift 9s calc(var(--d) * -1.3s) ease-in-out infinite alternate; transform-box: fill-box; transform-origin: center; }
+  .is-fresh .scroll-cover .ss-cloud { animation: ss-mist 1.2s calc(1.1s + var(--d) * .08s) ease-out both, ss-drift 9s calc(var(--d) * -1.3s) ease-in-out infinite alternate; }
+  .is-fresh .scroll-cover .ss-dot, .is-fresh .scroll-cover .ss-star, .is-fresh .scroll-cover .ss-bleed { animation: ss-drop .6s 1.6s cubic-bezier(.34, 1.56, .64, 1) both; transform-box: fill-box; transform-origin: center; }
+  .scroll-cover .ss-moon { animation: ss-moon 4s ease-in-out infinite alternate; }
+}
+@keyframes ss-paint { from { clip-path: inset(0 100% 0 0); } to { clip-path: inset(0 0 0 0); } }
+@keyframes ss-mist { from { opacity: 0; } to { opacity: .9; } }
+@keyframes ss-drift { from { transform: translateX(-10px); } to { transform: translateX(12px); } }
+@keyframes ss-drop { from { opacity: 0; transform: scale(.2); } to { opacity: 1; transform: none; } }
+@keyframes ss-moon { from { opacity: .8; } to { opacity: 1; } }
+
+/* once open, the 山水 stays as a faint wash behind the week */
+.scroll-mount .cal-board { isolation: isolate; }
+.ss-backdrop { position: absolute; inset: 0; z-index: 0; opacity: .13; pointer-events: none; }
+.ss-backdrop .shanshui { width: 100%; height: 100%; }
+.scroll-mount .cal-week, .scroll-mount .cal-agenda, .scroll-mount .cal-empty { position: relative; z-index: 1; }
+.unroll-ink { display: none; }
+
+/* 展开画卷 */
+@media (prefers-reduced-motion: no-preference) {
+  .is-unrolling .scroll-mount { animation: mount-open 1.5s cubic-bezier(.65, 0, .25, 1) both; }
+  .is-unrolling .scroll-mount::before { animation: rod-left 1.5s cubic-bezier(.65, 0, .25, 1) both; }
+  .is-unrolling .scroll-mount::after { animation: rod-right 1.5s cubic-bezier(.65, 0, .25, 1) both; }
+  .is-unrolling .ss-backdrop { animation: wash-settle 1.9s ease-out both; }
+  .is-unrolling .cal-week, .is-unrolling .cal-agenda, .is-unrolling .cal-empty { animation: week-appear .7s 1.15s ease-out both; }
+  .is-unrolling .unroll-ink { display: block; position: absolute; inset: -20%; z-index: 2; pointer-events: none; mix-blend-mode: multiply; filter: blur(6px);
+    background: radial-gradient(circle at 50% 46%, rgba(29, 79, 148, .5), rgba(37, 99, 184, .28) 32%, rgba(159, 205, 245, .16) 52%, rgba(159, 205, 245, 0) 68%);
+    animation: ink-wash 1.6s .25s cubic-bezier(.2, .7, .3, 1) both; }
+}
+@keyframes mount-open { from { clip-path: inset(-20px calc(50% - 40px) -20px calc(50% - 40px)); } to { clip-path: inset(-20px -40px -20px -40px); } }
+@keyframes rod-left { from { transform: translateX(var(--unroll, 0px)); } to { transform: none; } }
+@keyframes rod-right { from { transform: translateX(calc(-1 * var(--unroll, 0px))); } to { transform: none; } }
+@keyframes wash-settle { 0%, 45% { opacity: .95; } 100% { opacity: .13; } }
+@keyframes week-appear { from { opacity: 0; filter: blur(6px); transform: translateY(6px); } to { opacity: 1; filter: none; transform: none; } }
+@keyframes ink-wash { 0% { opacity: 0; transform: scale(.25); } 30% { opacity: .95; } 100% { opacity: 0; transform: scale(1.5); } }
+
+/* ---- 叠墨：两层墨相叠，而不是一道红框 ---- */
+.cx-blot { width: 15px; height: 15px; margin-right: 5px; vertical-align: -2px; fill: var(--danger); filter: drop-shadow(1px 1px 0 rgba(37, 99, 184, .35)); }
+.cx-row .cx-bar { opacity: .82; }
+.cx-overlap { background: radial-gradient(ellipse at 50% 55%, rgba(162, 51, 45, .45), rgba(162, 51, 45, .2) 60%, rgba(162, 51, 45, 0) 100%); mix-blend-mode: multiply; filter: blur(1.2px);
+  box-shadow: inset 1px 0 0 rgba(162, 51, 45, .55), inset -1px 0 0 rgba(162, 51, 45, .55); }
+.cal .cal-block.is-conflict { outline: 0; box-shadow: 0 0 0 2px rgba(162, 51, 45, .9), 3px 2px 0 1px rgba(37, 99, 184, .4), 0 0 18px 3px rgba(162, 51, 45, .25); }
+@media (prefers-reduced-motion: no-preference) {
+  .cal .cal-block.is-conflict { animation: ink-breathe 3.2s ease-in-out infinite; }
+}
+@keyframes ink-breathe { 0%, 100% { box-shadow: 0 0 0 2px rgba(162, 51, 45, .9), 3px 2px 0 1px rgba(37, 99, 184, .4), 0 0 14px 2px rgba(162, 51, 45, .2); }
+  50% { box-shadow: 0 0 0 2px rgba(162, 51, 45, .9), 3px 2px 0 1px rgba(37, 99, 184, .4), 0 0 24px 6px rgba(162, 51, 45, .32); } }
+@media (max-width: 760px) { .scroll-cover { padding: 14px; } .cover-open { width: 100%; justify-content: center; } }
+.cal .cal-block.is-conflict.is-lit { animation: none; }
+@media (prefers-reduced-motion: no-preference) { .is-fresh .scroll-cover .ss-distant { animation: ss-paint 1.4s cubic-bezier(.4, 0, .2, 1) both; } }
+.ss-backdrop .ss-day, .ss-backdrop .ss-water { display: none; }
+@media (max-width: 1000px) { .scroll.is-rolled .scroll-cover { order: -1; margin-top: 0; } }
