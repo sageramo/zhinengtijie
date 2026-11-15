@@ -10,6 +10,7 @@ import { shanshuiMarkup } from './shanshui.js';
 
 const DAY = 86400000;
 const HOUR = 3600000;
+const MINUTE = 60000;
 const OFFSET = 8 * HOUR;
 const WEEKDAYS = ['周一', '周二', '周三', '周四', '周五', '周六', '周日'];
 const escape = value => String(value ?? '').replace(/[&<>"']/g, character => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[character]);
@@ -18,7 +19,7 @@ const clock = value => { const d = local(value); return `${String(d.getUTCHours(
 const monthDay = value => { const d = local(value); return `${d.getUTCMonth() + 1}月${d.getUTCDate()}日`; };
 // On screen the layers use the 书画 names: 底色 routine, 留白 free, 落笔 work and appointments, 点墨 temporary.
 export const LAYER_LABEL = { routine: '底色', temporary: '点墨', work: '落笔', appointment: '落笔·约定', free: '留白', deadline: '截止', start: '开始' };
-const TASK_STATE = { scheduled: '已落笔', estimate_undefined: '预计用时未填', deadline_undefined: '截止未填', free_time_undefined: '留白未设定',
+const TASK_STATE = { time_invalid: '任务时间待核对', scheduled: '已落笔', estimate_undefined: '预计用时未填', deadline_undefined: '截止未填', free_time_undefined: '留白未设定',
   short: '留白不够', overdue: '已过截止', beyond_horizon: '超出31天', not_attempted: '暂未安排', completed: '已完成', cancelled: '已取消' };
 const CONFLICT_LABEL = { routine_overlap: '底色相叠', temporary_routine_overlap: '点墨压在底色上', temporary_overlap: '两处点墨相叠',
   appointment_routine_overlap: '约定压在底色上', appointment_overlap: '约定与他事相叠', work_shortage: '留白不够落笔', overdue: '已过截止' };
@@ -151,6 +152,48 @@ function sideLists(result, undo, note, weighs) {
     <section class="cal-side-block" aria-labelledby="calUndefinedHeading"><h3 id="calUndefinedHeading">待书 <span>${result.undefined.length}</span></h3>${undefinedRows ? `<ul>${undefinedRows}</ul>` : '<p>所有信息都已写清楚。</p>'}</section>`;
 }
 
+export function minutesLabel(minutes) {
+  const hours = Math.floor(minutes / 60);
+  const rest = minutes % 60;
+  return (hours ? `${hours} 小时` : '') + (rest || !hours ? `${hours ? ' ' : ''}${rest} 分钟` : '');
+}
+
+/** Calendar free bands are before flexible work. Subtract every work interval and clip to the future. */
+export function freeAfterWork(items, from, to) {
+  const work = items.filter(item => item.type === 'work').sort((a, b) => a.start - b.start);
+  const slots = [];
+  for (const band of items.filter(item => item.type === 'free')) {
+    let cursor = Math.max(from, band.start);
+    const end = Math.min(to, band.end);
+    if (cursor >= end) continue;
+    for (const block of work) {
+      if (block.end <= cursor) continue;
+      if (block.start >= end) break;
+      if (block.start > cursor) slots.push({ start: cursor, end: block.start });
+      cursor = Math.max(cursor, block.end);
+      if (cursor >= end) break;
+    }
+    if (cursor < end) slots.push({ start: cursor, end });
+  }
+  return slots;
+}
+
+export function remainingCapacity(result, from, to) {
+  if (!result || result.definition?.free_time !== 'defined') return null;
+  // Cut at midnight so two calendar days never look like one bookable slot.
+  const items = calendarItems(result);
+  const slots = [];
+  for (let start = from; start < to;) {
+    const midnight = Math.floor((start + OFFSET) / DAY) * DAY - OFFSET + DAY;
+    const end = Math.min(midnight, to);
+    slots.push(...freeAfterWork(items, start, end));
+    start = end;
+  }
+  const length = slot => Math.floor((slot.end - slot.start) / MINUTE);
+  const longest = slots.reduce((best, slot) => !best || length(slot) > length(best) ? slot : best, null);
+  return { slots, total: slots.reduce((sum, slot) => sum + length(slot), 0), longest: longest ? length(longest) : 0 };
+}
+
 /** Two or three plain lines about the week: the fullest day and what is due soon. */
 export function weeklyBrief(items, start, now) {
   const busyTypes = ['routine', 'temporary', 'appointment', 'work'];
@@ -190,7 +233,7 @@ export function calendarMarkup({ result, start, now, loading = false, error = ''
   const pct = value => `${(Math.min(Math.max(value, 0), span) / span * 100).toFixed(3)}%`;
   const today = weekStart(now) === start ? Math.floor((now - start) / DAY) : -1;
   const count = type => inWeek.filter(item => item.type === type).length;
-  const freeHours = inWeek.filter(item => item.type === 'free').reduce((sum, item) => sum + Math.min(item.end, end) - Math.max(item.start, start), 0) / HOUR;
+  const remaining = remainingCapacity(result, Math.max(start, Math.ceil(now / MINUTE) * MINUTE), end);
 
   const columns = days.map((dayStart, index) => {
     const dayEnd = dayStart + DAY;
@@ -246,7 +289,7 @@ export function calendarMarkup({ result, start, now, loading = false, error = ''
     : result?.status === 'conflicts' ? (result.undefined.length ? `<p class="cal-hint" role="status">另有 ${result.undefined.length} 项待书，见下方。</p>` : '')
     : result?.status === 'incomplete' ? `<p class="cal-hint" role="status">有 ${result.undefined.length} 项待书，已按写清楚的部分落笔。</p>`
     : result ? '<p class="cal-hint" role="status">没有叠墨，所有信息都已写清楚。</p>' : '';
-  const empty = result && !inWeek.length ? '<div class="cal-empty"><p>这一周还是一片空白。</p><span>在「铺纸」里铺好底色、定下留白，再到「研墨」导入通知，事情会落在这里。</span></div>' : '';
+  const empty = result && !inWeek.length ? '<div class="cal-empty"><p>这一周还是一片空白。</p><span>在「铺纸」里铺好底色、定下留白，再到「研磨」导入通知，事情会落在这里。</span></div>' : '';
   const brief = result ? weeklyBrief(inWeek, start, now) : [];
   const side = result ? sideLists(result, undo, note, weighs) : '<section class="cal-side-block"><p>计算完成后，这里列出叠墨的对策和待书。</p></section>';
   const stat = (value, label) => `<li><b>${value}</b><span>${label}</span></li>`;
@@ -269,9 +312,10 @@ export function calendarMarkup({ result, start, now, loading = false, error = ''
       </header>
       <div class="cal-remind-slot"></div>
       ${status}
+      ${remaining && end > now ? `<section class="cal-capacity" aria-label="剩余可用时间"><h3>${start > now ? '这一周可用' : '本周还可用'}</h3><p><strong>${minutesLabel(remaining.total)}</strong><span>最长连续 ${minutesLabel(remaining.longest)}</span>${result.undefined.length ? '<span>待补时间的事项可能占用空档。</span>' : ''}</p><a href="#/import?capacity=1">试算一项新承诺</a></section>` : ''}
       ${brief.length ? `<ul class="cal-brief" aria-label="本周提要">${brief.map(line => `<li>${line}</li>`).join('')}</ul>` : ''}
       <div class="cal-pending">${side}</div>
-      <ul class="cal-stats" aria-label="本周统计">${stat(count('routine'), '底色')}${stat(count('work') + count('appointment'), '落笔')}${stat(count('temporary'), '点墨')}${stat(count('deadline'), '截止')}${stat(Number(freeHours.toFixed(1)), '时留白')}</ul>
+      <ul class="cal-stats" aria-label="本周统计">${stat(count('routine'), '底色')}${stat(count('work') + count('appointment'), '落笔')}${stat(count('temporary'), '点墨')}${stat(count('deadline'), '截止')}</ul>
       <ul class="cal-legend" aria-label="图例"><li class="lg-routine">底色 · 每周照例</li><li class="lg-free">留白 · 自己支配</li><li class="lg-work">落笔 · 约定与截止之事</li><li class="lg-temporary">点墨 · 临时突发</li><li class="lg-deadline">截止</li><li class="lg-conflict">叠墨 · 相撞</li><li class="lg-now">此刻</li></ul>
     </aside>
     ${rolled ? cover : `    <div class="scroll-mount"><div class="cal-board">${backdrop}

@@ -3,8 +3,9 @@ import { SnapshotStore } from './snapshot-store.js';
 import {
   TIME_STORAGE_KEY, ESTIMATE_PRESETS, createTimeSnapshot, serializeTimeSnapshot, parseTimeSnapshot, readTimeSnapshot,
   addImported, updateTask, updateEvent, addTask, addEvent, removeItem, setDailyWindow, addRoutine,
-  addAdjustment, addTimetable, setReferenceTime, skipRoutineDate,
+  addAdjustment, addTimetable, setReferenceTime, skipRoutineDate, isPersonal, personalDay, addPersonalTask, setPersonalDay, setTaskDeadline,
 } from './time-state.js';
+import { agendaReply, hasPersonalClock, isConversation } from './agenda.js';
 import { calendarMarkup, conflictKey, weekStart, weekRange } from './calendar.js';
 import { LEADS, dueReminders, icsCalendar, reminderText, upcomingCount } from './reminders.js';
 import { createBellToggle } from './bell-toggle.js';
@@ -28,7 +29,7 @@ const DEFAULT_WINDOW = [...Array(5).fill({ start: '08:00', end: '23:00' }), ...A
 const DEFAULT_PERIODS = ['1 08:00-08:50', '2 09:00-09:50', '3 10:10-11:00', '4 11:10-12:00', '5 13:30-14:20', '6 14:20-15:10',
   '7 15:30-16:20', '8 16:20-17:00', '9 18:00-18:50', '10 19:00-19:50', '11 20:00-20:50', '12 21:00-21:50'].join('\n');
 // 书画 names: 底色 routine, 留白 free, 落笔 work and appointments, 点墨 temporary, 叠墨 conflict, 待书 undefined.
-const TASK_STATE = { scheduled: ['已落笔', 'ok'], estimate_undefined: ['待书：预计用时未填', 'undefined'], deadline_undefined: ['待书：截止未填', 'undefined'],
+const TASK_STATE = { time_invalid: ['待书：请核对任务时间', 'undefined'], scheduled: ['已落笔', 'ok'], estimate_undefined: ['待书：预计用时未填', 'undefined'], deadline_undefined: ['待书：截止未填', 'undefined'],
   free_time_undefined: ['待书：留白未设定', 'undefined'], short: ['留白不够落笔', 'conflict'], overdue: ['已过截止', 'conflict'],
   beyond_horizon: ['截止超出31天，临近再排', 'undefined'], not_attempted: ['暂未安排', 'undefined'], completed: ['已完成', 'done'], cancelled: ['不做了', 'done'] };
 const currentMinuteISO = () => new Date(Math.ceil(Date.now() / 60000) * 60000).toISOString().replace(/\.\d{3}Z$/, 'Z');
@@ -69,6 +70,8 @@ let scrollRolled = true; // 画卷 opens as a closed scroll each time the page i
 let coverPainted = false; // the 山水 brushes in once per cover, not on every recalculation
 let unrollTimer = null;
 let parseSequence = 0;
+let lastTaskId = null;
+const chatHistory = [];
 let connectionSequence = 0;
 let timetableSequence = 0;
 let lastTimetable = null;
@@ -117,14 +120,17 @@ function renderRollFaces() {
   const appointments = active(snapshot.events).filter(item => item.kind === 'appointment');
   const events = active(snapshot.events).filter(item => item.kind !== 'appointment');
   const tasks = active(snapshot.tasks);
+  const personal = tasks.filter(isPersonal).length;
   const pendingTasks = tasks.filter(task => task.deadline_at === null || task.estimate_minutes === null).length;
-  set('work', [`<b>${appointments.length}</b> 件约定 · <b>${tasks.length}</b> 件截止之事`, pendingTasks ? `<em>${pendingTasks} 件待书</em>` : '']);
+  set('work', [`<b>${appointments.length}</b> 件约定 · <b>${personal}</b> 件个人任务 · <b>${tasks.length - personal}</b> 件截止之事`, pendingTasks ? `<em>${pendingTasks} 件待书</em>` : '']);
   const pendingEvents = events.filter(item => !item.start_at || !item.end_at).length;
   set('event', [`<b>${events.length}</b> 处点墨`, events.slice(0, 2).map(item => escapeHTML(item.title)).join('、'), pendingEvents ? `<em>${pendingEvents} 处时间待书</em>` : '']);
 }
 function busy(button, value, idle, working) {
   button.disabled = value;
   button.setAttribute('aria-busy', String(value));
+  // An icon button (the round send button) keeps its icon and says what it is doing through its label.
+  if (button.hasAttribute('data-icon')) { button.setAttribute('aria-label', value ? working : idle); button.classList.toggle('is-busy', value); return; }
   button.textContent = value ? working : idle;
 }
 
@@ -225,7 +231,7 @@ async function modelRequest(path, body, base, timeoutMs) {
       if (!['access_code_required', 'access_code_invalid'].includes(error.code)) throw error;
       if (error.code === 'access_code_invalid') { try { storage?.removeItem(ACCESS_KEY); } catch { /* nothing kept */ } }
       code = await askAccessCode(error.code === 'access_code_invalid');
-      if (!code) throw new Error('没有输入访问口令，模型功能未调用；可以先用规则提取。');
+      if (!code) throw new Error('没有输入访问口令，可以切回默认模式。');
       try { storage?.setItem(ACCESS_KEY, code); } catch { /* kept for this call only */ }
     }
   }
@@ -244,7 +250,7 @@ async function ensureHealth(base, { fresh = false } = {}) {
 }
 
 // ---- Calendar -----------------------------------------------------------
-const shownWeek = () => calendarWeek ?? weekStart(Date.parse(snapshot.reference_time));
+const shownWeek = () => calendarWeek ?? weekStart(Date.now());
 function scheduleCalendar() {
   window.clearTimeout(calendarTimer);
   calendarTimer = window.setTimeout(computeCalendar, 250);
@@ -258,7 +264,9 @@ async function computeCalendar() {
   renderCalendar();
   try {
     await ensureHealth(base);
-    const result = await request('/api/v3/calendar', { snapshot, range: weekRange(shownWeek()) }, base);
+    const live = Math.max(Date.parse(snapshot.reference_time), Date.parse(currentMinuteISO()));
+    const current = { ...snapshot, reference_time: new Date(live).toISOString() };
+    const result = await request('/api/v3/calendar', { snapshot: current, range: weekRange(shownWeek()) }, base);
     if (ticket !== calendarSequence || revision !== snapshot.revision || base !== apiBase) return;
     calendarResult = result;
     calendarError = '';
@@ -320,6 +328,7 @@ function evidenceMarkup(item) {
 function taskState(task) {
   if (task.status !== 'active') return TASK_STATE[task.status];
   const computed = calendarResult?.tasks.find(entry => entry.id === task.id)?.state;
+  if (isPersonal(task) && (computed === 'deadline_undefined' || (!computed && task.deadline_at === null))) return ['待书：哪天做未定', 'undefined'];
   if (computed) return TASK_STATE[computed] || ['', ''];
   if (task.deadline_at === null) return TASK_STATE.deadline_undefined;
   if (task.estimate_minutes === null) return TASK_STATE.estimate_undefined;
@@ -341,7 +350,7 @@ function taskMarkup(task) {
   return `<article class="item-card${active ? '' : ' is-inactive'}" data-item-id="${escapeHTML(task.id)}" data-kind="task" id="item-${escapeHTML(task.id)}">
     <div class="item-top"><input class="item-title" data-field="title" value="${escapeHTML(task.title)}" aria-label="工作名称" maxlength="200">${stateBadge(taskState(task))}</div>
     <div class="field-grid">
-      <label>截止<input type="datetime-local" data-field="deadline_at" value="${toLocalInput(task.deadline_at)}"></label>
+      ${isPersonal(task) && !hasPersonalClock(task) ? `<label>哪天做<input type="date" data-field="personal_day" value="${personalDay(task)}"></label>` : `<label>截止<input type="datetime-local" data-field="deadline_at" value="${toLocalInput(task.deadline_at)}"></label>`}
       <label>预计用时（分钟）<input type="number" inputmode="numeric" min="1" max="20160" data-field="estimate_minutes" value="${task.estimate_minutes ?? ''}" placeholder="未填"></label>
       <div class="field-wide chips" role="group" aria-label="预计用时快捷选择">${chips}</div>
       <label>能否拆开做<select data-field="splittable"><option value="true"${task.splittable ? ' selected' : ''}>可以分几次做</option><option value="false"${task.splittable ? '' : ' selected'}>需要一次做完</option></select></label>
@@ -372,7 +381,10 @@ function renderItems() {
   const appointments = snapshot.events.filter(event => event.kind === 'appointment');
   $('eventList').innerHTML = points.length ? points.map(eventMarkup).join('') : '<p class="empty-note">还没有点墨。导入通知或手动添加。</p>';
   $('appointmentList').innerHTML = appointments.length ? appointments.map(eventMarkup).join('') : '<p class="empty-note">还没有约定。和别人约好的事可以加在这里。</p>';
-  $('taskList').innerHTML = snapshot.tasks.length ? snapshot.tasks.map(taskMarkup).join('') : '<p class="empty-note">还没有截止之事。导入通知或手动添加。</p>';
+  const personal = snapshot.tasks.filter(isPersonal);
+  const deadlines = snapshot.tasks.filter(task => !isPersonal(task));
+  $('personalList').innerHTML = personal.length ? personal.map(taskMarkup).join('') : '<p class="empty-note">还没有个人任务。点“添加个人任务”，或在研磨里说“提醒我今天……”。</p>';
+  $('taskList').innerHTML = deadlines.length ? deadlines.map(taskMarkup).join('') : '<p class="empty-note">还没有截止之事。导入通知或手动添加。</p>';
 }
 function renderItemStates() {
   for (const card of document.querySelectorAll('[data-item-id]')) {
@@ -423,54 +435,163 @@ function showParseProgress(mode) {
 }
 function hideParseProgress() { window.clearInterval(parseTimer); parseTimer = null; $('parseProgress').hidden = true; $('inkwell').classList.remove('is-grinding'); }
 function importSummary(imported) {
-  const pending = imported.tasks.filter(task => task.estimate_minutes === null && task.deadline_at !== null).length;
-  const noDeadline = imported.tasks.filter(task => task.deadline_at === null).length;
+  const pending = imported.tasks.filter(task => task.estimate_minutes === null).length;
+  const noDeadline = imported.tasks.filter(task => task.deadline_at === null && !isPersonal(task)).length;
+  const noDay = imported.tasks.filter(task => task.deadline_at === null && isPersonal(task)).length;
   const openEvents = imported.events.filter(event => !event.start_at || !event.end_at).length;
+  const points = imported.events.filter(event => event.kind !== 'appointment').length;
+  const appointments = imported.events.length - points;
+  const personal = imported.tasks.filter(isPersonal).length;
+  const deadlines = imported.tasks.length - personal;
   const parts = [];
-  if (imported.events.length) parts.push(`${imported.events.length} 处点墨`);
-  if (imported.tasks.length) parts.push(`${imported.tasks.length} 件截止之事`);
-  const missing = [pending && `${pending} 件的预计用时`, noDeadline && `${noDeadline} 件的截止`, openEvents && `${openEvents} 处点墨的时间`].filter(Boolean);
+  if (points) parts.push(`${points} 处点墨`);
+  if (appointments) parts.push(`${appointments} 件约定`);
+  if (personal) parts.push(`${personal} 件个人任务`);
+  if (deadlines) parts.push(`${deadlines} 件截止之事`);
+  const missing = [pending && `${pending} 件的预计用时`, noDeadline && `${noDeadline} 件的截止`, noDay && `${noDay} 件个人任务的日期`, openEvents && `${openEvents} 件事的结束时间`].filter(Boolean);
   const warnings = (imported.warnings || []).map(note => `<li>${escapeHTML(note)}</li>`).join('');
-  return `<p><strong>已加入 ${parts.join('、') || '0 项'}。</strong>${missing.length ? `${missing.join('、')}还是待书，可以随时补；没补之前它们不会挡住其他事项。` : '时间信息都已写清楚。'}</p>
+  const kind = item => item.deadline_at !== undefined ? (isPersonal(item) ? ['work', '个人任务'] : ['deadline', '截止']) : item.kind === 'appointment' ? ['appointment', '约定'] : ['temporary', '点墨'];
+  const when = item => item.deadline_at !== undefined
+    ? (isPersonal(item) && !hasPersonalClock(item) && item.earliest_start_at ? `${readable(item.earliest_start_at).split(' ')[0]} 做` : item.deadline_at ? `${readable(item.deadline_at)} 前` : '时间待书')
+    : item.start_at ? `${readable(item.start_at)}${item.end_at ? ` – ${readable(item.end_at).split(' ')[1]}` : ' 开始'}` : '时间待书';
+  const rows = [...imported.events, ...imported.tasks].map(item => { const [layer, label] = kind(item); return `<li><i class="turn-dot is-${layer}"></i><span class="turn-kind">${label}</span><strong>${escapeHTML(item.title)}</strong><span class="turn-when">${when(item)}</span></li>`; }).join('');
+  return `${rows ? `<ul class="turn-items">${rows}</ul>` : ''}<p><strong>已加入 ${parts.join('、') || '0 项'}。</strong>${missing.length ? `${missing.join('、')}还是待书，可以随时补；没补之前它们不会挡住其他事项。` : '时间信息都已写清楚。'}</p>
     ${warnings ? `<ul>${warnings}</ul>` : ''}<p class="inline-links"><a href="#/items">去笔墨补充</a><a href="#/calendar">看画卷</a></p>`;
 }
+function showTurn(text, html) {
+  archiveTurn();
+  pushUserTurn(text);
+  $('importSummary').dataset.turn = '1';
+  $('importSummary').innerHTML = html;
+  $('importSummary').hidden = false;
+  $('noticeText').value = '';
+  $('noticeText').style.height = '';
+  if ($('noticeSection').getBoundingClientRect().bottom > window.innerHeight) {
+    $('noticeForm').scrollIntoView?.({ block: 'end', behavior: scrollBehavior() });
+  }
+}
+function replyMarkup(reply) {
+  const links = { calendar: '<a href="#/calendar" data-agenda-calendar>看画卷</a>',
+    setup: '<a href="#/time">去铺纸设置</a>', tasks: '<a href="#/items">去落笔查看</a>' };
+  return `<p>${escapeHTML(reply.text)}</p>${links[reply.action] ? `<p class="inline-links">${links[reply.action]}</p>` : ''}`;
+}
+let agendaWeek = null;
+$('importSummary').addEventListener('click', event => {
+  if (!event.target.closest('[data-agenda-calendar]')) return;
+  if (agendaWeek !== null && agendaWeek !== shownWeek()) {
+    calendarWeek = agendaWeek;
+    calendarResult = null;
+    scheduleCalendar();
+  }
+});
 $('noticeForm').addEventListener('submit', async event => {
   event.preventDefault();
+  if ($('parseNotice').disabled) return;
   if (externalConflict) return tell('请先处理另一个标签页的清单变化。', 'warning');
   const text = $('noticeText').value.trim();
   const referenceDate = $('noticeDate').value || null;
   const mode = $('extractionMode').value;
-  if (!text) return tell('请先粘贴通知原文。', 'warning');
-  if (mode === 'model' && [...text].length > 20000) return tell('模型提取每次最多两万字，请拆分通知后重试；原文尚未发送。', 'warning');
-  if (snapshot.sources.some(source => source.text === text)) return tell('这份通知已经导入过了，可以在“笔墨”页直接修改。', 'warning');
+  if (!text) { $('noticeText').focus(); return tell('先写一句话，或粘贴一条通知。', 'warning'); }
   const ticket = ++parseSequence;
   const base = apiBase;
-  busy($('parseNotice'), true, '导入', '正在导入…');
+  const stillCurrent = () => ticket === parseSequence && base === apiBase && !externalConflict;
+  busy($('parseNotice'), true, '发送', '正在处理…');
   showParseProgress(mode);
-  $('importSummary').hidden = true;
+  $('parseStep').textContent = '正在理解这条消息';
   tell('');
   try {
-    const result = await ensureHealth(base, { fresh: mode === 'model' });
-    if (mode === 'model' && !result.model_extraction?.configured) throw new Error('当前服务没有启用模型提取。请用本地模型服务启动后端，或改用规则提取。');
-    $('parseStep').textContent = mode === 'model' ? '模型正在阅读原文，找出事项、时间和地点' : '正在整理事项与时间';
+    const inputSnapshot = snapshot;
+    let reply = mode === 'chat' ? null : await agendaReply(text, { snapshot, lastTaskId, calculate: async body => {
+      await ensureHealth(base);
+      return request('/api/v3/calendar', body, base);
+    } });
+    if (!stillCurrent()) return;
+    if (reply && inputSnapshot !== snapshot) throw new Error('清单刚刚有变化，请再发送一次。');
+    const modelChat = !reply && mode === 'chat';
+    if (modelChat) {
+      if ([...text].length > 2000) throw new Error('聊天消息每次最多 2000 字。');
+      const service = await ensureHealth(base);
+      if (!service.capabilities.includes('agenda_chat_v1') || !service.timetable_model?.configured) throw new Error('当前服务尚未开启模型聊天。');
+      $('parseStep').textContent = '司序正在回复';
+      const messages = [...chatHistory.slice(-8), { role: 'user', text }];
+      const result = await modelRequest('/api/v3/chat', { mode: 'model', messages }, base, 90000);
+      if (!stillCurrent()) return;
+      chatHistory.splice(0, chatHistory.length, ...messages.slice(-7), { role: 'assistant', text: result.reply });
+      reply = { text: result.reply };
+    }
+    if (!reply && isConversation(text)) {
+      reply = { text: '这句我还接不住。可以继续问本周空档，或在输入框下选「模型聊天」聊别的。' };
+    }
+    if (reply) {
+      if (reply.next) commit(reply.next);
+      agendaWeek = reply.week ?? null;
+      showTurn(text, replyMarkup(reply));
+      return;
+    }
+    if (mode === 'model' && [...text].length > 20000) throw new Error('模型提取每次最多两万字，请拆分通知后重试。');
+    const matchingSources = new Set(snapshot.sources.filter(source => source.text === text).map(source => source.id));
+    if (matchingSources.size && !/^(?:提醒我|帮我记|别忘了|记得|待办)|^(?:今天|明天|后天|今晚|明早|明晚|(?:下)?周[一二三四五六日天])/.test(text)) {
+      throw new Error('这份通知已经导入过了，可以在笔墨直接修改。');
+    }
+    const service = await ensureHealth(base, { fresh: mode === 'model' });
+    if (mode === 'model' && !service.model_extraction?.configured) throw new Error('当前服务没有启用模型提取，可以改用默认模式。');
+    if (!stillCurrent()) return;
+    $('parseStep').textContent = '正在整理事项与时间';
     const imported = await (mode === 'model' ? modelRequest : request)('/api/v3/extract', { text, reference_date: referenceDate, mode }, base, mode === 'model' ? 100000 : 30000);
-    if (ticket !== parseSequence || base !== apiBase) return;
+    if (!stillCurrent()) return;
+    if (!imported.tasks.length && !imported.events.length) {
+      showTurn(text, replyMarkup({ text: '这句里暂时没有识别出事项。试试「提醒我今天写实验报告，30分钟」，也可以选「模型聊天」。' }));
+      return;
+    }
+    if (matchingSources.size) {
+      const same = (item, list, when) => list.some(saved => matchingSources.has(saved.source_id) && saved.title === item.title && saved[when] === item[when]);
+      if (imported.tasks.every(task => same(task, snapshot.tasks, 'deadline_at'))
+          && imported.events.every(event => same(event, snapshot.events, 'start_at'))) throw new Error('这份通知已经导入过了，可以在笔墨直接修改。');
+    }
     if (text.startsWith('【虚构示例】')) imported.source.kind = 'synthetic';
-    // Nothing on 铺纸 yet: start from the usual 作息 so 留白 and 落笔 work right away; 铺纸 can change it.
     let next = addImported(snapshot, imported);
     const defaulted = !next.daily_window;
     if (defaulted) next = setDailyWindow(next, DEFAULT_WINDOW);
     commit(next);
-    $('importSummary').innerHTML = importSummary(imported) + (defaulted ? '<p class="field-help">还没在“铺纸”里定作息，先按每天 08:00–23:00（周末 09:00 起）算留白；课表和作息随时可以去铺纸补上。</p>' : '') + endAskMarkup(imported);
-    $('importSummary').hidden = false;
-    $('noticeText').value = '';
+    const personal = imported.tasks.filter(isPersonal);
+    lastTaskId = personal.length === 1 && imported.tasks.length === 1 && !imported.events.length ? personal[0].id : null;
+    agendaWeek = null;
+    const follow = lastTaskId && personal[0].estimate_minutes === null
+      ? '<p>这件事大约要多久？可以直接回“30分钟”，做完也可以告诉我。</p>' : '';
+    showTurn(text, importSummary(imported) + follow + (defaulted ? '<p class="field-help">先用默认作息（工作日 08:00–23:00，周末 09:00–23:00）。课表和作息可以在铺纸里补齐。</p>' : '') + endAskMarkup(imported));
     estimateEnds('rules', imported.source.text);
   } catch (error) {
-    if (ticket === parseSequence) tell(`导入未完成：${error.message} 原文仍在输入框里。`, 'error');
+    if (ticket === parseSequence) tell(`处理未完成：${error.message} 输入内容仍在。`, 'error');
   } finally {
-    if (ticket === parseSequence) { busy($('parseNotice'), false, '导入'); hideParseProgress(); }
+    if (ticket === parseSequence) { busy($('parseNotice'), false, '发送', '正在处理…'); hideParseProgress(); }
   }
 });
+// ---- The 研磨 conversation: what was sent, and what 司序 added, newest last above the composer.
+function archiveTurn() {
+  const current = $('importSummary');
+  if (!current.dataset.turn) return; // the box is hidden while a new send runs, so a flag says it holds a reply
+  delete current.dataset.turn;
+  const past = document.createElement('div');
+  past.className = 'import-summary turn-agent is-past';
+  past.innerHTML = current.innerHTML;
+  past.querySelectorAll('.end-ask, .inline-links').forEach(node => node.remove());
+  current.before(past);
+}
+function pushUserTurn(text) {
+  const turn = document.createElement('div');
+  turn.className = 'turn-user';
+  turn.textContent = text;
+  $('importSummary').before(turn);
+}
+const growNotice = () => { const box = $('noticeText'); box.style.height = 'auto'; box.style.height = `${Math.min(box.scrollHeight + 2, window.innerHeight * 0.45)}px`; };
+$('noticeText').addEventListener('input', growNotice);
+$('noticeText').addEventListener('keydown', event => {
+  if (event.key === 'Enter' && (event.metaKey || event.ctrlKey)) { event.preventDefault(); $('noticeForm').requestSubmit(); }
+});
+for (const chip of document.querySelectorAll('[data-suggest]')) {
+  chip.addEventListener('click', () => { $('noticeText').value = chip.dataset.suggest; $('noticeText').dispatchEvent(new Event('input')); $('noticeText').focus(); });
+}
+
 // ---- 大约几点结束？ Many notices give only a start. Right after import each such 点墨 gets a
 // suggested end (rules by kind of event, or DeepSeek reading the notice on request); the user
 // adjusts it and saves, or leaves it 待书.
@@ -532,7 +653,7 @@ $('importSummary').addEventListener('click', event => {
   }
   if (event.target.closest('[data-end-model]')) estimateEnds('model');
 });
-for (const id of ['noticeText', 'noticeDate', 'extractionMode']) $(id).addEventListener('input', () => { parseSequence += 1; busy($('parseNotice'), false, '导入'); hideParseProgress(); });
+for (const id of ['noticeText', 'noticeDate', 'extractionMode']) $(id).addEventListener('input', () => { parseSequence += 1; busy($('parseNotice'), false, '发送'); hideParseProgress(); });
 
 const recognizeScreenshot = createRecognizer(...(window.SIXU_OCR_ENGINE ? [async () => window.SIXU_OCR_ENGINE] : []));
 let ocrSequence = 0;
@@ -658,6 +779,7 @@ function fieldValue(input) {
 }
 function editItem(card, patch) {
   const id = card.dataset.itemId;
+  if (card.dataset.kind === 'task' && Object.hasOwn(patch, 'deadline_at')) return setTaskDeadline(snapshot, id, patch.deadline_at);
   return card.dataset.kind === 'task' ? updateTask(snapshot, id, patch) : updateEvent(snapshot, id, patch);
 }
 function onItemChange(event) {
@@ -665,7 +787,8 @@ function onItemChange(event) {
   const card = event.target.closest('[data-item-id]');
   if (!input || !card) return;
   try {
-    const next = editItem(card, { [input.dataset.field]: fieldValue(input) });
+    const next = input.dataset.field === 'personal_day' ? setPersonalDay(snapshot, card.dataset.itemId, input.value || null)
+      : editItem(card, { [input.dataset.field]: fieldValue(input) });
     input.setAttribute('aria-invalid', 'false');
     itemError(card, '');
     // Changing 点墨/约定 moves the card to the other list.
@@ -736,10 +859,15 @@ function saveActual(id, value) {
   tell(estimateMemory === before ? '记下了；这类事还没有归类，暂不用于估时。' : '记下了，下次同类的事会参考这次的实际用时。');
 }
 
-for (const list of ['eventList', 'appointmentList', 'taskList']) {
+for (const list of ['eventList', 'appointmentList', 'personalList', 'taskList']) {
   $(list).addEventListener('change', onItemChange);
   $(list).addEventListener('click', onItemClick);
 }
+$('addPersonal').addEventListener('click', () => {
+  commit(addPersonalTask(snapshot, { day: localDate(Date.now()) }));
+  const title = $('personalList').lastElementChild.querySelector('[data-field="title"]');
+  title.focus(); title.select();
+});
 $('addTask').addEventListener('click', () => {
   commit(addTask(snapshot, { title: '新的截止之事' }));
   const title = $('taskList').lastElementChild.querySelector('[data-field="title"]');
@@ -1085,6 +1213,15 @@ function unrollScroll() {
   if (mount) mount.style.setProperty('--unroll', `${Math.max(0, mount.getBoundingClientRect().width / 2 - 2)}px`);
   (window.requestAnimationFrame || window.setTimeout)(fitCalendar);
 }
+document.addEventListener('click', event => {
+  const link = event.target.closest('a[href="#/import?capacity=1"]');
+  if (!link) return;
+  const input = $('noticeText');
+  if (!input.value.trim()) {
+    input.value = '这周再接4小时的社团工作，留6小时休息，时间够吗？';
+    input.dispatchEvent(new Event('input'));
+  }
+});
 document.addEventListener('sixu:route', event => {
   if (event.detail !== 'calendar') { scrollRolled = true; coverPainted = false; return; }
   coverPainted = false; // paint the 山水 when the page is actually entered, even if it was redrawn off screen

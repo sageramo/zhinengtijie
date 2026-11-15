@@ -124,8 +124,16 @@ export function addImported(snapshot, { source, events = [], tasks = [] }) {
     const sourceId = source && next.sources.find(entry => entry.text === source.text)?.id;
     const adopt = item => ({ ...clone(item), source_id: item.source_id === source?.id ? sourceId : item.source_id,
       evidence: item.evidence.map(entry => entry.source_id === source?.id ? { ...entry, source_id: sourceId } : entry) });
-    next.events.push(...events.map(event => ({ kind: 'temporary', ...adopt(event) })));
-    next.tasks.push(...tasks.map(adopt));
+    for (const imported of events) {
+      const event = { kind: 'temporary', ...adopt(imported) };
+      checkEvent(event);
+      next.events.push(event);
+    }
+    for (const imported of tasks) {
+      const task = adopt(imported);
+      checkTask(task);
+      next.tasks.push(task);
+    }
   });
 }
 
@@ -137,6 +145,7 @@ function checkTask(task) {
   if (task.min_block_minutes !== null && !(Number.isSafeInteger(task.min_block_minutes) && task.min_block_minutes >= 1 && task.min_block_minutes <= 1440)) fail('每次至少连续的分钟数无效');
   if (task.priority !== null && !(Number.isSafeInteger(task.priority) && task.priority >= 0 && task.priority <= 100)) fail('优先级需要是0到100的整数');
   if (typeof task.splittable !== 'boolean') fail('请说明能否拆开做');
+  if (task.splittable && task.min_block_minutes && task.estimate_minutes && task.min_block_minutes > task.estimate_minutes) fail('最小连续时长不能超过预计用时');
   if (!['active', 'completed', 'cancelled'].includes(task.status)) fail('状态无效');
   if (task.deadline_at && task.earliest_start_at && Date.parse(task.earliest_start_at) >= Date.parse(task.deadline_at)) fail('最早开始要早于截止');
 }
@@ -246,4 +255,38 @@ export function skipRoutineDate(snapshot, id, date) {
     const routine = find(next, 'routines', id);
     if (!routine.skip_dates.includes(date)) routine.skip_dates = [...routine.skip_dates, date].sort();
   });
+}
+
+// ---- 个人任务: things set for oneself ("今天背完50个单词"), pinned to a day ----------------
+// A task marked with the note "个人任务". Choosing a day sets 最早开始 to that day 00:00 and 截止 to
+// 23:59, so the calendar places it inside that day's 留白 rather than anywhere before a deadline.
+export const PERSONAL_NOTE = '个人任务';
+export const isPersonal = task => Array.isArray(task.notes) && task.notes.includes(PERSONAL_NOTE);
+const dayBounds = day => {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(day || '')) fail('请选一天');
+  return { earliest_start_at: `${day}T00:00:00+08:00`, deadline_at: `${day}T23:59:00+08:00` };
+};
+/** The Beijing day a personal task is set for: its 最早开始, else its 截止; '' when none. */
+export function personalDay(task) {
+  const iso = task.earliest_start_at || task.deadline_at;
+  return isTimestamp(iso) ? new Date(Date.parse(iso) + 8 * 3600000).toISOString().slice(0, 10) : '';
+}
+export function addPersonalTask(snapshot, { title = '新的个人任务', day, estimate_minutes = null } = {}) {
+  return addTask(snapshot, { title, estimate_minutes, notes: [PERSONAL_NOTE], ...(day ? dayBounds(day) : {}) });
+}
+export function setPersonalDay(snapshot, id, day) {
+  return updateTask(snapshot, id, day ? dayBounds(day) : { earliest_start_at: null, deadline_at: null });
+}
+
+/** Edit a deadline and keep a personal task's day restriction aligned to the chosen date. */
+export function setTaskDeadline(snapshot, id, deadline) {
+  const task = find(snapshot, 'tasks', id);
+  const patch = { deadline_at: deadline };
+  if (isPersonal(task) && task.earliest_start_at) {
+    nullableTime(deadline, '截止');
+    const day = deadline && personalDay({ deadline_at: deadline });
+    const start = day && dayBounds(day).earliest_start_at;
+    patch.earliest_start_at = start && Date.parse(start) < Date.parse(deadline) ? start : null;
+  }
+  return updateTask(snapshot, id, patch);
 }

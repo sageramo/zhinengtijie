@@ -102,14 +102,14 @@ test('a fresh list shows free time as undefined and asks the v3 calendar for the
   assert.match(app.find('#calendarView').textContent, /叠墨/);
 });
 
-test('tabs follow the painting order with plain glosses, and the workbench links back home', async t => {
+test('tabs start at 研磨, the agent entry, with plain glosses, and the workbench links back home', async t => {
   const app = await boot(t);
   assert.deepEqual(app.all('.page-tabs a').map(tab => [tab.dataset.tab, tab.querySelector('.tab-name').textContent, tab.querySelector('.tab-sub').textContent]),
-    [['time', '铺纸', '底色与留白'], ['import', '研墨', '导入通知'], ['items', '笔墨', '落笔与点墨'], ['calendar', '画卷', '一周日历']]);
-  assert.equal(app.find('.aux-nav a[href="#/"]').textContent, '回到首页');
-  assert.deepEqual(app.all('.next-step').map(link => link.getAttribute('href')).sort(), ['#/calendar', '#/import', '#/items']);
-  assert.deepEqual(app.all('.feature-card').map(card => card.getAttribute('href')), ['#/time', '#/import', '#/items', '#/calendar']);
-  assert.equal(app.find('.hero-actions .cta').getAttribute('href'), '#/time');
+    [['import', '研磨', '通知与提醒'], ['time', '铺纸', '底色与留白'], ['items', '笔墨', '落笔与点墨'], ['calendar', '画卷', '一周日历']]);
+  assert.equal(app.find('.aux-nav a[href="#/"]').textContent, '项目介绍');
+  assert.deepEqual(app.all('.next-step').map(link => link.getAttribute('href')).sort(), ['#/calendar', '#/items', '#/time']);
+  assert.deepEqual(app.all('.feature-card').map(card => card.getAttribute('href')), ['#/import', '#/time', '#/items', '#/calendar']);
+  assert.equal(app.find('.hero-actions .cta').getAttribute('href'), '#/import');
 });
 
 test('an old service without time layers is explained instead of failing silently', async t => {
@@ -148,7 +148,7 @@ test('the same notice is not imported twice and a failed import keeps the text',
   failing.set('#noticeText', '一段通知', 'input');
   failing.submit('#noticeForm');
   await settle();
-  assert.match(failing.message(), /导入未完成/);
+  assert.match(failing.message(), /处理未完成/);
   assert.equal(failing.find('#noticeText').value, '一段通知');
   assert.equal(failing.stored(), null);
 });

@@ -18,19 +18,19 @@ function boot(hash) {
   return { window, doc, key, current: () => doc.documentElement.dataset.current, find: selector => doc.querySelector(selector) };
 }
 
-test('side arrows step through 铺纸 → 研墨 → 笔墨 → 画卷 and hide at the ends', () => {
-  const app = boot('#/time');
-  assert.equal(app.current(), 'time');
-  assert.equal(app.find('.page-arrow.is-prev').hidden, true, 'no page before 铺纸');
-  assert.equal(app.find('.page-arrow.is-next').getAttribute('aria-label'), '下一页：研墨');
-  assert.equal(app.find('.page-arrow.is-next .page-arrow-label').textContent, '研墨');
-  app.find('.page-arrow.is-next').click();
+test('side arrows step through 研磨 → 铺纸 → 笔墨 → 画卷 and hide at the ends', () => {
+  const app = boot('#/import');
   assert.equal(app.current(), 'import');
-  assert.equal(app.find('.page-arrow.is-prev').getAttribute('aria-label'), '上一页：铺纸');
+  assert.equal(app.find('.page-arrow.is-prev').hidden, true, 'no page before 研磨');
+  assert.equal(app.find('.page-arrow.is-next').getAttribute('aria-label'), '下一页：铺纸');
+  assert.equal(app.find('.page-arrow.is-next .page-arrow-label').textContent, '铺纸');
+  app.find('.page-arrow.is-next').click();
+  assert.equal(app.current(), 'time');
+  assert.equal(app.find('.page-arrow.is-prev').getAttribute('aria-label'), '上一页：研磨');
 });
 
 test('the arrow keys turn pages, but not while typing or with a modifier', () => {
-  const app = boot('#/import');
+  const app = boot('#/time');
   app.key(app.doc.body, 'ArrowRight');
   assert.equal(app.current(), 'items');
   app.key(app.find('#noticeText'), 'ArrowLeft');
@@ -44,8 +44,14 @@ test('the arrow keys turn pages, but not while typing or with a modifier', () =>
   assert.equal(app.current(), 'calendar');
 });
 
-test('the landing page has no page arrows and the keys do nothing there', () => {
+test('the root URL opens 研磨', () => {
   const app = boot('');
+  assert.equal(app.current(), 'import');
+  app.window.close();
+});
+
+test('the landing page has no page arrows and the keys do nothing there', () => {
+  const app = boot('#/');
   assert.equal(app.current(), 'home');
   assert.ok([...app.doc.querySelectorAll('.page-arrow')].every(button => button.hidden));
   app.key(app.doc.body, 'ArrowRight');
