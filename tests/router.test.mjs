@@ -44,9 +44,9 @@ test('the arrow keys turn pages, but not while typing or with a modifier', () =>
   assert.equal(app.current(), 'calendar');
 });
 
-test('the root URL opens 研磨', () => {
+test('the root URL opens the landing page (home)', () => {
   const app = boot('');
-  assert.equal(app.current(), 'import');
+  assert.equal(app.current(), 'home');
   app.window.close();
 });
 

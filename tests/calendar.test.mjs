@@ -3,7 +3,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
-import { weekStart, weekRange, calendarItems, calendarMarkup } from '../calendar.js';
+import { weekStart, weekRange, calendarItems, calendarMarkup, digestChanges, resultDigest } from '../calendar.js';
 
 const { result } = JSON.parse(readFileSync(new URL('./fixtures/calendar-v3.json', import.meta.url), 'utf8'));
 const monday = Date.parse('2026-11-09T00:00:00+08:00');
@@ -35,18 +35,55 @@ test('markup draws each layer, links blocks to their entries and lists conflicts
   assert.match(html, /class="cal-now"/);
   assert.match(html, /class="cal-block cal-appointment[^"]*" data-cal-item="a1" data-cal-layer="event"/);
   assert.match(html, /叠墨 · 对策 <span>1<\/span>/);
-  assert.match(html, /点墨压在底色上<\/strong><span>11月9日 周一 · 40分钟/);
+  assert.match(html, /点墨压在底色上<\/strong><span>11月9日 周一<\/span>/);
+  // The card names both items and how long they overlap; the week hatches the same minutes.
+  assert.match(html, /class="cx-headline"><b class="cx-who cx-who-temporary">讲座<\/b><span class="cx-and">与<\/span><b class="cx-who cx-who-routine">高等数学<\/b><span class="cx-verb">重叠 <strong>40分钟<\/strong><em>09:00–09:40<\/em>/);
+  assert.match(html, /class="cal-overlap"[^>]*><span>叠 40分钟<\/span>/);
   assert.match(html, /待书 <span>2<\/span>/);
   assert.match(html, /预计用时未定义/);
-  assert.match(html, /落笔 · 约定与截止之事/);
-  assert.match(html, /留白 · 自己支配/);
+  assert.match(html, /data-cal-focus="work" aria-pressed="false"><i aria-hidden="true"><\/i><strong>落笔<\/strong><span>约定与截止之事<\/span>/);
+  assert.match(html, /data-cal-focus="free"[^>]*>.*<strong>留白<\/strong><span>自己支配的时间<\/span>/);
+  assert.match(html, /点一层，只看这一层/);
+  // 叠墨 comes before reminders in the side, so it is on screen when the scroll opens.
+  assert.ok(html.indexOf('calConflictHeading') < html.indexOf('cal-remind-slot'));
   assert.match(html, /11月9日 — 15日/);
+});
+
+test('a chosen layer is shown alone and its button reads as pressed', () => {
+  const html = calendarMarkup({ result, start: monday, now: monday, focus: 'routine' });
+  assert.match(html, /class="cal-week[^"]*" data-focus="routine"/);
+  assert.match(html, /data-cal-focus="routine" aria-pressed="true"/);
+  assert.match(html, /再点一次，恢复全部图层/);
+  assert.doesNotMatch(calendarMarkup({ result, start: monday, now: monday }), /data-focus=/);
+});
+
+test('after a strategy the side lists what the recalculation changed', () => {
+  const now = Date.parse('2026-11-09T07:00:00+08:00');
+  const before = resultDigest(result, monday, now);
+  const after = structuredClone(result);
+  after.conflicts = [];
+  after.layers.temporary = after.layers.temporary.filter(item => item.id !== 'e1');
+  const moved = after.layers.work[0];
+  moved.start = new Date(Date.parse(moved.start) - 30 * 60000).toISOString();
+  moved.end = new Date(Date.parse(moved.end) - 30 * 60000).toISOString();
+  const changes = digestChanges(before, resultDigest(after, monday, now));
+  assert.deepEqual(changes.find(change => change.kind === 'conflict'), { kind: 'conflict', label: '叠墨', before: '1 处', after: '0 处' });
+  assert.equal(changes.find(change => change.kind === 'removed').after, '已划掉');
+  assert.match(changes.find(change => change.kind === 'work').label, /^落笔「/);
+  assert.deepEqual(digestChanges(before, before), []);
+  const html = calendarMarkup({ result: after, start: monday, now, undo: '不去「讲座」', changes });
+  assert.match(html, /采用后，画卷重算的变化/);
+  assert.match(html, /<s>1 处<\/s><i aria-hidden="true">→<\/i><b>0 处<\/b>/);
 });
 
 test('loading, error and no-result states are explained', () => {
   assert.match(calendarMarkup({ result: null, start: monday, now: monday, loading: true }), /正在计算这一周/);
   assert.match(calendarMarkup({ result: null, start: monday, now: monday, error: '连接失败' }), /连接失败/);
   assert.match(calendarMarkup({ result: null, start: monday, now: monday }), /计算完成后/);
+  // A rolled scroll that cannot be computed says why on the cover instead of "正在铺开".
+  const rolled = calendarMarkup({ result: null, start: monday, now: monday, rolled: true, error: '连不上计算服务' });
+  assert.match(rolled, /class="cover-wait is-error" role="status">连不上计算服务/);
+  assert.doesNotMatch(rolled, /正在铺开这一周/);
 });
 
 test('titles are escaped', () => {

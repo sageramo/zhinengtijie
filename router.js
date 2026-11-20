@@ -6,7 +6,7 @@
   const titles = { home: '司序 Marshal · 知所先后', time: '铺纸 · 司序', import: '研磨 · 司序', items: '笔墨 · 司序', calendar: '画卷 · 司序' };
   const aliases = { review: 'items', plan: 'calendar' };
   const routeOf = hash => {
-    if (!hash.startsWith('#/')) return hash && root.dataset.current ? root.dataset.current : 'import';
+    if (!hash.startsWith('#/')) return hash && root.dataset.current ? root.dataset.current : 'home';
     // #/import?text=… (from an iPhone shortcut) and #/import?shared=1 (from the share sheet) open 研磨.
     const raw = hash.slice(2).split('?')[0];
     const name = aliases[raw] || raw;

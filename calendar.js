@@ -118,6 +118,17 @@ function weighMarkup(conflict, weigh) {
   return `<p class="cx-weigh"><button type="button" class="text-button" data-weigh="${key}">请模型权衡</button>${error}</p>`;
 }
 
+/** The two things that overlap, and for how long, in words big enough to read on a projector. */
+function conflictHeadline(conflict) {
+  const names = conflict.items.slice(0, 2).map(item => `<b class="cx-who cx-who-${LAYER_CLASS[item.layer] || 'work'}">${escape(item.title)}</b>`);
+  const span = conflict.start && conflict.end ? `${clock(Date.parse(conflict.start))}–${clock(Date.parse(conflict.end))}` : '';
+  const length = conflict.minutes ? `<strong>${minutesText(conflict.minutes)}</strong>` : '';
+  const lead = conflict.type === 'work_shortage' ? `${names[0]}<span class="cx-verb">截止前留白不够${length ? `，还差 ${length}` : ''}</span>`
+    : conflict.type === 'overdue' ? `${names[0]}<span class="cx-verb">已过截止</span>`
+    : `${names.join('<span class="cx-and">与</span>')}<span class="cx-verb">${length ? `重叠 ${length}` : '时间相撞'}${span ? `<em>${span}</em>` : ''}</span>`;
+  return `<p class="cx-headline">${lead}</p>`;
+}
+
 function conflictCard(conflict, result, weighs = {}) {
   const weigh = weighs[conflictKey(conflict)];
   const pick = weigh?.reason ? weigh.pick : -1;
@@ -128,7 +139,8 @@ function conflictCard(conflict, result, weighs = {}) {
   const id = first.layer === 'routine' ? first.id.split('@')[0] : first.id;
   const strategies = (conflict.strategies || []).map((strategy, index) => `<li><button type="button" class="cx-option${strategy.recommended ? ' is-recommended' : ''}${index === pick ? ' is-model-pick' : ''}" data-strategy="${escape(conflict.id)}:${index}" title="${escape(strategy.detail)}"><span class="cx-option-label">${index === pick ? '<em class="cx-model-tag">模型之选</em>' : ''}${strategy.recommended ? '<em>推荐</em>' : ''}${escape(strategy.label)}</span><span class="cx-option-detail">${escape(strategy.detail)}</span></button></li>`).join('');
   return `<li class="cx-card" data-conflict-keys="${escape(keys)}">
-      <button type="button" class="cx-head" data-cal-item="${escape(id)}" data-cal-layer="${layer}"><strong><svg class="cx-blot" viewBox="0 0 20 20" aria-hidden="true"><path d="M10 2.5c2.3.2 3 2.2 4.6 2.6 1.9.5 3.6 1.4 3.2 3.6-.3 1.6-1.7 2-1.5 3.6.2 1.8-.6 3.9-2.7 4.3-1.6.3-2.4-.9-3.8-.6-1.7.4-3.3 1.6-4.9.5-1.5-1-.9-2.9-1.8-4.1C2.2 11.2.9 9.9 1.8 8.2 2.6 6.7 4.6 7 5.4 5.6 6.3 4 7.8 2.3 10 2.5z"/><circle cx="17.3" cy="15.6" r="1.1"/></svg>${escape(CONFLICT_LABEL[conflict.type] || '叠墨')}</strong><span>${when}${conflict.minutes ? ` · ${conflict.minutes}分钟` : ''}</span></button>
+      <button type="button" class="cx-head" data-cal-item="${escape(id)}" data-cal-layer="${layer}"><strong><svg class="cx-blot" viewBox="0 0 20 20" aria-hidden="true"><path d="M10 2.5c2.3.2 3 2.2 4.6 2.6 1.9.5 3.6 1.4 3.2 3.6-.3 1.6-1.7 2-1.5 3.6.2 1.8-.6 3.9-2.7 4.3-1.6.3-2.4-.9-3.8-.6-1.7.4-3.3 1.6-4.9.5-1.5-1-.9-2.9-1.8-4.1C2.2 11.2.9 9.9 1.8 8.2 2.6 6.7 4.6 7 5.4 5.6 6.3 4 7.8 2.3 10 2.5z"/><circle cx="17.3" cy="15.6" r="1.1"/></svg>${escape(CONFLICT_LABEL[conflict.type] || '叠墨')}</strong><span>${when}</span></button>
+      ${conflictHeadline(conflict)}
       ${conflictPicture(conflict, result)}
       ${conflict.advice ? `<p class="cx-advice">${escape(conflict.advice)}</p>` : `<p class="cx-advice">${escape(conflict.reason)}</p>`}
       ${weighMarkup(conflict, weigh)}
@@ -141,13 +153,18 @@ function noteMarkup(note) {
   return `<div class="cx-note"><p>给老师的请假说明（草稿，【】里换成你的信息；司序不会替你发送）</p><textarea id="leaveNote" rows="5" aria-label="请假说明草稿">${escape(note)}</textarea><div class="inline-actions"><button type="button" data-copy-note>复制</button></div></div>`;
 }
 
-function sideLists(result, undo, note, weighs) {
+function changesMarkup(changes) {
+  if (!changes?.length) return '';
+  return `<div class="cx-changes"><p>采用后，画卷重算的变化</p><ul>${changes.map(change => `<li class="is-${change.kind}"><span>${escape(change.label)}</span><s>${escape(change.before)}</s><i aria-hidden="true">→</i><b>${escape(change.after)}</b>${change.delta ? `<em>${escape(change.delta)}</em>` : ''}</li>`).join('')}</ul></div>`;
+}
+
+function sideLists(result, undo, note, weighs, changes) {
   const conflicts = result.conflicts.map(conflict => conflictCard(conflict, result, weighs)).join('');
   const undefinedRows = result.undefined.map(item => {
     const target = item.id ? `data-cal-item="${escape(item.id)}" data-cal-layer="${item.type.startsWith('event_') ? 'event' : 'task'}"` : `data-cal-goto="time" data-cal-roll="${item.type === 'routines_unconfirmed' ? 'routine' : 'free'}"`;
     return `<li><button type="button" class="cal-issue is-undefined" ${target}><strong>${escape(item.title || (item.type === 'free_time_undefined' ? '留白' : '底色'))}</strong><span>${escape(item.reason)}</span></button></li>`;
   }).join('');
-  const undoBar = undo ? `<p class="cx-undo">已采用：${escape(undo)}<button type="button" class="text-button" data-strategy-undo>撤销</button></p>${noteMarkup(note)}` : '';
+  const undoBar = undo ? `<p class="cx-undo">已采用：${escape(undo)}<button type="button" class="text-button" data-strategy-undo>撤销</button></p>${changesMarkup(changes)}${noteMarkup(note)}` : '';
   return `<section class="cal-side-block cx" aria-labelledby="calConflictHeading"><h3 id="calConflictHeading">叠墨 · 对策 <span>${result.conflicts.length}</span></h3>${undoBar}${conflicts ? `<p class="cal-side-note">按规则为每处相叠拟好对策，点一下即采用，画卷随之重算。</p><ol class="cx-list">${conflicts}</ol>` : '<p class="cx-clear">底色、落笔与点墨之间没有相叠，这一卷是干净的。</p>'}</section>
     <section class="cal-side-block" aria-labelledby="calUndefinedHeading"><h3 id="calUndefinedHeading">待书 <span>${result.undefined.length}</span></h3>${undefinedRows ? `<ul>${undefinedRows}</ul>` : '<p>所有信息都已写清楚。</p>'}</section>`;
 }
@@ -156,6 +173,44 @@ export function minutesLabel(minutes) {
   const hours = Math.floor(minutes / 60);
   const rest = minutes % 60;
   return (hours ? `${hours} 小时` : '') + (rest || !hours ? `${hours ? ' ' : ''}${rest} 分钟` : '');
+}
+
+/** What a judge compares before and after a strategy: conflicts, fixed items, where work sits, time left this week. */
+export function resultDigest(result, start, now) {
+  if (!result) return null;
+  const work = {};
+  for (const entry of result.layers.work) (work[entry.task_id] ||= { title: entry.title, spans: [] }).spans.push([Date.parse(entry.start), Date.parse(entry.end)]);
+  const fixed = {};
+  for (const item of [...result.layers.temporary, ...(result.layers.appointment || [])]) fixed[item.id] = { title: item.title, start: Date.parse(item.start), end: Date.parse(item.end) };
+  const remaining = remainingCapacity(result, Math.max(start, Math.ceil(now / MINUTE) * MINUTE), start + 7 * DAY);
+  return { conflicts: result.conflicts.length, work, fixed, remaining: remaining ? remaining.total : null };
+}
+
+const spanText = (spans, withDay) => spans.length ? `${withDay ? `${monthDay(spans[0][0])} ` : ''}${spans.map(([from, to]) => `${clock(from)}–${clock(to)}`).join('、')}` : '未排入';
+
+/** Plain before → after lines for the 叠墨 side panel. Empty when nothing visible changed. */
+export function digestChanges(before, after) {
+  if (!before || !after) return [];
+  const lines = [];
+  if (before.conflicts !== after.conflicts) lines.push({ kind: 'conflict', label: '叠墨', before: `${before.conflicts} 处`, after: `${after.conflicts} 处` });
+  for (const [id, item] of Object.entries(before.fixed)) {
+    const now = after.fixed[id];
+    if (!now) lines.push({ kind: 'removed', label: `点墨「${item.title}」`, before: `${clock(item.start)}–${clock(item.end)}`, after: '已划掉' });
+    else if (now.start !== item.start || now.end !== item.end) lines.push({ kind: 'moved', label: `「${item.title}」`, before: `${monthDay(item.start)} ${clock(item.start)}`, after: `${monthDay(now.start)} ${clock(now.start)}` });
+  }
+  for (const id of new Set([...Object.keys(before.work), ...Object.keys(after.work)])) {
+    const old = before.work[id]?.spans || [];
+    const fresh = after.work[id]?.spans || [];
+    if (JSON.stringify(old) === JSON.stringify(fresh)) continue;
+    // Same day before and after: the day goes into the label so the times stay short.
+    const sameDay = old.length && fresh.length && monthDay(old[0][0]) === monthDay(fresh[0][0]);
+    lines.push({ kind: 'work', label: `落笔「${(after.work[id] || before.work[id]).title}」${sameDay ? ` · ${monthDay(old[0][0])}` : ''}`, before: spanText(old, !sameDay), after: spanText(fresh, !sameDay) });
+  }
+  if (before.remaining !== null && after.remaining !== null && before.remaining !== after.remaining) {
+    const delta = after.remaining - before.remaining;
+    lines.push({ kind: 'free', label: '本周还可用', before: minutesLabel(before.remaining), after: minutesLabel(after.remaining), delta: `${delta > 0 ? '+' : '−'}${minutesLabel(Math.abs(delta))}` });
+  }
+  return lines;
 }
 
 /** Calendar free bands are before flexible work. Subtract every work interval and clip to the future. */
@@ -211,7 +266,7 @@ export function weeklyBrief(items, start, now) {
   return lines;
 }
 
-export function calendarMarkup({ result, start, now, loading = false, error = '', undo = '', note = '', weighs = {}, rolled = false, unrolling = false, fresh = false }) {
+export function calendarMarkup({ result, start, now, loading = false, error = '', undo = '', note = '', changes = [], weighs = {}, focus = '', rolled = false, unrolling = false, fresh = false }) {
   const items = calendarItems(result);
   const days = Array.from({ length: 7 }, (_, index) => start + index * DAY);
   const end = start + 7 * DAY;
@@ -235,6 +290,8 @@ export function calendarMarkup({ result, start, now, loading = false, error = ''
   const count = type => inWeek.filter(item => item.type === type).length;
   const remaining = remainingCapacity(result, Math.max(start, Math.ceil(now / MINUTE) * MINUTE), end);
 
+  // A day where blocks share lanes (an overlap) gets a wider column, so both titles stay readable.
+  const crowded = new Set();
   const columns = days.map((dayStart, index) => {
     const dayEnd = dayStart + DAY;
     const top = dayStart + first * HOUR;
@@ -242,13 +299,14 @@ export function calendarMarkup({ result, start, now, loading = false, error = ''
     const free = inWeek.filter(item => item.type === 'free' && item.end > dayStart && item.start < dayEnd).map(segment)
       .map(item => ({ ...item, start: Math.max(item.start, top), end: Math.min(item.end, top + span) })).filter(item => item.end > item.start);
     const blocks = lanes(inWeek.filter(item => ['routine', 'temporary', 'appointment', 'work'].includes(item.type) && item.end > dayStart && item.start < dayEnd).map(segment));
+    if (blocks.some(block => block.lanes > 1)) crowded.add(index);
     const marks = inWeek.filter(item => isLine(item) && item.start >= dayStart && item.start < dayEnd);
     const bands = free.map(item => `<button type="button" class="cal-free" data-cal-goto="time" style="top:${pct(item.start - top)};height:${pct(item.end - item.start)}" aria-label="留白 ${clock(item.start)} 至 ${item.end === dayEnd ? '24:00' : clock(item.end)}"><span>留白</span></button>`).join('');
     const body = blocks.map(item => {
       const finish = item.end === dayEnd ? '24:00' : clock(item.end);
       const label = `${LAYER_LABEL[item.type]} ${item.title} ${clock(item.start)} 至 ${finish}${item.conflict ? '，有冲突' : ''}`;
       const short = item.end - item.start < 45 * 60000;
-      return `<button type="button" class="cal-block cal-${item.type}${short ? ' is-short' : ''}${item.conflict ? ' is-conflict' : ''}" ${attrs(item)} data-cal-key="${escape(item.key)}" title="${escape(label)}" style="top:${pct(item.start - top)};height:${pct(item.end - item.start)};left:calc(${(item.lane / item.lanes * 100).toFixed(3)}% + 3px);width:calc(${(100 / item.lanes).toFixed(3)}% - 6px)" aria-label="${escape(label)}"><strong>${escape(item.title)}</strong><span>${clock(item.start)}–${finish}${item.location ? ` · ${escape(item.location)}` : ''}</span></button>`;
+      return `<button type="button" class="cal-block cal-${item.type}${short ? ' is-short' : ''}${item.lanes > 1 ? ' is-narrow' : ''}${item.conflict ? ' is-conflict' : ''}" ${attrs(item)} data-cal-key="${escape(item.key)}" title="${escape(label)}" style="top:${pct(item.start - top)};height:${pct(item.end - item.start)};left:calc(${(item.lane / item.lanes * 100).toFixed(3)}% + 3px);width:calc(${(100 / item.lanes).toFixed(3)}% - 6px)" aria-label="${escape(label)}"><strong>${escape(item.title)}</strong><span>${clock(item.start)}–${finish}${item.location ? ` · ${escape(item.location)}` : ''}</span></button>`;
     }).join('');
     const lines = marks.map(item => {
       const text = item.type === 'deadline' ? `截止 ${clock(item.start)}` : `开始 ${clock(item.start)}`;
@@ -256,9 +314,14 @@ export function calendarMarkup({ result, start, now, loading = false, error = ''
       const low = item.start - top > span * 0.94;
       return `<button type="button" class="cal-deadline${item.type === 'start' ? ' is-start' : ''}${low ? ' is-low' : ''}${item.state === 'short' || item.state === 'overdue' ? ' is-short' : ''}" ${attrs(item)} style="top:${pct(item.start - top)}" title="${escape(`${item.title} · ${text} · ${state}`)}" aria-label="${escape(`${item.title} ${text}，${state}`)}"><svg viewBox="0 0 24 24" width="14" height="14" aria-hidden="true"><path d="M12 1.5Q13.2 10.8 22.5 12Q13.2 13.2 12 22.5Q10.8 13.2 1.5 12Q10.8 10.8 12 1.5Z" fill="currentColor"/></svg><span>${escape(item.title)} · ${text}</span></button>`;
     }).join('');
+    // 叠墨 drawn where it happens: a hatched band over the overlapping minutes, labelled with its length.
+    const overlaps = (result?.conflicts || []).filter(conflict => conflict.start && conflict.end && conflict.items.length === 2)
+      .map(conflict => ({ conflict, from: Math.max(Date.parse(conflict.start), top), to: Math.min(Date.parse(conflict.end), dayEnd, top + span) }))
+      .filter(({ from, to }) => from >= dayStart && to > from)
+      .map(({ conflict, from, to }) => `<div class="cal-overlap" style="top:${pct(from - top)};height:${pct(to - from)}" aria-hidden="true"><span>叠 ${minutesText(conflict.minutes || Math.round((to - from) / MINUTE))}</span></div>`).join('');
     const needle = index === today && now >= top && now <= top + span ? `<div class="cal-now" style="top:${pct(now - top)}" aria-hidden="true"><span>${clock(now)}</span></div>` : '';
     const state = index === today ? ' is-today' : dayEnd <= now ? ' is-past' : '';
-    return `<div class="cal-day${state}" role="group" aria-label="${monthDay(dayStart)} ${WEEKDAYS[index]}">${bands}${body}${lines}${needle}</div>`;
+    return `<div class="cal-day${state}" role="group" aria-label="${monthDay(dayStart)} ${WEEKDAYS[index]}">${bands}${body}${overlaps}${lines}${needle}</div>`;
   }).join('');
 
   const heads = days.map((dayStart, index) => {
@@ -272,7 +335,9 @@ export function calendarMarkup({ result, start, now, loading = false, error = ''
     const dayEnd = dayStart + DAY;
     const rows = inWeek.filter(item => (isLine(item) ? item.start >= dayStart && item.start < dayEnd : item.end > dayStart && item.start < dayEnd)).sort((a, b) => a.start - b.start);
     if (!rows.length && index !== today) return '';
-    const list = rows.map(item => {
+    const clash = (result?.conflicts || []).filter(conflict => conflict.start && conflict.end && conflict.items.length === 2 && Date.parse(conflict.start) >= dayStart && Date.parse(conflict.start) < dayEnd)
+      .map(conflict => `<li><p class="cal-row cal-row-overlap"><time>${clock(Date.parse(conflict.start))}–${clock(Date.parse(conflict.end))}</time><span>「${escape(conflict.items[0].title)}」与「${escape(conflict.items[1].title)}」重叠 ${minutesText(conflict.minutes || 0)}</span><em>叠墨</em></p></li>`).join('');
+    const list = clash + rows.map(item => {
       const from = Math.max(item.start, dayStart);
       const to = Math.min(item.end, dayEnd);
       const time = isLine(item) ? clock(item.start) : `${clock(from)}–${to === dayEnd ? '24:00' : clock(to)}`;
@@ -291,13 +356,16 @@ export function calendarMarkup({ result, start, now, loading = false, error = ''
     : result ? '<p class="cal-hint" role="status">没有叠墨，所有信息都已写清楚。</p>' : '';
   const empty = result && !inWeek.length ? '<div class="cal-empty"><p>这一周还是一片空白。</p><span>在「铺纸」里铺好底色、定下留白，再到「研磨」导入通知，事情会落在这里。</span></div>' : '';
   const brief = result ? weeklyBrief(inWeek, start, now) : [];
-  const side = result ? sideLists(result, undo, note, weighs) : '<section class="cal-side-block"><p>计算完成后，这里列出叠墨的对策和待书。</p></section>';
+  const side = result ? sideLists(result, undo, note, weighs, changes) : '<section class="cal-side-block"><p>计算完成后，这里列出叠墨的对策和待书。</p></section>';
   const stat = (value, label) => `<li><b>${value}</b><span>${label}</span></li>`;
+  const freeMinutes = inWeek.filter(item => item.type === 'free').reduce((sum, item) => sum + (item.end - item.start) / MINUTE, 0);
+  const layerButton = (key, name, meaning, value) => `<li><button type="button" class="cal-layer lg-${key}" data-cal-focus="${key}" aria-pressed="${focus === key}"><i aria-hidden="true"></i><strong>${name}</strong><span>${meaning}</span><b>${value}</b></button></li>`;
+  const layerStrip = result ? `<div class="cal-layers"><ul aria-label="四层时间，点一层只看这一层">${layerButton('routine', '底色', '每周照例的课与例会', count('routine'))}${layerButton('free', '留白', '自己支配的时间', `${Math.round(freeMinutes / 60)} 小时`)}${layerButton('work', '落笔', '约定与截止之事', count('work') + count('appointment'))}${layerButton('temporary', '点墨', '临时、突发事项', count('temporary'))}${layerButton('conflict', '叠墨', '两件事相撞', result.conflicts.filter(conflict => conflict.start).length)}</ul><p>${focus ? '再点一次，恢复全部图层' : '点一层，只看这一层'}</p></div>` : '';
   // 本周山水: on the cover it is the painting; once the scroll is open it stays as a faint wash behind the week.
   const painting = result ? shanshuiMarkup({ items: inWeek, start, now, conflicts: result.conflicts, id: rolled ? 'ss-cover' : 'ss-board' }) : '';
   const cover = `<section class="scroll-cover" aria-labelledby="coverHeading">
       <header class="cover-head"><p class="cal-eyebrow">本周山水</p><h3 id="coverHeading">峰高是忙，云白是留白</h3></header>
-      <div class="cover-painting">${painting || '<p class="cover-wait">正在铺开这一周…</p>'}</div>
+      <div class="cover-painting">${painting || (error ? `<p class="cover-wait is-error" role="status">${escape(error)}</p>` : '<p class="cover-wait">正在铺开这一周…</p>')}</div>
       <ul class="cover-legend" aria-label="山水图例"><li class="lg-peak">峰 · 这天排了多少</li><li class="lg-cloud">云 · 留白</li><li class="lg-dot">墨点 · 点墨</li><li class="lg-star">金星 · 截止</li><li class="lg-bleed">朱晕 · 叠墨</li><li class="lg-moon">月 · 今天</li></ul>
       <button type="button" class="primary-button cover-open" data-scroll-open${result ? '' : ' disabled'}><svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><path d="M4 5v14M20 5v14M8 12h8M11 9l-3 3 3 3M13 9l3 3-3 3" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>展开画卷</button>
     </section>`;
@@ -310,16 +378,15 @@ export function calendarMarkup({ result, start, now, loading = false, error = ''
         <div class="cal-nav"><button type="button" data-cal-week="-1" aria-label="上一周"><svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><path d="M15 5l-7 7 7 7" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></button><button type="button" data-cal-week="0">本周</button><button type="button" data-cal-week="1" aria-label="下一周"><svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><path d="M9 5l7 7-7 7" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></button></div>
         ${result && !rolled ? '<button type="button" class="text-button cal-roll-up" data-scroll-roll>卷起画卷</button>' : ''}
       </header>
-      <div class="cal-remind-slot"></div>
       ${status}
+      <div class="cal-pending">${side}</div>
+      <div class="cal-remind-slot"></div>
       ${remaining && end > now ? `<section class="cal-capacity" aria-label="剩余可用时间"><h3>${start > now ? '这一周可用' : '本周还可用'}</h3><p><strong>${minutesLabel(remaining.total)}</strong><span>最长连续 ${minutesLabel(remaining.longest)}</span>${result.undefined.length ? '<span>待补时间的事项可能占用空档。</span>' : ''}</p><a href="#/import?capacity=1">试算一项新承诺</a></section>` : ''}
       ${brief.length ? `<ul class="cal-brief" aria-label="本周提要">${brief.map(line => `<li>${line}</li>`).join('')}</ul>` : ''}
-      <div class="cal-pending">${side}</div>
       <ul class="cal-stats" aria-label="本周统计">${stat(count('routine'), '底色')}${stat(count('work') + count('appointment'), '落笔')}${stat(count('temporary'), '点墨')}${stat(count('deadline'), '截止')}</ul>
-      <ul class="cal-legend" aria-label="图例"><li class="lg-routine">底色 · 每周照例</li><li class="lg-free">留白 · 自己支配</li><li class="lg-work">落笔 · 约定与截止之事</li><li class="lg-temporary">点墨 · 临时突发</li><li class="lg-deadline">截止</li><li class="lg-conflict">叠墨 · 相撞</li><li class="lg-now">此刻</li></ul>
     </aside>
-    ${rolled ? cover : `    <div class="scroll-mount"><div class="cal-board">${backdrop}
-      <div class="cal-week" style="--rows:${last - first}">
+    ${rolled ? cover : `    <div class="scroll-mount"><div class="cal-board">${backdrop}${layerStrip}
+      <div class="cal-week${crowded.size ? ' has-crowded' : ''}"${focus ? ` data-focus="${escape(focus)}"` : ''} style="--rows:${last - first}${crowded.size ? `;--cols:54px ${days.map((_, index) => crowded.has(index) ? 'minmax(0, 1.5fr)' : 'minmax(0, 1fr)').join(' ')}` : ''}">
         <div class="cal-corner" aria-hidden="true"></div>${heads}
         <div class="cal-hours" aria-hidden="true">${hours}</div>${columns}
       </div>${empty}

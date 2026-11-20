@@ -3,10 +3,10 @@ import { SnapshotStore } from './snapshot-store.js';
 import {
   TIME_STORAGE_KEY, ESTIMATE_PRESETS, createTimeSnapshot, serializeTimeSnapshot, parseTimeSnapshot, readTimeSnapshot,
   addImported, updateTask, updateEvent, addTask, addEvent, removeItem, setDailyWindow, addRoutine,
-  addAdjustment, addTimetable, setReferenceTime, skipRoutineDate, isPersonal, personalDay, addPersonalTask, setPersonalDay, setTaskDeadline,
+  addAdjustment, addTimetable, setReferenceTime, setRoutinesConfirmed, skipRoutineDate, isPersonal, personalDay, addPersonalTask, setPersonalDay, setTaskDeadline,
 } from './time-state.js';
 import { agendaReply, hasPersonalClock, isConversation } from './agenda.js';
-import { calendarMarkup, conflictKey, weekStart, weekRange } from './calendar.js';
+import { calendarMarkup, conflictKey, digestChanges, minutesLabel, resultDigest, weekStart, weekRange } from './calendar.js';
 import { LEADS, dueReminders, icsCalendar, reminderText, upcomingCount } from './reminders.js';
 import { createBellToggle } from './bell-toggle.js';
 import { readMemory, writeMemory, recordActual, suggestEstimate } from './estimate-memory.js';
@@ -64,7 +64,10 @@ let calendarLoading = false;
 let calendarSequence = 0;
 let calendarTimer = null;
 let calendarWeek = null;
-let strategyUndo = null; // { before, label, note } of the last 叠墨 strategy applied
+let strategyUndo = null; // { before, label, note, digest, changes } of the last 叠墨 strategy applied
+let calendarFocus = ''; // one layer of the week shown alone ('' = all)
+let lastImport = null; // the latest import reply, so its estimate chips can redraw it
+const openCards = new Set(); // item cards whose editor the user opened; kept across re-renders
 const weighs = {}; // conflictKey -> { loading, error, pick, reason, note } from 请模型权衡
 let scrollRolled = true; // 画卷 opens as a closed scroll each time the page is entered
 let coverPainted = false; // the 山水 brushes in once per cover, not on every recalculation
@@ -169,6 +172,8 @@ function commit(next, { render = 'all', unlock = false } = {}) {
 function showOnPage(element, block = 'start') {
   const roll = element.closest('[data-roll]');
   if (roll) openRoll(roll.dataset.roll);
+  const editor = element.querySelector?.(':scope > .item-edit');
+  if (editor) { editor.open = true; openCards.add(element.dataset.itemId); }
   const page = element.closest('[data-page]')?.dataset.page;
   if (page) window.SixuRouter?.go(page);
   element.scrollIntoView({ behavior: scrollBehavior(), block });
@@ -196,6 +201,8 @@ async function request(path, body, base, timeoutMs = 30000, extraHeaders = {}) {
     return data;
   } catch (error) {
     if (error.name === 'AbortError') throw new Error('连接超时，请稍后重试；当前清单仍保留。');
+    // fetch rejects with a bare TypeError ("Failed to fetch", "Load failed") when the service cannot be reached.
+    if (error instanceof TypeError) throw new Error('连不上计算服务，请检查网络后重试；线上服务闲置后需要约半分钟醒来。当前清单仍保留。');
     throw error;
   } finally { window.clearTimeout(timeout); }
 }
@@ -270,6 +277,8 @@ async function computeCalendar() {
     if (ticket !== calendarSequence || revision !== snapshot.revision || base !== apiBase) return;
     calendarResult = result;
     calendarError = '';
+    // After a 叠墨 strategy, say in plain lines what the recalculation changed.
+    if (strategyUndo?.digest && !strategyUndo.changes) strategyUndo.changes = digestChanges(strategyUndo.digest, resultDigest(result, shownWeek(), Date.now()));
   } catch (error) {
     if (ticket !== calendarSequence) return;
     calendarResult = null;
@@ -279,7 +288,7 @@ async function computeCalendar() {
   }
 }
 function renderCalendar() {
-  $('calendarView').innerHTML = calendarMarkup({ result: calendarResult, start: shownWeek(), now: Date.now(), loading: calendarLoading && !calendarResult, error: calendarError, undo: strategyUndo?.label || '', note: strategyUndo?.note || '', weighs, rolled: scrollRolled, unrolling: Boolean(unrollTimer), fresh: !coverPainted });
+  $('calendarView').innerHTML = calendarMarkup({ result: calendarResult, start: shownWeek(), now: Date.now(), loading: calendarLoading && !calendarResult, error: calendarError, undo: strategyUndo?.label || '', note: strategyUndo?.note || '', changes: strategyUndo?.changes || [], focus: calendarFocus, weighs, rolled: scrollRolled, unrolling: Boolean(unrollTimer), fresh: !coverPainted });
   if (scrollRolled && calendarResult) coverPainted = true;
   $('calendarView').querySelector('.cal-remind-slot')?.append(remindBar);
   fitCalendar();
@@ -341,21 +350,40 @@ function eventState(event) {
   if (calendarResult?.conflicts.some(conflict => conflict.items.some(item => item.id === event.id))) return ['叠墨：与他事相撞', 'conflict'];
   return [event.kind === 'appointment' ? '已落笔' : '已点上', 'ok'];
 }
+/** One plain line under the title: when, where, how long. The full fields sit in the folded editor. */
+function itemMeta(item) {
+  if (item.deadline_at !== undefined) {
+    const when = isPersonal(item) && !hasPersonalClock(item) ? (personalDay(item) ? `${personalDay(item).slice(5).replace('-', '月')}日做` : '哪天做待书')
+      : item.deadline_at ? `截止 ${readable(item.deadline_at)}` : '截止待书';
+    return `${when} · ${item.estimate_minutes === null ? '预计用时待书' : `预计 ${minutesLabel(item.estimate_minutes)}`}`;
+  }
+  const when = item.start_at ? `${readable(item.start_at)}${item.end_at ? ` – ${readable(item.end_at).split(' ')[1]}` : ' 开始，结束待书'}` : '时间待书';
+  return [when, item.location].filter(Boolean).join(' · ');
+}
+/** The editor opens when the user opened it, or when something is still missing (待书). */
+function editorOpen(item) {
+  if (openCards.has(item.id)) return true;
+  if (item.status !== 'active') return false;
+  return item.deadline_at !== undefined ? item.estimate_minutes === null || (item.deadline_at === null && !(isPersonal(item) && personalDay(item)))
+    : !item.start_at || !item.end_at;
+}
 const stateBadge = ([text, kind]) => `<span class="item-state${kind ? ` is-${kind}` : ''}" data-item-state>${escapeHTML(text)}</span>`;
 function taskMarkup(task) {
   const active = task.status === 'active';
   const learned = task.estimate_minutes === null && active ? suggestEstimate(estimateMemory, task.title) : null;
   const chips = (learned ? `<button type="button" class="chip is-learned" data-estimate="${learned.minutes}" aria-pressed="false" title="按你记录过的实际用时">${escapeHTML(learned.label)}</button>` : '')
     + ESTIMATE_PRESETS.map(preset => `<button type="button" class="chip" data-estimate="${preset.minutes}" aria-pressed="${task.estimate_minutes === preset.minutes}">${preset.label}</button>`).join('');
-  return `<article class="item-card${active ? '' : ' is-inactive'}" data-item-id="${escapeHTML(task.id)}" data-kind="task" id="item-${escapeHTML(task.id)}">
-    <div class="item-top"><input class="item-title" data-field="title" value="${escapeHTML(task.title)}" aria-label="工作名称" maxlength="200">${stateBadge(taskState(task))}</div>
+  const kind = isPersonal(task) ? ['work', '个人任务'] : ['deadline', '截止'];
+  return `<article class="item-card is-${kind[0]}${active ? '' : ' is-inactive'}" data-item-id="${escapeHTML(task.id)}" data-kind="task" id="item-${escapeHTML(task.id)}">
+    <div class="item-top"><i class="item-glyph" aria-hidden="true"></i><span class="item-kind">${kind[1]}</span><div class="item-heading"><input class="item-title" data-field="title" value="${escapeHTML(task.title)}" aria-label="工作名称" maxlength="200"><p class="item-meta" data-item-meta>${escapeHTML(itemMeta(task))}</p></div>${stateBadge(taskState(task))}</div>
+    <details class="item-edit"${editorOpen(task) ? ' open' : ''}><summary>修改${isPersonal(task) && !hasPersonalClock(task) ? '日期' : '截止'}、用时与拆分</summary>
     <div class="field-grid">
       ${isPersonal(task) && !hasPersonalClock(task) ? `<label>哪天做<input type="date" data-field="personal_day" value="${personalDay(task)}"></label>` : `<label>截止<input type="datetime-local" data-field="deadline_at" value="${toLocalInput(task.deadline_at)}"></label>`}
       <label>预计用时（分钟）<input type="number" inputmode="numeric" min="1" max="20160" data-field="estimate_minutes" value="${task.estimate_minutes ?? ''}" placeholder="未填"></label>
       <div class="field-wide chips" role="group" aria-label="预计用时快捷选择">${chips}</div>
       <label>能否拆开做<select data-field="splittable"><option value="true"${task.splittable ? ' selected' : ''}>可以分几次做</option><option value="false"${task.splittable ? '' : ' selected'}>需要一次做完</option></select></label>
       <label>优先级 <span class="optional">可选，0–100</span><input type="number" inputmode="numeric" min="0" max="100" data-field="priority" value="${task.priority ?? ''}" placeholder="未填按50"></label>
-    </div>
+    </div></details>
     ${evidenceMarkup(task)}
     <div class="item-actions"><button type="button" data-action="complete">${task.status === 'completed' ? '恢复' : '完成了'}</button><button type="button" data-action="cancel">${task.status === 'cancelled' ? '恢复' : '不做了'}</button><button type="button" class="danger-text" data-action="delete">删除</button></div>
     <p class="field-error" data-item-error role="status"></p>
@@ -363,14 +391,15 @@ function taskMarkup(task) {
 }
 function eventMarkup(event) {
   const appointment = event.kind === 'appointment';
-  return `<article class="item-card${event.status === 'active' ? '' : ' is-inactive'}" data-item-id="${escapeHTML(event.id)}" data-kind="event" id="item-${escapeHTML(event.id)}">
-    <div class="item-top"><input class="item-title" data-field="title" value="${escapeHTML(event.title)}" aria-label="${appointment ? '约定' : '点墨'}名称" maxlength="200">${stateBadge(eventState(event))}</div>
+  return `<article class="item-card is-${appointment ? 'appointment' : 'temporary'}${event.status === 'active' ? '' : ' is-inactive'}" data-item-id="${escapeHTML(event.id)}" data-kind="event" id="item-${escapeHTML(event.id)}">
+    <div class="item-top"><i class="item-glyph" aria-hidden="true"></i><span class="item-kind">${appointment ? '约定' : '点墨'}</span><div class="item-heading"><input class="item-title" data-field="title" value="${escapeHTML(event.title)}" aria-label="${appointment ? '约定' : '点墨'}名称" maxlength="200"><p class="item-meta" data-item-meta>${escapeHTML(itemMeta(event))}</p></div>${stateBadge(eventState(event))}</div>
+    <details class="item-edit"${editorOpen(event) ? ' open' : ''}><summary>修改时间、地点与类别</summary>
     <div class="field-grid">
       <label class="field-wide">这件事是<select data-field="kind"><option value="temporary"${appointment ? '' : ' selected'}>点墨：外部安排的一次性事项（讲座、考试等）</option><option value="appointment"${appointment ? ' selected' : ''}>约定：自己约好的事，属于落笔（如和朋友出去）</option></select></label>
       <label>开始<input type="datetime-local" data-field="start_at" value="${toLocalInput(event.start_at)}"></label>
       <label>结束<input type="datetime-local" data-field="end_at" value="${toLocalInput(event.end_at)}"></label>
       <label class="field-wide">地点 <span class="optional">可选</span><input data-field="location" value="${escapeHTML(event.location ?? '')}" maxlength="500"></label>
-    </div>
+    </div></details>
     ${evidenceMarkup(event)}
     <div class="item-actions"><button type="button" data-action="cancel">${event.status === 'cancelled' ? '恢复' : '不参加了'}</button><button type="button" class="danger-text" data-action="delete">删除</button></div>
     <p class="field-error" data-item-error role="status"></p>
@@ -385,6 +414,7 @@ function renderItems() {
   const deadlines = snapshot.tasks.filter(task => !isPersonal(task));
   $('personalList').innerHTML = personal.length ? personal.map(taskMarkup).join('') : '<p class="empty-note">还没有个人任务。点“添加个人任务”，或在研磨里说“提醒我今天……”。</p>';
   $('taskList').innerHTML = deadlines.length ? deadlines.map(taskMarkup).join('') : '<p class="empty-note">还没有截止之事。导入通知或手动添加。</p>';
+  for (const [id, list] of [['eventCount', points], ['appointmentCount', appointments], ['personalCount', personal], ['deadlineCount', deadlines]]) $(id).textContent = String(list.length);
 }
 function renderItemStates() {
   for (const card of document.querySelectorAll('[data-item-id]')) {
@@ -392,6 +422,8 @@ function renderItemStates() {
     const item = card.dataset.kind === 'task' ? snapshot.tasks.find(entry => entry.id === id) : snapshot.events.find(entry => entry.id === id);
     if (!item) continue;
     card.querySelector('[data-item-state]').outerHTML = stateBadge(card.dataset.kind === 'task' ? taskState(item) : eventState(item));
+    const meta = card.querySelector('[data-item-meta]');
+    if (meta) meta.textContent = itemMeta(item);
     for (const chip of card.querySelectorAll('[data-estimate]')) chip.setAttribute('aria-pressed', String(item.estimate_minutes === Number(chip.dataset.estimate)));
   }
 }
@@ -434,28 +466,47 @@ function showParseProgress(mode) {
   parseTimer = window.setInterval(() => { $('parseElapsed').textContent = `已用 ${Math.round((Date.now() - started) / 1000)} 秒。`; }, 1000);
 }
 function hideParseProgress() { window.clearInterval(parseTimer); parseTimer = null; $('parseProgress').hidden = true; $('inkwell').classList.remove('is-grinding'); }
-function importSummary(imported) {
-  const pending = imported.tasks.filter(task => task.estimate_minutes === null).length;
-  const noDeadline = imported.tasks.filter(task => task.deadline_at === null && !isPersonal(task)).length;
-  const noDay = imported.tasks.filter(task => task.deadline_at === null && isPersonal(task)).length;
-  const openEvents = imported.events.filter(event => !event.start_at || !event.end_at).length;
-  const points = imported.events.filter(event => event.kind !== 'appointment').length;
-  const appointments = imported.events.length - points;
-  const personal = imported.tasks.filter(isPersonal).length;
-  const deadlines = imported.tasks.length - personal;
+const durationText = (start, end) => minutesLabel(Math.round((Date.parse(end) - Date.parse(start)) / 60000));
+/** Rows and the one-line tally of an import, read from the current list so estimates set here show at once. */
+function importResult(imported) {
+  const current = item => (item.deadline_at !== undefined ? snapshot.tasks : snapshot.events).find(entry => entry.id === item.id) || item;
+  const events = imported.events.map(current);
+  const tasks = imported.tasks.map(current);
+  const pending = tasks.filter(task => task.estimate_minutes === null && task.status === 'active').length;
+  const noDeadline = tasks.filter(task => task.deadline_at === null && !isPersonal(task)).length;
+  const noDay = tasks.filter(task => task.deadline_at === null && isPersonal(task)).length;
+  const openEvents = events.filter(event => !event.start_at || !event.end_at).length;
+  const points = events.filter(event => event.kind !== 'appointment').length;
+  const appointments = events.length - points;
+  const personal = tasks.filter(isPersonal).length;
+  const deadlines = tasks.length - personal;
   const parts = [];
   if (points) parts.push(`${points} 处点墨`);
   if (appointments) parts.push(`${appointments} 件约定`);
   if (personal) parts.push(`${personal} 件个人任务`);
   if (deadlines) parts.push(`${deadlines} 件截止之事`);
   const missing = [pending && `${pending} 件的预计用时`, noDeadline && `${noDeadline} 件的截止`, noDay && `${noDay} 件个人任务的日期`, openEvents && `${openEvents} 件事的结束时间`].filter(Boolean);
+  const eventRow = event => {
+    const kind = event.kind === 'appointment' ? ['appointment', '约定'] : ['temporary', '点墨'];
+    const span = event.start_at ? `${readable(event.start_at)}${event.end_at ? ` – ${readable(event.end_at).split(' ')[1]}` : ' 开始'}` : '时间待书';
+    const meta = [event.start_at && event.end_at ? `占用 ${durationText(event.start_at, event.end_at)}` : '结束时间待书', event.location].filter(Boolean).map(escapeHTML).join(' · ');
+    return `<li class="turn-item is-${kind[0]}"><i class="turn-glyph" aria-hidden="true"></i><span class="turn-kind">${kind[1]}</span><strong>${escapeHTML(event.title)}</strong><span class="turn-when"><b>${span}</b><small>${meta}</small></span></li>`;
+  };
+  const taskRow = task => {
+    const kind = isPersonal(task) ? ['work', '个人任务'] : ['deadline', '截止'];
+    const when = isPersonal(task) && !hasPersonalClock(task) && task.earliest_start_at ? `${readable(task.earliest_start_at).split(' ')[0]} 做` : task.deadline_at ? `${readable(task.deadline_at)} 前` : '时间待书';
+    const estimate = task.estimate_minutes === null
+      ? `<span class="turn-estimate" role="group" aria-label="「${escapeHTML(task.title)}」的预计用时"><span>预计用时？</span>${ESTIMATE_PRESETS.slice(0, 4).map(preset => `<button type="button" class="chip" data-turn-estimate="${escapeHTML(task.id)}:${preset.minutes}">${preset.label}</button>`).join('')}</span>`
+      : `<span class="turn-estimate is-set">预计 ${minutesLabel(task.estimate_minutes)}<small>画卷会在截止前的留白里排入</small></span>`;
+    return `<li class="turn-item is-${kind[0]}"><i class="turn-glyph" aria-hidden="true"></i><span class="turn-kind">${kind[1]}</span><strong>${escapeHTML(task.title)}</strong><span class="turn-when"><b>${when}</b><small>${task.deadline_at ? '截止前找留白去做' : '先记下，日期可在笔墨补'}</small></span>${estimate}</li>`;
+  };
+  const group = (key, title, hint, rows) => rows ? `<section class="turn-group is-${key}"><h4>${title}<small>${hint}</small></h4><ul class="turn-items">${rows}</ul></section>` : '';
+  return `<div class="turn-result" data-turn-result>${group('fixed', '要到场', '占用一段固定时间', events.map(eventRow).join(''))}${group('due', '要完成', '有截止，需要留出做事的时间', tasks.map(taskRow).join(''))}<p class="turn-tally"><strong>已加入 ${parts.join('、') || '0 项'}。</strong>${missing.length ? `${missing.join('、')}还是待书，可以随时补；没补之前它们不会挡住其他事项。` : '时间信息都已写清楚。'}</p></div>`;
+}
+function importSummary(imported) {
+  lastImport = imported;
   const warnings = (imported.warnings || []).map(note => `<li>${escapeHTML(note)}</li>`).join('');
-  const kind = item => item.deadline_at !== undefined ? (isPersonal(item) ? ['work', '个人任务'] : ['deadline', '截止']) : item.kind === 'appointment' ? ['appointment', '约定'] : ['temporary', '点墨'];
-  const when = item => item.deadline_at !== undefined
-    ? (isPersonal(item) && !hasPersonalClock(item) && item.earliest_start_at ? `${readable(item.earliest_start_at).split(' ')[0]} 做` : item.deadline_at ? `${readable(item.deadline_at)} 前` : '时间待书')
-    : item.start_at ? `${readable(item.start_at)}${item.end_at ? ` – ${readable(item.end_at).split(' ')[1]}` : ' 开始'}` : '时间待书';
-  const rows = [...imported.events, ...imported.tasks].map(item => { const [layer, label] = kind(item); return `<li><i class="turn-dot is-${layer}"></i><span class="turn-kind">${label}</span><strong>${escapeHTML(item.title)}</strong><span class="turn-when">${when(item)}</span></li>`; }).join('');
-  return `${rows ? `<ul class="turn-items">${rows}</ul>` : ''}<p><strong>已加入 ${parts.join('、') || '0 项'}。</strong>${missing.length ? `${missing.join('、')}还是待书，可以随时补；没补之前它们不会挡住其他事项。` : '时间信息都已写清楚。'}</p>
+  return `${importResult(imported)}
     ${warnings ? `<ul>${warnings}</ul>` : ''}<p class="inline-links"><a href="#/items">去笔墨补充</a><a href="#/calendar">看画卷</a></p>`;
 }
 function showTurn(text, html) {
@@ -477,6 +528,16 @@ function replyMarkup(reply) {
 }
 let agendaWeek = null;
 $('importSummary').addEventListener('click', event => {
+  const chip = event.target.closest('[data-turn-estimate]');
+  if (chip && lastImport) {
+    const [id, minutes] = chip.dataset.turnEstimate.split(':');
+    if (!snapshot.tasks.some(task => task.id === id)) return tell('这件事已经不在清单里了。', 'warning');
+    commit(updateTask(snapshot, id, { estimate_minutes: Number(minutes) }));
+    const box = $('importSummary').querySelector('[data-turn-result]');
+    if (box) box.outerHTML = importResult(lastImport);
+    tell(`已记下预计用时 ${minutesLabel(Number(minutes))}，画卷会在截止前的留白里排入。`);
+    return;
+  }
   if (!event.target.closest('[data-agenda-calendar]')) return;
   if (agendaWeek !== null && agendaWeek !== shownWeek()) {
     calendarWeek = agendaWeek;
@@ -574,7 +635,8 @@ function archiveTurn() {
   const past = document.createElement('div');
   past.className = 'import-summary turn-agent is-past';
   past.innerHTML = current.innerHTML;
-  past.querySelectorAll('.end-ask, .inline-links').forEach(node => node.remove());
+  past.querySelectorAll('.end-ask, .inline-links, .turn-estimate:not(.is-set)').forEach(node => node.remove());
+  past.querySelector('[data-turn-result]')?.removeAttribute('data-turn-result');
   current.before(past);
 }
 function pushUserTurn(text) {
@@ -862,6 +924,14 @@ function saveActual(id, value) {
 for (const list of ['eventList', 'appointmentList', 'personalList', 'taskList']) {
   $(list).addEventListener('change', onItemChange);
   $(list).addEventListener('click', onItemClick);
+  // Only a click on the summary counts as the user's choice: a card rendered open (because something is
+  // missing) also fires 'toggle', and recording that would keep it open after the gap is filled.
+  $(list).addEventListener('click', event => {
+    const summary = event.target.closest('.item-edit > summary');
+    const id = summary?.closest('[data-item-id]')?.dataset.itemId;
+    if (!id) return;
+    if (summary.parentElement.open) openCards.delete(id); else openCards.add(id); // the click flips it right after
+  });
 }
 $('addPersonal').addEventListener('click', () => {
   commit(addPersonalTask(snapshot, { day: localDate(Date.now()) }));
@@ -1100,6 +1170,8 @@ $('calendarView').addEventListener('click', event => {
   if (event.target.closest('[data-scroll-open]')) { unrollScroll(); return; }
   if (event.target.closest('[data-scroll-roll]')) { scrollRolled = true; coverPainted = false; renderCalendar(); return; }
   if (event.target.closest('[data-strategy-undo]')) { undoStrategy(); return; }
+  const focus = event.target.closest('[data-cal-focus]');
+  if (focus) { calendarFocus = calendarFocus === focus.dataset.calFocus ? '' : focus.dataset.calFocus; renderCalendar(); return; }
   const weigh = event.target.closest('[data-weigh]');
   if (weigh) { weighConflict(weigh.dataset.weigh); return; }
   if (event.target.closest('[data-copy-note]')) { copyNote(); return; }
@@ -1134,8 +1206,9 @@ function applyStrategy(key) {
   const before = snapshot;
   const conflict = calendarResult.conflicts.find(item => item.id === conflictId);
   const weighed = weighs[conflictKey(conflict)];
+  const digest = resultDigest(calendarResult, shownWeek(), Date.now());
   commit(next);
-  strategyUndo = { before, label: strategy.label, note: weighed?.pick === Number(index) ? weighed.note || '' : '' };
+  strategyUndo = { before, label: strategy.label, note: weighed?.pick === Number(index) ? weighed.note || '' : '', digest, changes: null };
   tell(`已采用：${strategy.label}`);
   // Skipping a class leaves one more step: a leave note to the teacher, drafted by the same rules.
   if (strategy.action === 'skip_routine_date' && !strategyUndo.note) {
@@ -1342,6 +1415,39 @@ $('loadDemoWeek').addEventListener('click', () => {
   commit({ ...next, revision: snapshot.revision + 1 }, { unlock: !externalConflict && !storageLocked });
   tell('已载入示例一周（下周，从下周一7:00开始安排）：讲座撞上高数是一处叠墨，讲座报名的预计用时还是待书，周六和朋友去公园是一笔约定。想按真实时间安排，可在“铺纸”页点“使用当前时间”。');
   window.SixuRouter?.go('calendar');
+});
+// 路演案例 (the case in the design report and the deck): a fictional 摄影社 notice for next week's Wednesday.
+// Only 铺纸 is prepared and the notice is put in the box; the presenter still sends it, adds the estimate and
+// applies the strategy. Planning starts that Wednesday 13:30 (the 铺纸 "开始安排时刻"), so the same numbers come
+// out on any day: 说明会 14:30–15:30 overlaps 专业课 14:00–15:00 by 30 minutes; 报名表 (30 minutes) sits at
+// 15:30–16:00, and 15:00–15:30 once the 说明会 is dropped.
+function photoClubCase(now) {
+  const monday = weekStart(now) + 7 * DAY;
+  const wednesday = localDate(monday + 2 * DAY);
+  const [year, month, date] = wednesday.split('-').map(Number);
+  const day = `${year}年${month}月${date}日`;
+  const notice = `【摄影社招新通知】\n${day}14:30-15:30举行摄影社招新说明会（学活204）。\n${day}18:00前提交社团报名表。`;
+  const window = DEFAULT_WINDOW.map((span, index) => index === 2 ? { start: '14:00', end: '18:00' } : span);
+  let next = createTimeSnapshot({ referenceTime: `${wednesday}T13:30:00+08:00` });
+  next = setDailyWindow(next, window);
+  const from = localDate(monday - 77 * DAY);
+  next = addRoutine(next, { title: '专业课', weekdays: [3], start: '14:00', end: '15:00', from, location: '新闻楼402' });
+  next = addRoutine(next, { title: '高等数学', weekdays: [1, 4], start: '08:00', end: '09:50', from, location: '主楼301' });
+  next = addRoutine(next, { title: '大学英语', weekdays: [2, 5], start: '10:10', end: '12:00', from, location: '外语楼204' });
+  next = addRoutine(next, { title: '社团例会', weekdays: [4], start: '19:00', end: '20:00', from, location: '学活204' });
+  next = setRoutinesConfirmed(next, true);
+  return { snapshot: next, notice, monday, wednesday };
+}
+$('loadPhotoCase').addEventListener('click', () => {
+  const hasData = snapshot.events.length || snapshot.tasks.length || snapshot.routines.length;
+  if (hasData && !window.confirm('载入路演案例会替换当前清单，请先导出要保留的内容。是否继续？')) return;
+  const prepared = photoClubCase(Date.now());
+  calendarWeek = prepared.monday;
+  commit({ ...prepared.snapshot, revision: snapshot.revision + 1 }, { unlock: !externalConflict && !storageLocked });
+  $('noticeText').value = prepared.notice;
+  $('noticeDate').value = prepared.wednesday;
+  tell('已铺好虚构课表与作息（下周三 14:00–18:00 留白，从 13:30 开始安排），招新通知已放进砚池，点发送即可导入。');
+  $('noticeText').focus();
 });
 
 // ---- 司序链接：一个人做，全班点开即导入 ----------------------------------

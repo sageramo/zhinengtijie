@@ -11,6 +11,7 @@ import { setTimeout as sleep } from 'node:timers/promises';
 import { JSDOM } from 'jsdom';
 import { STORAGE_KEY as V2_KEY } from '../task-state.js';
 import { TIME_STORAGE_KEY, createTimeSnapshot, addImported, serializeTimeSnapshot } from '../time-state.js';
+import { weekRange, weekStart } from '../calendar.js';
 
 const HTML = readFileSync(new URL('../index.html', import.meta.url), 'utf8');
 const API = JSON.parse(readFileSync(new URL('./fixtures/v3-api.json', import.meta.url), 'utf8'));
@@ -134,6 +135,83 @@ test('rules import adds events and tasks at once, explains what is still undefin
   const last = app.calls.filter(item => item.path === '/api/v3/calendar').at(-1);
   assert.equal(last.body.snapshot.revision, stored.revision, 'calendar recomputed for the new list');
   assert.match(app.find('#taskList').textContent, /预计用时未填/);
+});
+
+test('the roadshow case prepares 铺纸 for next Wednesday and puts the 摄影社 notice in the box without importing it', async t => {
+  const app = await boot(t);
+  app.click('#loadPhotoCase');
+  await settle();
+  const stored = app.stored();
+  const wednesday = new Date(weekStart(Date.now()) + 9 * 86400000 + 8 * 3600000).toISOString().slice(0, 10);
+  assert.equal(stored.reference_time.slice(0, 16), `${wednesday}T13:30`);
+  assert.deepEqual(stored.daily_window[2], { start: '14:00', end: '18:00' });
+  assert.deepEqual(stored.routines.find(routine => routine.title === '专业课') && [stored.routines.find(routine => routine.title === '专业课').start, stored.routines.find(routine => routine.title === '专业课').end], ['14:00', '15:00']);
+  assert.equal(stored.routines_confirmed, true);
+  assert.deepEqual([stored.events.length, stored.tasks.length], [0, 0]);
+  const [year, month, day] = wednesday.split('-').map(Number);
+  assert.equal(app.find('#noticeText').value, `【摄影社招新通知】\n${year}年${month}月${day}日14:30-15:30举行摄影社招新说明会（学活204）。\n${year}年${month}月${day}日18:00前提交社团报名表。`);
+  assert.equal(app.find('#noticeDate').value, wednesday);
+  assert.equal(app.calls.some(call => call.path === '/api/v3/extract'), false);
+});
+
+test('笔墨 groups items under counted headings, and a card editor opens only when something is missing or the user opened it', async t => {
+  const app = await imported(t);
+  assert.equal(app.find('#eventCount').textContent, '1');
+  assert.equal(app.find('#deadlineCount').textContent, '2');
+  assert.equal(app.find('#appointmentCount').textContent, '0');
+  const [first] = app.stored().tasks;
+  let card = app.find(`#item-${first.id}`);
+  assert.ok(card.classList.contains('is-deadline'));
+  assert.match(card.querySelector('[data-item-meta]').textContent, /预计用时待书/);
+  assert.equal(card.querySelector('.item-edit').open, true, 'missing estimate keeps the editor open');
+  card.querySelector('[data-estimate="30"]').click();
+  await settle();
+  card = app.find(`#item-${first.id}`);
+  assert.match(card.querySelector('[data-item-meta]').textContent, /预计 30 分钟/);
+  app.click('[data-tab="calendar"]');
+  app.click('[data-tab="items"]');
+  app.find('#addEvent').click();
+  await settle();
+  card = app.find(`#item-${first.id}`);
+  assert.equal(card.querySelector('.item-edit').open, false, 'a complete card folds after a re-render');
+  card.querySelector('.item-edit > summary').click();
+  await settle();
+  assert.equal(card.querySelector('.item-edit').open, true);
+  app.find('#addEvent').click();
+  await settle();
+  assert.equal(app.find(`#item-${first.id}`).querySelector('.item-edit').open, true, 'an editor the user opened stays open');
+});
+
+test('an unreachable service is explained in plain words and the notice stays in the box', async t => {
+  const app = await boot(t, { routes: { '/api/v3/extract': async () => { throw new TypeError('Failed to fetch'); } } });
+  app.set('#noticeText', API.notice, 'input');
+  app.submit('#noticeForm');
+  await settle();
+  assert.match(app.message(), /连不上计算服务/);
+  assert.doesNotMatch(app.message(), /Failed to fetch/);
+  assert.equal(app.find('#noticeText').value, API.notice);
+});
+
+test('the import reply separates what occupies time from what must be done, and takes an estimate in place', async t => {
+  const app = await imported(t);
+  const fixed = app.find('#importSummary .turn-group.is-fixed');
+  const due = app.find('#importSummary .turn-group.is-due');
+  assert.match(fixed.querySelector('h4').textContent, /要到场/);
+  assert.equal(fixed.querySelectorAll('.turn-item.is-temporary').length, 1);
+  assert.match(fixed.textContent, /占用 \d/);
+  assert.match(due.querySelector('h4').textContent, /要完成/);
+  assert.equal(due.querySelectorAll('.turn-item.is-deadline').length, 2);
+  const task = app.stored().tasks[0];
+  const chip = app.find(`#importSummary [data-turn-estimate="${task.id}:30"]`);
+  assert.ok(chip, 'estimate chips sit on the deadline row');
+  const before = app.calls.filter(call => call.path === '/api/v3/calendar').length;
+  chip.click();
+  await settle();
+  assert.equal(app.stored().tasks.find(entry => entry.id === task.id).estimate_minutes, 30);
+  assert.match(app.find('#importSummary').textContent, /预计 30 分钟/);
+  assert.match(app.find('#importSummary').textContent, /1 件的预计用时还是待书/);
+  assert.equal(app.all(`#importSummary [data-turn-estimate^="${task.id}:"]`).length, 0);
+  assert.ok(app.calls.filter(call => call.path === '/api/v3/calendar').length > before, 'calendar recomputed');
 });
 
 test('the same notice is not imported twice and a failed import keeps the text', async t => {
@@ -383,12 +461,16 @@ test('the calendar marks conflicts on the tab and a click opens the matching ite
   const card = app.find('#item-e1');
   app.find('#calendarView [data-cal-item="e1"]').click();
   assert.ok(card.classList.contains('is-flash'));
-  const before = app.calls.filter(call => call.path === '/api/v3/calendar').length;
+  const earlier = app.calls.filter(call => call.path === '/api/v3/calendar');
   app.click('#calendarView [data-cal-week="1"]');
   await settle();
   const after = app.calls.filter(call => call.path === '/api/v3/calendar');
-  assert.equal(after.length, before + 1);
-  assert.equal(after.at(-1).body.range.from, '2026-11-16');
+  assert.equal(after.length, earlier.length + 1);
+  // The shown week starts from today, so check the step rather than a fixed date.
+  const shown = Date.parse(`${earlier.at(-1).body.range.from}T00:00:00Z`);
+  const next = new Date(shown + 7 * 86400000).toISOString().slice(0, 10);
+  assert.equal(after.at(-1).body.range.from, next);
+  assert.equal(earlier.at(-1).body.range.from, weekRange(weekStart(Date.now())).from);
 });
 
 test('a v2 list in the browser is converted to v3 and the v2 bytes are kept', async t => {
