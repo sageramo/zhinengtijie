@@ -29,7 +29,7 @@ const DEFAULT_WINDOW = [...Array(5).fill({ start: '08:00', end: '23:00' }), ...A
 const DEFAULT_PERIODS = ['1 08:00-08:50', '2 09:00-09:50', '3 10:10-11:00', '4 11:10-12:00', '5 13:30-14:20', '6 14:20-15:10',
   '7 15:30-16:20', '8 16:20-17:00', '9 18:00-18:50', '10 19:00-19:50', '11 20:00-20:50', '12 21:00-21:50'].join('\n');
 // 书画 names: 底色 routine, 留白 free, 落笔 work and appointments, 点墨 temporary, 叠墨 conflict, 待书 undefined.
-const TASK_STATE = { time_invalid: ['待书：请核对任务时间', 'undefined'], scheduled: ['已落笔', 'ok'], estimate_undefined: ['待书：预计用时未填', 'undefined'], deadline_undefined: ['待书：截止未填', 'undefined'],
+const TASK_STATE = { time_invalid: ['待书：请核对任务时间', 'undefined'], scheduled: ['已落笔', 'ok'], estimate_undefined: ['只标截止', ''], deadline_undefined: ['待书：截止未填', 'undefined'],
   free_time_undefined: ['待书：留白未设定', 'undefined'], short: ['留白不够落笔', 'conflict'], overdue: ['已过截止', 'conflict'],
   beyond_horizon: ['截止超出31天，临近再排', 'undefined'], not_attempted: ['暂未安排', 'undefined'], completed: ['已完成', 'done'], cancelled: ['不做了', 'done'] };
 const currentMinuteISO = () => new Date(Math.ceil(Date.now() / 60000) * 60000).toISOString().replace(/\.\d{3}Z$/, 'Z');
@@ -68,6 +68,7 @@ let strategyUndo = null; // { before, label, note, digest, changes } of the last
 let calendarFocus = ''; // one layer of the week shown alone ('' = all)
 let lastImport = null; // the latest import reply, so its estimate chips can redraw it
 const openCards = new Set(); // item cards whose editor the user opened; kept across re-renders
+let workGroup = null; // which 落笔 group is spread open ('appointment' | 'personal' | 'deadline'); null = pick one
 const weighs = {}; // conflictKey -> { loading, error, pick, reason, note } from 请模型权衡
 let scrollRolled = true; // 画卷 opens as a closed scroll each time the page is entered
 let coverPainted = false; // the 山水 brushes in once per cover, not on every recalculation
@@ -124,7 +125,7 @@ function renderRollFaces() {
   const events = active(snapshot.events).filter(item => item.kind !== 'appointment');
   const tasks = active(snapshot.tasks);
   const personal = tasks.filter(isPersonal).length;
-  const pendingTasks = tasks.filter(task => task.deadline_at === null || task.estimate_minutes === null).length;
+  const pendingTasks = tasks.filter(task => task.deadline_at === null).length;
   set('work', [`<b>${appointments.length}</b> 件约定 · <b>${personal}</b> 件个人任务 · <b>${tasks.length - personal}</b> 件截止之事`, pendingTasks ? `<em>${pendingTasks} 件待书</em>` : '']);
   const pendingEvents = events.filter(item => !item.start_at || !item.end_at).length;
   set('event', [`<b>${events.length}</b> 处点墨`, events.slice(0, 2).map(item => escapeHTML(item.title)).join('、'), pendingEvents ? `<em>${pendingEvents} 处时间待书</em>` : '']);
@@ -172,6 +173,8 @@ function commit(next, { render = 'all', unlock = false } = {}) {
 function showOnPage(element, block = 'start') {
   const roll = element.closest('[data-roll]');
   if (roll) openRoll(roll.dataset.roll);
+  const group = element.closest?.('[data-group]');
+  if (group) { workGroup = group.dataset.group; spreadWorkGroup(workGroup); }
   const editor = element.querySelector?.(':scope > .item-edit');
   if (editor) { editor.open = true; openCards.add(element.dataset.itemId); }
   const page = element.closest('[data-page]')?.dataset.page;
@@ -316,7 +319,7 @@ function renderSources() {
   $('sourceList').innerHTML = snapshot.sources.length ? snapshot.sources.map((source, index) => `<details data-source-id="${escapeHTML(source.id)}"><summary>${index + 1}. ${escapeHTML(source.text.split('\n')[0].slice(0, 40))}${source.kind === 'synthetic' ? '（虚构示例）' : source.kind === 'timetable' ? '（课表）' : ''}</summary><pre>${escapeHTML(source.text)}</pre></details>`).join('') : '<p class="empty-note">导入后可随时回来核对。</p>';
 }
 function undefinedCount() {
-  const tasks = snapshot.tasks.filter(task => task.status === 'active' && (task.deadline_at === null || task.estimate_minutes === null)).length;
+  const tasks = snapshot.tasks.filter(task => task.status === 'active' && task.deadline_at === null).length;
   const events = snapshot.events.filter(event => event.status === 'active' && (!event.start_at || !event.end_at)).length;
   return tasks + events;
 }
@@ -355,7 +358,7 @@ function itemMeta(item) {
   if (item.deadline_at !== undefined) {
     const when = isPersonal(item) && !hasPersonalClock(item) ? (personalDay(item) ? `${personalDay(item).slice(5).replace('-', '月')}日做` : '哪天做待书')
       : item.deadline_at ? `截止 ${readable(item.deadline_at)}` : '截止待书';
-    return `${when} · ${item.estimate_minutes === null ? '预计用时待书' : `预计 ${minutesLabel(item.estimate_minutes)}`}`;
+    return `${when} · ${item.estimate_minutes === null ? '用时选填' : `预计 ${minutesLabel(item.estimate_minutes)}`}`;
   }
   const when = item.start_at ? `${readable(item.start_at)}${item.end_at ? ` – ${readable(item.end_at).split(' ')[1]}` : ' 开始，结束待书'}` : '时间待书';
   return [when, item.location].filter(Boolean).join(' · ');
@@ -364,7 +367,7 @@ function itemMeta(item) {
 function editorOpen(item) {
   if (openCards.has(item.id)) return true;
   if (item.status !== 'active') return false;
-  return item.deadline_at !== undefined ? item.estimate_minutes === null || (item.deadline_at === null && !(isPersonal(item) && personalDay(item)))
+  return item.deadline_at !== undefined ? item.deadline_at === null && !(isPersonal(item) && personalDay(item))
     : !item.start_at || !item.end_at;
 }
 const stateBadge = ([text, kind]) => `<span class="item-state${kind ? ` is-${kind}` : ''}" data-item-state>${escapeHTML(text)}</span>`;
@@ -415,6 +418,18 @@ function renderItems() {
   $('personalList').innerHTML = personal.length ? personal.map(taskMarkup).join('') : '<p class="empty-note">还没有个人任务。点“添加个人任务”，或在研磨里说“提醒我今天……”。</p>';
   $('taskList').innerHTML = deadlines.length ? deadlines.map(taskMarkup).join('') : '<p class="empty-note">还没有截止之事。导入通知或手动添加。</p>';
   for (const [id, list] of [['eventCount', points], ['appointmentCount', appointments], ['personalCount', personal], ['deadlineCount', deadlines]]) $(id).textContent = String(list.length);
+  const sizes = { appointment: appointments.length, personal: personal.length, deadline: deadlines.length };
+  for (const [key, size] of Object.entries(sizes)) document.querySelector(`[data-group-count="${key}"]`).textContent = String(size);
+  spreadWorkGroup(workGroup || ['deadline', 'personal', 'appointment'].find(key => sizes[key]) || 'deadline');
+}
+/** Spread one 落笔 group open; the other two fold into narrow strips beside it. */
+function spreadWorkGroup(key) {
+  $('taskSection').dataset.active = key;
+  for (const group of $('taskSection').querySelectorAll('[data-group]')) {
+    const open = group.dataset.group === key;
+    group.classList.toggle('is-spread', open);
+    group.querySelector('.group-expand').setAttribute('aria-expanded', String(open));
+  }
 }
 function renderItemStates() {
   for (const card of document.querySelectorAll('[data-item-id]')) {
@@ -485,7 +500,7 @@ function importResult(imported) {
   if (appointments) parts.push(`${appointments} 件约定`);
   if (personal) parts.push(`${personal} 件个人任务`);
   if (deadlines) parts.push(`${deadlines} 件截止之事`);
-  const missing = [pending && `${pending} 件的预计用时`, noDeadline && `${noDeadline} 件的截止`, noDay && `${noDay} 件个人任务的日期`, openEvents && `${openEvents} 件事的结束时间`].filter(Boolean);
+  const missing = [noDeadline && `${noDeadline} 件的截止`, noDay && `${noDay} 件个人任务的日期`, openEvents && `${openEvents} 件事的结束时间`].filter(Boolean);
   const eventRow = event => {
     const kind = event.kind === 'appointment' ? ['appointment', '约定'] : ['temporary', '点墨'];
     const span = event.start_at ? `${readable(event.start_at)}${event.end_at ? ` – ${readable(event.end_at).split(' ')[1]}` : ' 开始'}` : '时间待书';
@@ -496,12 +511,12 @@ function importResult(imported) {
     const kind = isPersonal(task) ? ['work', '个人任务'] : ['deadline', '截止'];
     const when = isPersonal(task) && !hasPersonalClock(task) && task.earliest_start_at ? `${readable(task.earliest_start_at).split(' ')[0]} 做` : task.deadline_at ? `${readable(task.deadline_at)} 前` : '时间待书';
     const estimate = task.estimate_minutes === null
-      ? `<span class="turn-estimate" role="group" aria-label="「${escapeHTML(task.title)}」的预计用时"><span>预计用时？</span>${ESTIMATE_PRESETS.slice(0, 4).map(preset => `<button type="button" class="chip" data-turn-estimate="${escapeHTML(task.id)}:${preset.minutes}">${preset.label}</button>`).join('')}</span>`
+      ? `<span class="turn-estimate" role="group" aria-label="「${escapeHTML(task.title)}」的预计用时"><span>预计用时（选填）</span>${ESTIMATE_PRESETS.slice(0, 4).map(preset => `<button type="button" class="chip" data-turn-estimate="${escapeHTML(task.id)}:${preset.minutes}">${preset.label}</button>`).join('')}</span>`
       : `<span class="turn-estimate is-set">预计 ${minutesLabel(task.estimate_minutes)}<small>画卷会在截止前的留白里排入</small></span>`;
     return `<li class="turn-item is-${kind[0]}"><i class="turn-glyph" aria-hidden="true"></i><span class="turn-kind">${kind[1]}</span><strong>${escapeHTML(task.title)}</strong><span class="turn-when"><b>${when}</b><small>${task.deadline_at ? '截止前找留白去做' : '先记下，日期可在笔墨补'}</small></span>${estimate}</li>`;
   };
   const group = (key, title, hint, rows) => rows ? `<section class="turn-group is-${key}"><h4>${title}<small>${hint}</small></h4><ul class="turn-items">${rows}</ul></section>` : '';
-  return `<div class="turn-result" data-turn-result>${group('fixed', '要到场', '占用一段固定时间', events.map(eventRow).join(''))}${group('due', '要完成', '有截止，需要留出做事的时间', tasks.map(taskRow).join(''))}<p class="turn-tally"><strong>已加入 ${parts.join('、') || '0 项'}。</strong>${missing.length ? `${missing.join('、')}还是待书，可以随时补；没补之前它们不会挡住其他事项。` : '时间信息都已写清楚。'}</p></div>`;
+  return `<div class="turn-result" data-turn-result>${group('fixed', '要到场', '占用一段固定时间', events.map(eventRow).join(''))}${group('due', '要完成', '有截止，需要留出做事的时间', tasks.map(taskRow).join(''))}<p class="turn-tally"><strong>已加入 ${parts.join('、') || '0 项'}。</strong>${missing.length ? `${missing.join('、')}还是待书，可以随时补；没补之前它们不会挡住其他事项。` : '时间信息都已写清楚。'}${pending ? ' 预计用时可以不填，只标截止；填了用时，画卷会在截止前为它找留白。' : ''}</p></div>`;
 }
 function importSummary(imported) {
   lastImport = imported;
@@ -933,6 +948,13 @@ for (const list of ['eventList', 'appointmentList', 'personalList', 'taskList'])
     if (summary.parentElement.open) openCards.delete(id); else openCards.add(id); // the click flips it right after
   });
 }
+$('taskSection').addEventListener('click', event => {
+  const strip = event.target.closest('[data-group-open]');
+  if (!strip) return;
+  workGroup = strip.dataset.groupOpen;
+  spreadWorkGroup(workGroup);
+  strip.closest('[data-group]').querySelector('.group-head button')?.focus({ preventScroll: true });
+});
 $('addPersonal').addEventListener('click', () => {
   commit(addPersonalTask(snapshot, { day: localDate(Date.now()) }));
   const title = $('personalList').lastElementChild.querySelector('[data-field="title"]');
@@ -1413,7 +1435,7 @@ $('loadDemoWeek').addEventListener('click', () => {
     ] });
   calendarWeek = monday;
   commit({ ...next, revision: snapshot.revision + 1 }, { unlock: !externalConflict && !storageLocked });
-  tell('已载入示例一周（下周，从下周一7:00开始安排）：讲座撞上高数是一处叠墨，讲座报名的预计用时还是待书，周六和朋友去公园是一笔约定。想按真实时间安排，可在“铺纸”页点“使用当前时间”。');
+  tell('已载入示例一周（下周，从下周一7:00开始安排）：讲座撞上高数是一处叠墨，讲座报名没填用时，只标截止，周六和朋友去公园是一笔约定。想按真实时间安排，可在“铺纸”页点“使用当前时间”。');
   window.SixuRouter?.go('calendar');
 });
 // 路演案例 (the case in the design report and the deck): a fictional 摄影社 notice for next week's Wednesday.

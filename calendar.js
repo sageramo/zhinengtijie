@@ -19,7 +19,7 @@ const clock = value => { const d = local(value); return `${String(d.getUTCHours(
 const monthDay = value => { const d = local(value); return `${d.getUTCMonth() + 1}月${d.getUTCDate()}日`; };
 // On screen the layers use the 书画 names: 底色 routine, 留白 free, 落笔 work and appointments, 点墨 temporary.
 export const LAYER_LABEL = { routine: '底色', temporary: '点墨', work: '落笔', appointment: '落笔·约定', free: '留白', deadline: '截止', start: '开始' };
-const TASK_STATE = { time_invalid: '任务时间待核对', scheduled: '已落笔', estimate_undefined: '预计用时未填', deadline_undefined: '截止未填', free_time_undefined: '留白未设定',
+const TASK_STATE = { time_invalid: '任务时间待核对', scheduled: '已落笔', estimate_undefined: '只标截止', deadline_undefined: '截止未填', free_time_undefined: '留白未设定',
   short: '留白不够', overdue: '已过截止', beyond_horizon: '超出31天', not_attempted: '暂未安排', completed: '已完成', cancelled: '已取消' };
 const CONFLICT_LABEL = { routine_overlap: '底色相叠', temporary_routine_overlap: '点墨压在底色上', temporary_overlap: '两处点墨相叠',
   appointment_routine_overlap: '约定压在底色上', appointment_overlap: '约定与他事相叠', work_shortage: '留白不够落笔', overdue: '已过截止' };

@@ -59,3 +59,12 @@ test('equivalent durations produce the same shortage and half an hour of rest is
   assert.match((await reply('今天再接1小时社团工作，留半小时休息，时间够吗？')).text, /预留 30 分钟.*总量还差 20 分钟/);
   assert.match((await reply('今天再接1小时社团工作，留点休息时间，时间够吗？')).text, /分别写清/);
 });
+
+test('capacity trial gently notes unestimated deadline tasks even when they are not in undefined', async () => {
+  let snapshot = setDailyWindow(baseline, Array(7).fill({ start: '12:00', end: '22:00' }));
+  snapshot = addPersonalTask(snapshot, { title: '交选课确认表', day: '2026-11-13' });
+  const calculate = async () => ({ ...result, undefined: [] });
+  const reply = await agendaReply('今天再接1小时社团工作，留半小时休息，时间够吗？', { snapshot, now, calculate });
+  assert.match(reply.text, /另有 1 件未估时的截止事项未占空档/);
+  assert.doesNotMatch(reply.text, /待补时间/);
+});

@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="description" content="把校园通知整理成可核对的事项，用真实空闲生成经过校验的个人安排。">
-  <meta name="sixu-ui-version" content="2026.11.20.44">
+  <meta name="sixu-ui-version" content="2026.11.20.46">
   <title>司序 Marshal · 知所先后</title>
   <link rel="icon" href="./assets/sixu-mark.svg" type="image/svg+xml">
   <link rel="manifest" href="./manifest.webmanifest">
@@ -12,7 +12,7 @@
   <link rel="apple-touch-icon" href="./assets/icon-192.png">
   <script>{ const h = location.hash; document.documentElement.dataset.current = h.startsWith('#/') && ['import', 'items', 'time', 'calendar', 'review', 'plan'].includes(h.slice(2).split('?')[0]) ? ({ review: 'items', plan: 'calendar' }[h.slice(2).split('?')[0]] || h.slice(2).split('?')[0]) : 'home'; if (document.documentElement.dataset.current === 'home' && !matchMedia('(prefers-reduced-motion: reduce)').matches) document.documentElement.classList.add('intro'); }</script>
   <link rel="preload" as="image" href="./assets/hero-ribbon-plate.jpg">
-  <link rel="stylesheet" href="./agent.css?v=2026.11.20.44">
+  <link rel="stylesheet" href="./agent.css?v=2026.11.20.46">
 </head>
 <body>
   <div class="intro" id="intro" aria-hidden="true">
@@ -130,15 +130,18 @@
         <article class="roll" data-roll="work"><button type="button" class="roll-face" data-roll-open="work" aria-controls="roll-work"><span class="roll-rod" aria-hidden="true"></span><span class="roll-paper"><span class="roll-name">落笔</span><span class="roll-gloss">约定、个人任务与截止之事</span><span class="roll-summary" id="rollSummary-work"></span><span class="roll-hint">展开<svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true"><path d="M6 9l6 6 6-6" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></span></span><span class="roll-rod" aria-hidden="true"></span></button><div class="roll-body" id="roll-work"><div class="roll-bar"><button type="button" class="roll-back" data-roll-close><svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true"><path d="M15 5l-7 7 7 7" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>返回</button></div>
         <section class="surface" id="taskSection" aria-labelledby="taskHeading">
           <h2 id="taskHeading">落笔 <span class="layer-gloss">约定、个人任务与截止之事</span></h2>
-          <section class="item-group is-appointment" aria-labelledby="appointmentHeading">
+          <section class="item-group is-appointment" data-group="appointment" aria-labelledby="appointmentHeading">
+            <button type="button" class="group-expand" data-group-open="appointment" aria-label="展开约定"><span class="group-expand-name">约定</span><span class="group-expand-count" data-group-count="appointment">0</span><span class="group-expand-hint">展开</span></button>
             <div class="group-head"><i class="group-glyph" aria-hidden="true"></i><div class="group-text"><h3 id="appointmentHeading">约定 <span class="group-count" id="appointmentCount">0</span></h3><p class="section-note">自己约好的事，比如周末和朋友出去玩。有固定的起止，占用留白。</p></div><button type="button" id="addAppointment">添加约定</button></div>
             <div class="item-list" id="appointmentList"></div>
           </section>
-          <section class="item-group is-personal" aria-labelledby="personalHeading">
+          <section class="item-group is-personal" data-group="personal" aria-labelledby="personalHeading">
+            <button type="button" class="group-expand" data-group-open="personal" aria-label="展开个人任务"><span class="group-expand-name">个人任务</span><span class="group-expand-count" data-group-count="personal">0</span><span class="group-expand-hint">展开</span></button>
             <div class="group-head"><i class="group-glyph" aria-hidden="true"></i><div class="group-text"><h3 id="personalHeading">个人任务 <span class="group-count" id="personalCount">0</span></h3><p class="section-note">自己给自己定的事，比如“今天背完50个单词”。选好哪天做，日历会在那天的留白里为它落笔；在研磨里说一句“提醒我……”也会记到这里。</p></div><button type="button" id="addPersonal">添加个人任务</button></div>
             <div class="item-list" id="personalList"></div>
           </section>
-          <section class="item-group is-deadline" aria-labelledby="deadlineHeading">
+          <section class="item-group is-deadline" data-group="deadline" aria-labelledby="deadlineHeading">
+            <button type="button" class="group-expand" data-group-open="deadline" aria-label="展开截止之事"><span class="group-expand-name">截止之事</span><span class="group-expand-count" data-group-count="deadline">0</span><span class="group-expand-hint">展开</span></button>
             <div class="group-head"><i class="group-glyph" aria-hidden="true"></i><div class="group-text"><h3 id="deadlineHeading">截止之事 <span class="group-count" id="deadlineCount">0</span></h3><p class="section-note">有截止的事。填了预计用时，日历会在截止前的留白里为它落笔。</p></div><button type="button" id="addTask">添加截止之事</button></div>
             <div class="item-list" id="taskList"></div>
           </section>
@@ -206,7 +209,7 @@
       <form id="apiForm"><label for="apiBase">解析与计算服务地址</label><input id="apiBase" type="url" inputmode="url" required><button type="submit">保存地址并检查连接</button><p class="field-help" id="connectionStatus" role="status">尚未检查连接</p></form>
       <div class="backup-actions"><button type="button" id="importSnapshot">导入清单</button><input type="file" id="importFile" accept="application/json,.json" hidden></div>
       <p class="field-help">导出文件包含原文与个人安排，请妥善保存。</p>
-      <p class="field-help" id="uiVersion">界面版本 2026.11.20.44</p>
+      <p class="field-help" id="uiVersion">界面版本 2026.11.20.46</p>
     </details>
     <footer class="page-footer"><span>以确认后的信息计算，把取舍留给你。</span></footer>
   </main>
@@ -215,7 +218,7 @@
   <div class="access-ask" id="accessAsk" role="dialog" aria-modal="true" aria-labelledby="accessTitle" hidden><form class="access-card" id="accessForm"><h2 id="accessTitle">访问口令</h2><p class="field-help" id="accessHint"></p><label for="accessCode">口令</label><input id="accessCode" type="password" autocomplete="off" maxlength="200" required><div class="inline-actions"><button type="submit" class="primary-button">确定</button><button type="button" class="text-button" id="accessCancel">取消</button></div></form></div>
   <div class="route-veil" id="routeVeil" aria-hidden="true"><i class="ink ink-1"></i><i class="ink ink-2"></i><i class="ink ink-3"></i><svg class="veil-mark" viewBox="0 0 100 100"><path class="mark-ring" d="M22 86V28H30.56L50 63.64L69.44 28H78V86H70V43.69L54.56 72H45.44L30 43.69V86Z" fill="currentColor"/><g class="veil-needle"><path d="M50 14L53.2 40.4H46.8Z" fill="currentColor"/><path d="M46.8 40.4L50 62L53.2 40.4" fill="none" stroke="currentColor" stroke-width="1.8"/></g></svg><p class="veil-word"><span>司序</span><span>知所先后</span></p></div>
   <noscript>此页面需要启用JavaScript才能编辑和计算任务。</noscript>
-  <script type="importmap">{"imports":{"./task-state.js":"./task-state.js?v=2026.11.20.44","./snapshot-store.js":"./snapshot-store.js?v=2026.11.20.44","./model-candidates.js":"./model-candidates.js?v=2026.11.20.44","./time-review.js":"./time-review.js?v=2026.11.20.44","./planning-result.js":"./planning-result.js?v=2026.11.20.44","./agenda.js":"./agenda.js?v=2026.11.20.44","./calendar.js":"./calendar.js?v=2026.11.20.44","./shanshui.js":"./shanshui.js?v=2026.11.20.44","./reminders.js":"./reminders.js?v=2026.11.20.44","./bell-toggle.js":"./bell-toggle.js?v=2026.11.20.44","./estimate-memory.js":"./estimate-memory.js?v=2026.11.20.44","./time-state.js":"./time-state.js?v=2026.11.20.44","./scenario.js":"./scenario.js?v=2026.11.20.44","./screenshot-ocr.js":"./screenshot-ocr.js?v=2026.11.20.44","./jw-timetable.js":"./jw-timetable.js?v=2026.11.20.44"}}</script>
-  <script src="./router.js?v=2026.11.20.44"></script><script src="./about-sky.js?v=2026.11.20.44"></script><script src="./landing.js?v=2026.11.20.44"></script><script src="./api-config.js?v=2026.11.20.44"></script><script type="module" src="./agent.js?v=2026.11.20.44"></script>
+  <script type="importmap">{"imports":{"./task-state.js":"./task-state.js?v=2026.11.20.46","./snapshot-store.js":"./snapshot-store.js?v=2026.11.20.46","./model-candidates.js":"./model-candidates.js?v=2026.11.20.46","./time-review.js":"./time-review.js?v=2026.11.20.46","./planning-result.js":"./planning-result.js?v=2026.11.20.46","./agenda.js":"./agenda.js?v=2026.11.20.46","./calendar.js":"./calendar.js?v=2026.11.20.46","./shanshui.js":"./shanshui.js?v=2026.11.20.46","./reminders.js":"./reminders.js?v=2026.11.20.46","./bell-toggle.js":"./bell-toggle.js?v=2026.11.20.46","./estimate-memory.js":"./estimate-memory.js?v=2026.11.20.46","./time-state.js":"./time-state.js?v=2026.11.20.46","./scenario.js":"./scenario.js?v=2026.11.20.46","./screenshot-ocr.js":"./screenshot-ocr.js?v=2026.11.20.46","./jw-timetable.js":"./jw-timetable.js?v=2026.11.20.46"}}</script>
+  <script src="./router.js?v=2026.11.20.46"></script><script src="./about-sky.js?v=2026.11.20.46"></script><script src="./landing.js?v=2026.11.20.46"></script><script src="./api-config.js?v=2026.11.20.46"></script><script type="module" src="./agent.js?v=2026.11.20.46"></script>
 </body>
 </html>

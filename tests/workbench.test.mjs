@@ -127,14 +127,16 @@ test('rules import adds events and tasks at once, explains what is still undefin
   assert.deepEqual([stored.events.length, stored.tasks.length, stored.sources.length], [1, 2, 1]);
   assert.equal(stored.sources[0].kind, 'synthetic');
   assert.match(app.find('#importSummary').textContent, /已加入 1 处点墨、2 件截止之事/);
-  assert.match(app.find('#importSummary').textContent, /2 件的预计用时还是待书/);
+  assert.match(app.find("#importSummary").textContent, /预计用时可以不填，只标截止/);
+  assert.doesNotMatch(app.find("#importSummary").textContent, /预计用时还是待书/);
   assert.equal(app.find('#noticeText').value, '');
   assert.equal(app.all('#eventList [data-item-id]').length, 1);
   assert.equal(app.all('#taskList [data-item-id]').length, 2);
-  assert.equal(app.find('#itemsCount').textContent, '2');
+  // A missing estimate is optional now, so it no longer lights the 笔墨 tab.
+  assert.equal(app.find('#itemsCount').textContent, '');
   const last = app.calls.filter(item => item.path === '/api/v3/calendar').at(-1);
   assert.equal(last.body.snapshot.revision, stored.revision, 'calendar recomputed for the new list');
-  assert.match(app.find('#taskList').textContent, /预计用时未填/);
+  assert.match(app.find("#taskList").textContent, /只标截止/);
 });
 
 test('the roadshow case prepares 铺纸 for next Wednesday and puts the 摄影社 notice in the box without importing it', async t => {
@@ -162,8 +164,10 @@ test('笔墨 groups items under counted headings, and a card editor opens only w
   const [first] = app.stored().tasks;
   let card = app.find(`#item-${first.id}`);
   assert.ok(card.classList.contains('is-deadline'));
-  assert.match(card.querySelector('[data-item-meta]').textContent, /预计用时待书/);
-  assert.equal(card.querySelector('.item-edit').open, true, 'missing estimate keeps the editor open');
+  // An estimate is optional: the card says so and stays folded; it is not 待书.
+  assert.match(card.querySelector('[data-item-meta]').textContent, /用时选填/);
+  assert.equal(card.querySelector('[data-item-state]').textContent, '只标截止');
+  assert.equal(card.querySelector('.item-edit').open, false);
   card.querySelector('[data-estimate="30"]').click();
   await settle();
   card = app.find(`#item-${first.id}`);
@@ -172,6 +176,7 @@ test('笔墨 groups items under counted headings, and a card editor opens only w
   app.click('[data-tab="items"]');
   app.find('#addEvent').click();
   await settle();
+  assert.equal(app.find('#eventList').lastElementChild.querySelector('.item-edit').open, true, 'a 点墨 without a time opens its editor');
   card = app.find(`#item-${first.id}`);
   assert.equal(card.querySelector('.item-edit').open, false, 'a complete card folds after a re-render');
   card.querySelector('.item-edit > summary').click();
@@ -180,6 +185,25 @@ test('笔墨 groups items under counted headings, and a card editor opens only w
   app.find('#addEvent').click();
   await settle();
   assert.equal(app.find(`#item-${first.id}`).querySelector('.item-edit').open, true, 'an editor the user opened stays open');
+});
+
+test('落笔 spreads one group and folds the others into strips; a strip click or a jump from 画卷 spreads its group', async t => {
+  const app = await imported(t);
+  assert.equal(app.find('#taskSection').dataset.active, 'deadline', 'the group that has items opens first');
+  assert.ok(app.find('[data-group="deadline"]').classList.contains('is-spread'));
+  assert.equal(app.find('[data-group-count="deadline"]').textContent, '2');
+  app.click('[data-group-open="appointment"]');
+  assert.equal(app.find('#taskSection').dataset.active, 'appointment');
+  assert.equal(app.find('[data-group-open="appointment"]').getAttribute('aria-expanded'), 'true');
+  assert.ok(!app.find('[data-group="deadline"]').classList.contains('is-spread'));
+  app.find('#addEvent').click();
+  await settle();
+  assert.equal(app.find('#taskSection').dataset.active, 'appointment', 'the chosen group survives a re-render');
+  const [task] = app.stored().tasks;
+  // The mocked calendar holds fixture ids, so place one block for this task and click it through the real handler.
+  app.find('#calendarView').insertAdjacentHTML('beforeend', `<button type="button" data-cal-item="${task.id}" data-cal-layer="task">t</button>`);
+  app.find(`#calendarView [data-cal-item="${task.id}"]`).click();
+  assert.equal(app.find('#taskSection').dataset.active, 'deadline', 'jumping to a card spreads its group');
 });
 
 test('an unreachable service is explained in plain words and the notice stays in the box', async t => {
@@ -209,7 +233,7 @@ test('the import reply separates what occupies time from what must be done, and 
   await settle();
   assert.equal(app.stored().tasks.find(entry => entry.id === task.id).estimate_minutes, 30);
   assert.match(app.find('#importSummary').textContent, /预计 30 分钟/);
-  assert.match(app.find('#importSummary').textContent, /1 件的预计用时还是待书/);
+  assert.match(app.find("#importSummary").textContent, /预计用时可以不填/);
   assert.equal(app.all(`#importSummary [data-turn-estimate^="${task.id}:"]`).length, 0);
   assert.ok(app.calls.filter(call => call.path === '/api/v3/calendar').length > before, 'calendar recomputed');
 });

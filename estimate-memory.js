@@ -58,3 +58,51 @@ export function readMemory(storage) {
 export function writeMemory(storage, memory) {
   try { storage?.setItem(MEMORY_KEY, JSON.stringify(memory)); } catch { /* kept for this visit */ }
 }
+
+// ---- 个人承诺校准闭环（预计 vs 实际偏差系数，与后端 calibration.py 口径一致） ----
+export const CALIBRATION_KEY = 'sixu.calibration';
+const KEEP_CALIBRATION = 12;
+const clampRatio = ratio => Math.max(0.3, Math.min(4.0, ratio));
+
+/** Record one (estimated, actual) pair for bias calibration; preserves existing actual-duration memory separately. */
+export function recordCalibration(log, title, estimatedMinutes, actualMinutes) {
+  if (!Number.isFinite(estimatedMinutes) || !Number.isFinite(actualMinutes)) return log || [];
+  if (estimatedMinutes < 5 || actualMinutes < 5 || estimatedMinutes > 24 * 60 || actualMinutes > 24 * 60) return log || [];
+  const kind = kindOf(title);
+  const entry = { kind, title: String(title || '').slice(0, 60), estimated_minutes: Math.round(estimatedMinutes), actual_minutes: Math.round(actualMinutes) };
+  return [...(Array.isArray(log) ? log : []), entry].slice(-(KEEP_CALIBRATION * 3));
+}
+
+/** Return personal inflation factor (median of actual/estimated) for a kind or globally when >= 2 samples exist. */
+export function calibrationFor(log, titleOrKind) {
+  const list = Array.isArray(log) ? log : [];
+  const targetKind = KINDS.some(([k]) => k === titleOrKind) ? titleOrKind : kindOf(titleOrKind);
+  const ratiosOf = items => items
+    .filter(item => Number.isFinite(item?.estimated_minutes) && Number.isFinite(item?.actual_minutes) && item.estimated_minutes >= 5 && item.actual_minutes >= 5)
+    .map(item => clampRatio(item.actual_minutes / item.estimated_minutes))
+    .slice(-KEEP_CALIBRATION);
+  const kindRatios = targetKind ? ratiosOf(list.filter(item => (item.kind || kindOf(item.title)) === targetKind)) : [];
+  const allRatios = ratiosOf(list);
+  const used = kindRatios.length >= 2 ? kindRatios : allRatios.length >= 2 ? allRatios : [];
+  const source = kindRatios.length >= 2 ? `kind:${targetKind}` : allRatios.length >= 2 ? 'global' : 'none';
+  const factor = used.length ? Math.round(median(used) * 100) / 100 : 1;
+  return { kind: targetKind, source, factor, count: used.length };
+}
+
+/** Calibrate a nominal duration (minutes) rounded up to 5-minute granularity using personal history. */
+export function calibratedMinutes(log, titleOrKind, nominalMinutes) {
+  const profile = calibrationFor(log, titleOrKind);
+  const minutes = profile.count >= 2 ? Math.max(5, Math.ceil((nominalMinutes * profile.factor) / 5) * 5) : nominalMinutes;
+  return { ...profile, nominal: nominalMinutes, minutes };
+}
+
+export function readCalibration(storage) {
+  try {
+    const value = JSON.parse(storage?.getItem(CALIBRATION_KEY) || '[]');
+    return Array.isArray(value) ? value : [];
+  } catch { return []; }
+}
+
+export function writeCalibration(storage, log) {
+  try { storage?.setItem(CALIBRATION_KEY, JSON.stringify(log)); } catch { /* kept for this visit */ }
+}

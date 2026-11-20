@@ -88,6 +88,8 @@ export async function answerCapacity(snapshot, question, now, calculate) {
     return (!Number.isFinite(earliest) || earliest < to) && (!Number.isFinite(date) || date >= from);
   };
   const pending = result.undefined.filter(affects).length;
+  const unestimated = snapshot.tasks.filter(task => task.status === 'active' && task.estimate_minutes === null && task.deadline_at !== null
+    && !result.undefined.some(issue => issue.id === task.id) && affects({ id: task.id, type: 'estimate_undefined' })).length;
   const shortages = result.conflicts.filter(issue => issue.type === 'work_shortage' && issue.items.some(affects)).length;
   let text = `${label}还剩 ${minutesLabel(total)}，最长连续 ${minutesLabel(longest)}。已扣除已录入的固定占用和已排任务。`;
   if (question.needed !== null) {
@@ -109,6 +111,7 @@ export async function answerCapacity(snapshot, question, now, calculate) {
     text += ' 说一下新承诺预计几小时，就可以试算。';
   }
   if (pending || shortages) text += ` 还有 ${pending + shortages} 件待补时间或尚未排下的事，补齐后空档可能减少。`;
+  if (unestimated) text += ` 另有 ${unestimated} 件未估时的截止事项未占空档，若耗时较多需自行预留。`;
   if (!snapshot.routines.length) text += ' 当前清单还没有课表或固定例会。';
   else if (!snapshot.routines_confirmed) text += ' 请确认课表和固定例会已经补齐。';
   return { text, action: 'calendar', week: start };

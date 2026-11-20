@@ -1,7 +1,10 @@
 // 越用越准的估时: actual durations per kind of work, suggested back as a rounded median.
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { kindOf, recordActual, suggestEstimate, readMemory, writeMemory, MEMORY_KEY } from '../estimate-memory.js';
+import {
+  kindOf, recordActual, suggestEstimate, readMemory, writeMemory, MEMORY_KEY,
+  recordCalibration, calibrationFor, calibratedMinutes, readCalibration, writeCalibration, CALIBRATION_KEY,
+} from '../estimate-memory.js';
 
 test('titles fall into kinds of work, narrow kinds first', () => {
   assert.equal(kindOf('课程报告'), '写作');
@@ -37,4 +40,28 @@ test('memory survives a reload and a broken value reads as empty', () => {
   store.set(MEMORY_KEY, '[1,2]');
   assert.deepEqual(readMemory(storage), {});
   assert.deepEqual(readMemory(null), {});
+});
+
+test('personal calibration tracks actual/estimated inflation factor and rounds calibrated duration', () => {
+  let log = [];
+  log = recordCalibration(log, '实验报告', 60, 90);  // 1.5x
+  log = recordCalibration(log, '课程论文', 60, 84);  // 1.4x
+  log = recordCalibration(log, '读书总结', 60, 78);  // 1.3x
+  log = recordCalibration(log, '异常值', 2, 100);     // ignored (< 5m)
+  const cal = calibratedMinutes(log, '写社团文案', 60);
+  assert.equal(cal.source, 'kind:写作');
+  assert.equal(cal.count, 3);
+  assert.equal(cal.factor, 1.4);
+  assert.equal(cal.minutes, 85); // 60 * 1.4 = 84 -> ceil to 5m = 85
+  // Unknown kind falls back to global ratio
+  const globalCal = calibrationFor(log, '未知杂项');
+  assert.equal(globalCal.source, 'global');
+  assert.equal(globalCal.factor, 1.4);
+  // Storage round-trip
+  const store = new Map();
+  const storage = { getItem: key => store.get(key) ?? null, setItem: (key, value) => store.set(key, value) };
+  writeCalibration(storage, log);
+  assert.equal(readCalibration(storage).length, 3);
+  store.set(CALIBRATION_KEY, '{bad');
+  assert.deepEqual(readCalibration(storage), []);
 });
