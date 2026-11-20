@@ -1704,3 +1704,18 @@ html[data-dir="prev"]::view-transition-new(sixu-page) { animation-name: page-in-
   .roll.is-open .roll-body { grid-template-columns: minmax(0, 1fr); }
   .roll.is-open .roll-body:has(> .surface ~ .surface) { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 }
+
+/* ---- 首页标题：毛笔字样（司序·知所先后 + 知先后，留空白，见本周山水） ---- */
+.hero-brand { position: relative; width: clamp(300px, 46vw, 780px); margin-top: 6px; }
+.hero-title.hero-title-brush { display: block; margin: 0; line-height: 0; text-shadow: none; }
+.hero-brush { display: block; width: 100%; height: auto; filter: drop-shadow(0 6px 22px rgba(255, 255, 255, .55)); }
+/* The last stroke of 后 sweeps down on the right; the tagline sits in the space it leaves on the left. */
+.hero-tagline { position: absolute; left: 0.6%; bottom: 7%; width: 57%; margin: 0; line-height: 0; }
+.hero-tagline img { display: block; width: 100%; height: auto; filter: drop-shadow(0 2px 10px rgba(255, 255, 255, .7)); }
+@media (prefers-reduced-motion: no-preference) {
+  .hero-title-brush .hero-brush { clip-path: inset(0 100% 0 0); }
+  .hero-title-brush.is-in .hero-brush { clip-path: inset(0 0 0 0); transition: clip-path 1.5s cubic-bezier(.45, .05, .25, 1) .15s; }
+}
+@media (max-width: 760px) {
+  .hero-brand { width: min(100%, 360px); }
+}
