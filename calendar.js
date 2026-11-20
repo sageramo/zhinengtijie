@@ -158,7 +158,29 @@ function changesMarkup(changes) {
   return `<div class="cx-changes"><p>采用后，画卷重算的变化</p><ul>${changes.map(change => `<li class="is-${change.kind}"><span>${escape(change.label)}</span><s>${escape(change.before)}</s><i aria-hidden="true">→</i><b>${escape(change.after)}</b>${change.delta ? `<em>${escape(change.delta)}</em>` : ''}</li>`).join('')}</ul></div>`;
 }
 
-function sideLists(result, undo, note, weighs, changes) {
+/** 精确重排与多方案对比 (POST /api/v3/solve): Pareto plans with their numbers, each applicable in one click. */
+function plansMarkup(plans, result) {
+  if (!result.conflicts.length && !plans) return '';
+  const intro = '<p class="cal-side-note">精确求解整周：比较“保课表”与“保活动”等方案的叠墨、留白与请假次数，并检查跨楼赶场。</p>';
+  if (!plans) return `<section class="cal-side-block plans">${intro}<button type="button" class="plans-run" data-solve>精确重排 · 多方案对比</button></section>`;
+  if (plans.loading) return `<section class="cal-side-block plans"><p class="cal-hint" role="status">正在精确求解这一周…</p></section>`;
+  if (plans.error) return `<section class="cal-side-block plans"><p class="cal-hint is-error" role="status">${escape(plans.error)}</p><button type="button" class="plans-run" data-solve>再试一次</button></section>`;
+  const solved = plans.result;
+  const algo = solved.algorithm || {};
+  const head = `<h3>多方案对比 <span>${solved.pareto_plans.length}</span></h3><p class="plans-algo">分支定界精确求解 · 搜索 ${algo.nodes_explored ?? 0} 个节点 · ${solved.validation?.passed ? '独立校验通过' : escape(solved.reason || '')}${algo.transit_minutes ? ` · 跨楼预留 ${algo.transit_minutes} 分钟` : ''}</p>`;
+  const transit = (solved.transit_warnings || []).map(item => `<li>${escape(item.message || item.reason || `${item.from_title || ''} → ${item.to_title || ''}`)}</li>`).join('');
+  const cards = solved.pareto_plans.map((plan, index) => {
+    const m = plan.metrics || {};
+    const blocks = (plan.work_blocks || []).slice(0, 3).map(block => `<li>${escape(block.title)} <b>${clock(Date.parse(block.start))}–${clock(Date.parse(block.end))}</b></li>`).join('');
+    return `<li class="plan-card"><p class="plan-name">${escape(plan.name)}</p><p class="plan-sum">${escape(plan.summary)}</p>
+      <ul class="plan-metrics"><li><b>${m.remaining_conflicts ?? '–'}</b><span>叠墨</span></li><li><b>${m.skipped_routine_occurrences ?? 0}</b><span>请假</span></li><li><b>${m.kept_temporary_events ?? 0}</b><span>保留点墨</span></li><li><b>${Math.round((m.net_free_minutes || 0) / 60)} 小时</b><span>本周可用</span></li></ul>
+      ${blocks ? `<ul class="plan-blocks">${blocks}</ul>` : ''}
+      <button type="button" class="plan-apply" data-plan="${index}">采用：${escape(plan.actions.map(action => action.label).join('；'))}</button></li>`;
+  }).join('');
+  return `<section class="cal-side-block plans">${head}${transit ? `<ul class="plans-transit">${transit}</ul>` : ''}${cards ? `<ol class="plan-list">${cards}</ol>` : '<p>这一周没有需要比较的方案。</p>'}</section>`;
+}
+
+function sideLists(result, undo, note, weighs, changes, plans) {
   const conflicts = result.conflicts.map(conflict => conflictCard(conflict, result, weighs)).join('');
   const undefinedRows = result.undefined.map(item => {
     const target = item.id ? `data-cal-item="${escape(item.id)}" data-cal-layer="${item.type.startsWith('event_') ? 'event' : 'task'}"` : `data-cal-goto="time" data-cal-roll="${item.type === 'routines_unconfirmed' ? 'routine' : 'free'}"`;
@@ -166,6 +188,7 @@ function sideLists(result, undo, note, weighs, changes) {
   }).join('');
   const undoBar = undo ? `<p class="cx-undo">已采用：${escape(undo)}<button type="button" class="text-button" data-strategy-undo>撤销</button></p>${changesMarkup(changes)}${noteMarkup(note)}` : '';
   return `<section class="cal-side-block cx" aria-labelledby="calConflictHeading"><h3 id="calConflictHeading">叠墨 · 对策 <span>${result.conflicts.length}</span></h3>${undoBar}${conflicts ? `<p class="cal-side-note">按规则为每处相叠拟好对策，点一下即采用，画卷随之重算。</p><ol class="cx-list">${conflicts}</ol>` : '<p class="cx-clear">底色、落笔与点墨之间没有相叠，这一卷是干净的。</p>'}</section>
+    ${plansMarkup(plans, result)}
     <section class="cal-side-block" aria-labelledby="calUndefinedHeading"><h3 id="calUndefinedHeading">待书 <span>${result.undefined.length}</span></h3>${undefinedRows ? `<ul>${undefinedRows}</ul>` : '<p>所有信息都已写清楚。</p>'}</section>`;
 }
 
@@ -266,7 +289,7 @@ export function weeklyBrief(items, start, now) {
   return lines;
 }
 
-export function calendarMarkup({ result, start, now, loading = false, error = '', undo = '', note = '', changes = [], weighs = {}, focus = '', rolled = false, unrolling = false, fresh = false }) {
+export function calendarMarkup({ result, start, now, loading = false, error = '', undo = '', note = '', changes = [], plans = null, weighs = {}, focus = '', rolled = false, unrolling = false, fresh = false }) {
   const items = calendarItems(result);
   const days = Array.from({ length: 7 }, (_, index) => start + index * DAY);
   const end = start + 7 * DAY;
@@ -356,7 +379,7 @@ export function calendarMarkup({ result, start, now, loading = false, error = ''
     : result ? '<p class="cal-hint" role="status">没有叠墨，所有信息都已写清楚。</p>' : '';
   const empty = result && !inWeek.length ? '<div class="cal-empty"><p>这一周还是一片空白。</p><span>在「铺纸」里铺好底色、定下留白，再到「研磨」导入通知，事情会落在这里。</span></div>' : '';
   const brief = result ? weeklyBrief(inWeek, start, now) : [];
-  const side = result ? sideLists(result, undo, note, weighs, changes) : '<section class="cal-side-block"><p>计算完成后，这里列出叠墨的对策和待书。</p></section>';
+  const side = result ? sideLists(result, undo, note, weighs, changes, plans) : '<section class="cal-side-block"><p>计算完成后，这里列出叠墨的对策和待书。</p></section>';
   const stat = (value, label) => `<li><b>${value}</b><span>${label}</span></li>`;
   const freeMinutes = inWeek.filter(item => item.type === 'free').reduce((sum, item) => sum + (item.end - item.start) / MINUTE, 0);
   const layerButton = (key, name, meaning, value) => `<li><button type="button" class="cal-layer lg-${key}" data-cal-focus="${key}" aria-pressed="${focus === key}"><i aria-hidden="true"></i><strong>${name}</strong><span>${meaning}</span><b>${value}</b></button></li>`;

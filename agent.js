@@ -9,7 +9,7 @@ import { agendaReply, hasPersonalClock, isConversation } from './agenda.js';
 import { calendarMarkup, conflictKey, digestChanges, minutesLabel, resultDigest, weekStart, weekRange } from './calendar.js';
 import { LEADS, dueReminders, icsCalendar, reminderText, upcomingCount } from './reminders.js';
 import { createBellToggle } from './bell-toggle.js';
-import { readMemory, writeMemory, recordActual, suggestEstimate } from './estimate-memory.js';
+import { readMemory, writeMemory, recordActual, suggestEstimate, readCalibration, writeCalibration, recordCalibration, calibrationFor } from './estimate-memory.js';
 import { createRecognizer, imageProblem } from './screenshot-ocr.js';
 import { parseJwTimetable, termStartFrom } from './jw-timetable.js';
 
@@ -68,6 +68,10 @@ let strategyUndo = null; // { before, label, note, digest, changes } of the last
 let calendarFocus = ''; // one layer of the week shown alone ('' = all)
 let lastImport = null; // the latest import reply, so its estimate chips can redraw it
 const openCards = new Set(); // item cards whose editor the user opened; kept across re-renders
+let solveState = null; // 精确重排 for the shown week: { loading } | { error } | { result }
+let pendingDiff = null; // a change notice waiting for the user's word: { text, revision, result }
+let skipDiffFor = ''; // the text the user chose to import as new despite a detected change
+let groupMask = null; // my anonymous free mask for the shown week: { code, mask, range, slot }
 let workGroup = null; // which 落笔 group is spread open ('appointment' | 'personal' | 'deadline'); null = pick one
 const weighs = {}; // conflictKey -> { loading, error, pick, reason, note } from 请模型权衡
 let scrollRolled = true; // 画卷 opens as a closed scroll each time the page is entered
@@ -164,6 +168,7 @@ function commit(next, { render = 'all', unlock = false } = {}) {
   }
   calendarResult = null;
   strategyUndo = null;
+  solveState = null;
   save();
   if (render === 'all') renderAll(); else { renderBadges(); renderItemStates(); }
   scheduleCalendar();
@@ -291,7 +296,7 @@ async function computeCalendar() {
   }
 }
 function renderCalendar() {
-  $('calendarView').innerHTML = calendarMarkup({ result: calendarResult, start: shownWeek(), now: Date.now(), loading: calendarLoading && !calendarResult, error: calendarError, undo: strategyUndo?.label || '', note: strategyUndo?.note || '', changes: strategyUndo?.changes || [], focus: calendarFocus, weighs, rolled: scrollRolled, unrolling: Boolean(unrollTimer), fresh: !coverPainted });
+  $('calendarView').innerHTML = calendarMarkup({ result: calendarResult, start: shownWeek(), now: Date.now(), loading: calendarLoading && !calendarResult, error: calendarError, undo: strategyUndo?.label || '', note: strategyUndo?.note || '', changes: strategyUndo?.changes || [], focus: calendarFocus, plans: solveState, weighs, rolled: scrollRolled, unrolling: Boolean(unrollTimer), fresh: !coverPainted });
   if (scrollRolled && calendarResult) coverPainted = true;
   $('calendarView').querySelector('.cal-remind-slot')?.append(remindBar);
   fitCalendar();
@@ -539,10 +544,18 @@ function showTurn(text, html) {
 function replyMarkup(reply) {
   const links = { calendar: '<a href="#/calendar" data-agenda-calendar>看画卷</a>',
     setup: '<a href="#/time">去铺纸设置</a>', tasks: '<a href="#/items">去落笔查看</a>' };
-  return `<p>${escapeHTML(reply.text)}</p>${links[reply.action] ? `<p class="inline-links">${links[reply.action]}</p>` : ''}`;
+  return `<p>${escapeHTML(reply.text)}</p>${reply.extraHtml || ''}${links[reply.action] ? `<p class="inline-links">${links[reply.action]}</p>` : ''}`;
 }
 let agendaWeek = null;
 $('importSummary').addEventListener('click', event => {
+  if (event.target.closest('[data-diff-apply]')) { applyDiff(); return; }
+  if (event.target.closest('[data-diff-import]') && pendingDiff) {
+    skipDiffFor = pendingDiff.text;
+    $('noticeText').value = pendingDiff.text;
+    pendingDiff = null;
+    $('noticeForm').requestSubmit ? $('noticeForm').requestSubmit() : $('noticeForm').dispatchEvent(new Event('submit', { cancelable: true }));
+    return;
+  }
   const chip = event.target.closest('[data-turn-estimate]');
   if (chip && lastImport) {
     const [id, minutes] = chip.dataset.turnEstimate.split(':');
@@ -598,6 +611,8 @@ $('noticeForm').addEventListener('submit', async event => {
     if (!reply && isConversation(text)) {
       reply = { text: '这句我还接不住。可以继续问本周空档，或在输入框下选「模型聊天」聊别的。' };
     }
+    if (reply?.capacity) reply.extraHtml = await calibrationNote(reply.capacity, base).catch(() => '');
+    if (!stillCurrent()) return;
     if (reply) {
       if (reply.next) commit(reply.next);
       agendaWeek = reply.week ?? null;
@@ -612,6 +627,19 @@ $('noticeForm').addEventListener('submit', async event => {
     const service = await ensureHealth(base, { fresh: mode === 'model' });
     if (mode === 'model' && !service.model_extraction?.configured) throw new Error('当前服务没有启用模型提取，可以改用默认模式。');
     if (!stillCurrent()) return;
+    const known = [...snapshot.events, ...snapshot.tasks].some(item => item.status === 'active');
+    if (known && mode !== 'model' && skipDiffFor !== text && service.capabilities.includes('notice_diff_v1')) {
+      $('parseStep').textContent = '正在核对是不是已有事项的变更';
+      const live = { ...snapshot, reference_time: new Date(Math.max(Date.parse(snapshot.reference_time), Date.parse(currentMinuteISO()))).toISOString() };
+      const diff = await request('/api/v3/notice-diff', { snapshot: live, text, reference_date: referenceDate, range: weekRange(shownWeek()), mode: 'rules' }, base, 30000);
+      if (!stillCurrent()) return;
+      if (diff.summary.updated + diff.summary.cancelled > 0) {
+        pendingDiff = { text, revision: snapshot.revision, result: diff };
+        showTurn(text, diffMarkup(diff));
+        return;
+      }
+    }
+    skipDiffFor = '';
     $('parseStep').textContent = '正在整理事项与时间';
     const imported = await (mode === 'model' ? modelRequest : request)('/api/v3/extract', { text, reference_date: referenceDate, mode }, base, mode === 'model' ? 100000 : 30000);
     if (!stillCurrent()) return;
@@ -933,6 +961,7 @@ function saveActual(id, value) {
   const before = estimateMemory;
   estimateMemory = recordActual(estimateMemory, task?.title, Number(value));
   writeMemory(storage, estimateMemory);
+  if (task?.estimate_minutes) writeCalibration(storage, recordCalibration(readCalibration(storage), task.title, task.estimate_minutes, Number(value)));
   tell(estimateMemory === before ? '记下了；这类事还没有归类，暂不用于估时。' : '记下了，下次同类的事会参考这次的实际用时。');
 }
 
@@ -1192,6 +1221,9 @@ $('calendarView').addEventListener('click', event => {
   if (event.target.closest('[data-scroll-open]')) { unrollScroll(); return; }
   if (event.target.closest('[data-scroll-roll]')) { scrollRolled = true; coverPainted = false; renderCalendar(); return; }
   if (event.target.closest('[data-strategy-undo]')) { undoStrategy(); return; }
+  if (event.target.closest('[data-solve]')) { runSolve(); return; }
+  const plan = event.target.closest('[data-plan]');
+  if (plan) { applyPlan(Number(plan.dataset.plan)); return; }
   const focus = event.target.closest('[data-cal-focus]');
   if (focus) { calendarFocus = calendarFocus === focus.dataset.calFocus ? '' : focus.dataset.calFocus; renderCalendar(); return; }
   const weigh = event.target.closest('[data-weigh]');
@@ -1206,6 +1238,103 @@ $('calendarView').addEventListener('click', event => {
   if (element) showOnPage(element, 'center');
 });
 /** Apply one rule-based strategy from the calendar result; the previous list is kept for one undo. */
+/** One rule-based change (a 叠墨 strategy or a step of a 多方案 plan) applied to a list; null for 'review'. */
+function withAction(base, { action, params }) {
+  if (action === 'skip_routine_date') return skipRoutineDate(base, params.routine_id, params.date);
+  if (action === 'cancel_event') return updateEvent(base, params.event_id, { status: 'cancelled' });
+  if (action === 'move_event') return updateEvent(base, params.event_id, { start_at: params.start_at, end_at: params.end_at });
+  if (action === 'update_task') return updateTask(base, params.task_id, params.patch);
+  if (action === 'add_free') return addAdjustment(base, { kind: 'add', start_at: params.start_at, end_at: params.end_at, note: params.note });
+  return null;
+}
+
+// ---- 精确重排与多方案对比（后端 /api/v3/solve）--------------------------------
+async function runSolve() {
+  const revision = snapshot.revision;
+  const base = apiBase;
+  solveState = { loading: true };
+  renderCalendar();
+  try {
+    const live = Math.max(Date.parse(snapshot.reference_time), Date.parse(currentMinuteISO()));
+    const result = await request('/api/v3/solve', { snapshot: { ...snapshot, reference_time: new Date(live).toISOString() }, range: weekRange(shownWeek()), transit_minutes: 10 }, base, 60000);
+    if (revision !== snapshot.revision || base !== apiBase) return;
+    solveState = { result };
+  } catch (error) {
+    if (revision !== snapshot.revision) return;
+    solveState = { error: `没能求解：${error.message}` };
+  }
+  renderCalendar();
+}
+function applyPlan(index) {
+  const plan = solveState?.result?.pareto_plans?.[index];
+  if (!plan) return;
+  let next = snapshot;
+  try {
+    for (const action of plan.actions) next = withAction(next, action) || next;
+  } catch (error) { tell(`这个方案没能采用：${error.message}`, 'error'); return; }
+  const before = snapshot;
+  const digest = calendarResult ? resultDigest(calendarResult, shownWeek(), Date.now()) : null;
+  commit(next);
+  strategyUndo = { before, label: `${plan.name}（${plan.actions.map(action => action.label).join('；')}）`, note: '', digest, changes: null };
+  tell(`已采用：${plan.name}`);
+}
+
+// ---- 通知变更识别（后端 /api/v3/notice-diff）---------------------------------
+const DIFF_FIELD = { start_at: '开始', end_at: '结束', location: '地点', deadline_at: '截止', earliest_start_at: '哪天做', status: '状态' };
+function diffValue(field, value) {
+  if (value === null || value === undefined || value === '') return '未填';
+  if (field === 'status') return value === 'cancelled' ? '取消' : value === 'completed' ? '完成' : '照常';
+  return /_at$/.test(field) ? readable(value) : String(value);
+}
+function diffMarkup(diff) {
+  const ops = diff.operations.filter(op => op.action === 'update' || op.action === 'cancel').map(op => {
+    const kind = op.kind === 'event' ? '点墨' : '截止';
+    const rows = op.action === 'cancel' ? '<li><span>状态</span><s>照常</s><i aria-hidden="true">→</i><b>取消</b></li>'
+      : Object.entries(op.changes).map(([field, change]) => `<li><span>${DIFF_FIELD[field] || field}</span><s>${escapeHTML(diffValue(field, change.from))}</s><i aria-hidden="true">→</i><b>${escapeHTML(diffValue(field, change.to))}</b></li>`).join('');
+    return `<li class="diff-op is-${op.action}"><p><em>${kind}</em><strong>${escapeHTML(op.target_title || op.incoming?.title || '')}</strong>${op.action === 'cancel' ? '<span class="diff-tag">取消</span>' : '<span class="diff-tag">改动</span>'}</p><ul>${rows}</ul></li>`;
+  }).join('');
+  const added = diff.summary.added ? `<p class="field-help">另有 ${diff.summary.added} 项像是新事项，采用后会一并加入。</p>` : '';
+  const impact = diff.impact || {};
+  const titles = Object.fromEntries(snapshot.tasks.map(task => [task.id, task.title]));
+  const shifts = (impact.work_shifts || []).map(shift => `<li><span>落笔「${escapeHTML(titles[shift.id] || '')}」</span><s>${shift.from ? `${readable(shift.from[0])}–${readable(shift.from[1]).split(' ')[1]}` : '未排入'}</s><i aria-hidden="true">→</i><b>${shift.to ? `${readable(shift.to[0])}–${readable(shift.to[1]).split(' ')[1]}` : '未排入'}</b></li>`).join('');
+  const conflictLine = `<li><span>叠墨</span><s>${impact.conflicts_before ?? '–'} 处</s><i aria-hidden="true">→</i><b>${impact.conflicts_after ?? '–'} 处</b></li>`;
+  const freeLine = impact.free_delta_minutes ? `<li><span>本周留白</span><s>原来</s><i aria-hidden="true">→</i><b>${impact.free_delta_minutes > 0 ? '+' : '−'}${minutesLabel(Math.abs(impact.free_delta_minutes))}</b></li>` : '';
+  return `<div class="diff-card"><p class="diff-head"><strong>这像是一条变更通知</strong>：对清单里已有的 ${diff.summary.updated + diff.summary.cancelled} 件事有改动。司序没有新建重复事项，先给你看看变化。</p>
+    <ol class="diff-ops">${ops}</ol>${added}
+    <div class="cx-changes diff-impact"><p>采用后，画卷会这样变化</p><ul>${conflictLine}${freeLine}${shifts}</ul></div>
+    ${impact.conflicts_after > impact.conflicts_before ? '<p class="diff-warn">注意：改动后会多出叠墨，采用后到画卷查看对策。</p>' : impact.conflicts_after ? `<p class="diff-warn">改动后仍有 ${impact.conflicts_after} 处叠墨（可能换成了和别的事相撞），采用后到画卷查看对策。</p>` : ''}
+    <div class="inline-actions diff-actions"><button type="button" class="primary-button" data-diff-apply>采用这些变更</button><button type="button" data-diff-import>仍当新通知导入</button></div></div>`;
+}
+function applyDiff() {
+  if (!pendingDiff) return;
+  if (pendingDiff.revision !== snapshot.revision) { pendingDiff = null; return tell('清单刚刚有变化，请再发送一次这条通知。', 'warning'); }
+  let next;
+  try { next = parseTimeSnapshot(JSON.stringify({ ...pendingDiff.result.preview_snapshot, revision: snapshot.revision + 1 })); }
+  catch (error) { return tell(`这些变更没能采用：${error.message}`, 'error'); }
+  const { summary } = pendingDiff.result;
+  pendingDiff = null;
+  commit(next);
+  $('importSummary').querySelector('.diff-actions')?.replaceWith(Object.assign(document.createElement('p'), { className: 'diff-done', textContent: `已采用：改动 ${summary.updated} 件、取消 ${summary.cancelled} 件${summary.added ? `、新增 ${summary.added} 件` : ''}。` }));
+  tell('已按变更通知更新清单，画卷随之重算。');
+}
+
+// ---- 个人估时校准（后端 /api/v3/calibrate-capacity）---------------------------
+async function calibrationNote(capacity, base) {
+  const history = readCalibration(storage);
+  if (calibrationFor(history, null).count < 2) return '';
+  const service = await ensureHealth(base);
+  if (!service.capabilities.includes('capacity_calibration_v1')) return '';
+  const today = localDate(Date.now());
+  const range = capacity.scope === 'today' ? { from: today, to: today } : weekRange(capacity.scope === 'next' ? weekStart(Date.now()) + 7 * DAY : weekStart(Date.now()));
+  const live = { ...snapshot, reference_time: new Date(Math.max(Date.parse(snapshot.reference_time), Date.parse(currentMinuteISO()))).toISOString() };
+  const result = await request('/api/v3/calibrate-capacity', { history, nominal_minutes: capacity.needed, reserve_minutes: capacity.reserve, splittable: Boolean(capacity.split), snapshot: live, range }, base, 30000);
+  if (!result.calibrated_verdict) return '';
+  const factor = result.calibration.factor;
+  return `<div class="calib${result.optimism_risk ? ' is-risk' : ''}"><p class="calib-head">${result.optimism_risk ? '乐观偏差预警' : '按你的历史节奏复核'}<span>以往 ${result.calibration.sample_count} 次实际用时约为预估的 ${factor} 倍</span></p>
+    <ul><li><span>按你说的</span><b>${minutesLabel(result.nominal_minutes)}</b><em>${result.nominal_verdict.fits ? '排得下' : '排不下'}</em></li><li><span>按以往节奏</span><b>${minutesLabel(result.calibrated_minutes)}</b><em>${result.calibrated_verdict.fits ? '排得下' : '排不下'}</em></li></ul>
+    <p>${escapeHTML(result.optimism_risk ? `按以往节奏要 ${minutesLabel(result.calibrated_minutes)}，算上预留的 ${minutesLabel(result.reserve_minutes)} 休息就不够了；答应之前再想想，或者把事拆小。` : result.calibrated_verdict.summary)}</p></div>`;
+}
+
 function applyStrategy(key) {
   const [conflictId, index] = key.split(':');
   const strategy = calendarResult?.conflicts.find(conflict => conflict.id === conflictId)?.strategies?.[Number(index)];
@@ -1218,12 +1347,8 @@ function applyStrategy(key) {
   }
   let next;
   try {
-    if (strategy.action === 'skip_routine_date') next = skipRoutineDate(snapshot, params.routine_id, params.date);
-    else if (strategy.action === 'cancel_event') next = updateEvent(snapshot, params.event_id, { status: 'cancelled' });
-    else if (strategy.action === 'move_event') next = updateEvent(snapshot, params.event_id, { start_at: params.start_at, end_at: params.end_at });
-    else if (strategy.action === 'update_task') next = updateTask(snapshot, params.task_id, params.patch);
-    else if (strategy.action === 'add_free') next = addAdjustment(snapshot, { kind: 'add', start_at: params.start_at, end_at: params.end_at, note: params.note });
-    else return;
+    next = withAction(snapshot, strategy);
+    if (!next) return;
   } catch (error) { tell(`这条对策没能采用：${error.message}`, 'error'); return; }
   const before = snapshot;
   const conflict = calendarResult.conflicts.find(item => item.id === conflictId);
@@ -1400,6 +1525,59 @@ window.addEventListener('storage', event => {
   snapshotStore.invalidate();
   $('storageConflict').hidden = false;
   $('saveState').textContent = '其他标签页已修改，请先处理版本变化';
+});
+
+// ---- 多人约时：匿名空闲码（后端 /api/v3/group/*）-------------------------------
+// A code carries only the week, the slot size and a 0/1 free mask (hex), never a title, place or task.
+const GROUP_SLOT = 30;
+function maskCode(range, mask) {
+  const padded = mask.padEnd(Math.ceil(mask.length / 4) * 4, '0');
+  let hex = '';
+  for (let i = 0; i < padded.length; i += 4) hex += parseInt(padded.slice(i, i + 4), 2).toString(16);
+  return `SX1.${range.from}.${range.to}.${GROUP_SLOT}.${mask.length}.${hex}`;
+}
+function readMaskCode(code) {
+  const parts = code.trim().split('.');
+  if (parts.length !== 6 || parts[0] !== 'SX1' || !/^[0-9a-f]+$/i.test(parts[5])) throw new Error('这不是司序空闲码');
+  const length = Number(parts[4]);
+  const bits = [...parts[5]].map(digit => parseInt(digit, 16).toString(2).padStart(4, '0')).join('').slice(0, length);
+  if (bits.length !== length) throw new Error('空闲码不完整');
+  return { range: { from: parts[1], to: parts[2] }, slot: Number(parts[3]), mask: bits };
+}
+async function exportMask() {
+  const range = weekRange(weekStart(Date.now()));
+  const live = { ...snapshot, reference_time: new Date(Math.max(Date.parse(snapshot.reference_time), Date.parse(currentMinuteISO()))).toISOString() };
+  const result = await request('/api/v3/group/export-mask', { snapshot: live, range, slot_minutes: GROUP_SLOT }, apiBase, 30000);
+  groupMask = { code: maskCode(range, result.free_mask), mask: result.free_mask, range };
+  $('groupMine').value = groupMask.code;
+  return groupMask;
+}
+$('groupExport').addEventListener('click', async () => {
+  try { await exportMask(); tell('已生成本周空闲码，复制发给要约的同学。'); }
+  catch (error) { tell(`没能生成空闲码：${error.message}`, 'error'); }
+});
+$('groupCopy').addEventListener('click', async () => {
+  if (!$('groupMine').value) return tell('先生成空闲码。', 'warning');
+  try { await navigator.clipboard.writeText($('groupMine').value); tell('空闲码已复制。'); }
+  catch { $('groupMine').select(); tell('请用快捷键复制选中的空闲码。', 'warning'); }
+});
+$('groupFind').addEventListener('click', async () => {
+  const box = $('groupResult');
+  try {
+    const mine = groupMask || await exportMask();
+    const others = $('groupOthers').value.split(/\n+/).map(line => line.trim()).filter(Boolean).map(readMaskCode);
+    if (!others.length) throw new Error('先贴上至少一位同学的空闲码');
+    if (others.some(other => other.range.from !== mine.range.from || other.slot !== GROUP_SLOT || other.mask.length !== mine.mask.length)) throw new Error('有的空闲码不是同一周生成的，请大家都生成本周的码');
+    // Slots already past are nobody's free time: blank them in every code before ranking.
+    const past = Math.max(0, Math.ceil((Date.now() - Date.parse(`${mine.range.from}T00:00:00+08:00`)) / (GROUP_SLOT * 60000)));
+    const ahead = mask => '0'.repeat(Math.min(past, mask.length)) + mask.slice(past);
+    const participants = [{ label: '我', free_mask: ahead(mine.mask) }, ...others.map((other, index) => ({ label: `同学${index + 1}`, free_mask: ahead(other.mask) }))];
+    const result = await request('/api/v3/group/coordinate', { range: mine.range, slot_minutes: GROUP_SLOT, duration_minutes: Number($('groupDuration').value), top_k: 20, participants }, apiBase, 30000);
+    // The code covers the whole week; only slots still ahead are worth proposing.
+    const upcoming = result.recommended_slots.filter(slot => Date.parse(slot.start) > Date.now()).slice(0, 3);
+    const rows = upcoming.map(slot => `<li><b>${readable(slot.start)}–${readable(slot.end).split(' ')[1]}</b><span>${slot.available_count}/${result.participant_count} 人有空${slot.conflict_count ? `，${slot.conflict_count} 人撞了` : ''}</span></li>`).join('');
+    box.innerHTML = rows ? `<p class="group-head">${result.participant_count} 人的共同空档（只比对空闲码）</p><ol class="group-slots">${rows}</ol>` : '<p>这一周找不到够长的共同空档，可以缩短时长再试。</p>';
+  } catch (error) { box.innerHTML = `<p class="field-error">${escapeHTML(error.message)}</p>`; }
 });
 
 // ---- Examples -------------------------------------------------------------

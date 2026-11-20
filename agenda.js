@@ -114,7 +114,8 @@ export async function answerCapacity(snapshot, question, now, calculate) {
   if (unestimated) text += ` 另有 ${unestimated} 件未估时的截止事项未占空档，若耗时较多需自行预留。`;
   if (!snapshot.routines.length) text += ' 当前清单还没有课表或固定例会。';
   else if (!snapshot.routines_confirmed) text += ' 请确认课表和固定例会已经补齐。';
-  return { text, action: 'calendar', week: start };
+  // The numbers behind the answer, so a page can check them against the user's own track record.
+  return { text, action: 'calendar', week: start, capacity: question.needed !== null ? { needed: question.needed, reserve: question.reserve, split: question.split, scope: question.scope } : null };
 }
 
 // Explicit conversational commands can only touch the most recent, still-existing personal task.

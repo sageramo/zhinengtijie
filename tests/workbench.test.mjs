@@ -206,6 +206,93 @@ test('落笔 spreads one group and folds the others into strips; a strip click o
   assert.equal(app.find('#taskSection').dataset.active, 'deadline', 'jumping to a card spreads its group');
 });
 
+test('1.26 notice diff: a change notice shows field changes instead of importing duplicates, and applies on one click', async t => {
+  const routes = {
+    ...extractRoute(),
+    '/api/v3/notice-diff': async body => {
+      const event = body.snapshot.events[0];
+      const preview = structuredClone(body.snapshot);
+      preview.events[0] = { ...preview.events[0], start_at: '2026-11-26T19:00:00+08:00', end_at: '2026-11-26T20:00:00+08:00', location: '学活305' };
+      return [200, { summary: { updated: 1, cancelled: 0, added: 0, unchanged: 0 }, operations: [{ kind: 'event', action: 'update', target_id: event.id, target_title: event.title,
+        changes: { location: { from: event.location, to: '学活305' } } }], impact: { conflicts_before: 1, conflicts_after: 0, free_delta_minutes: 30, work_shifts: [] }, preview_snapshot: preview }];
+    },
+  };
+  const app = await imported(t, { routes, health: { capabilities: [...CAPABILITIES, 'notice_diff_v1'] } });
+  const extracts = app.calls.filter(call => call.path === '/api/v3/extract').length;
+  app.set('#noticeText', '【紧急变更】讲座地点改为学活305。', 'input');
+  app.submit('#noticeForm');
+  await settle();
+  assert.match(app.find('#importSummary').textContent, /这像是一条变更通知/);
+  assert.match(app.find('#importSummary').textContent, /学活305/);
+  assert.equal(app.calls.filter(call => call.path === '/api/v3/extract').length, extracts, 'no duplicate import');
+  app.find('[data-diff-apply]').click();
+  await settle();
+  assert.equal(app.stored().events.length, 1);
+  assert.equal(app.stored().events[0].location, '学活305');
+  assert.match(app.find('#importSummary').textContent, /已采用：改动 1 件/);
+});
+
+test('1.26 exact solver: 画卷 offers 多方案对比 on demand and applies a whole plan', async t => {
+  const app = await imported(t, { routes: { ...extractRoute(), '/api/v3/solve': async body => {
+    const routine = body.snapshot.routines[0];
+    const event = body.snapshot.events[0];
+    return [200, { algorithm: { nodes_explored: 6, transit_minutes: 10 }, validation: { passed: true }, transit_warnings: [{ reason: '「甲」结束后仅隔 5 分钟就要到「乙」' }],
+      pareto_plans: [{ name: '保作息与课表方案', summary: '叠墨清零', metrics: { remaining_conflicts: 0, skipped_routine_occurrences: 0, kept_temporary_events: 0, net_free_minutes: 600 },
+        work_blocks: [], actions: [{ action: 'cancel_event', label: `不去「${event.title}」`, params: { event_id: event.id } }] }] }];
+  } } });
+  app.click('[data-tab="calendar"]');
+  await settle();
+  app.find('#calendarView [data-scroll-open]')?.click();
+  await settle(1500);
+  app.find('#calendarView [data-solve]').click();
+  await settle();
+  assert.equal(app.calls.filter(call => call.path === '/api/v3/solve').at(-1).body.transit_minutes, 10);
+  assert.match(app.find('#calendarView .plans').textContent, /保作息与课表方案/);
+  assert.match(app.find('#calendarView .plans').textContent, /仅隔 5 分钟/);
+  app.find('#calendarView [data-plan="0"]').click();
+  await settle();
+  assert.equal(app.stored().events[0].status, 'cancelled');
+});
+
+test('1.26 calibration: a capacity question is checked against the personal record and warns about optimism', async t => {
+  const history = [{ kind: '写作', estimated_minutes: 30, actual_minutes: 45 }, { kind: '写作', estimated_minutes: 60, actual_minutes: 90 }];
+  const app = await boot(t, {
+    initial: { 'sixu.calibration': JSON.stringify(history) },
+    health: { capabilities: [...CAPABILITIES, 'capacity_calibration_v1'] },
+    routes: { '/api/v3/calibrate-capacity': async body => [200, { calibration: { factor: 1.5, sample_count: 2 }, nominal_minutes: body.nominal_minutes, calibrated_minutes: 135, reserve_minutes: body.reserve_minutes,
+      nominal_verdict: { fits: true, summary: '排得下' }, calibrated_verdict: { fits: false, summary: '排不下' }, optimism_risk: true }] },
+  });
+  app.click('#loadDemoWeek');
+  await settle();
+  app.click('[data-tab="import"]');
+  app.set('#noticeText', '这周再接1个半小时社团工作，留半小时休息，时间够吗？', 'input');
+  app.submit('#noticeForm');
+  await settle(600);
+  const call = app.calls.find(item => item.path === '/api/v3/calibrate-capacity');
+  assert.ok(call, 'calibration requested');
+  assert.deepEqual([call.body.nominal_minutes, call.body.reserve_minutes, call.body.history.length], [90, 30, 2]);
+  assert.match(app.find('#importSummary').textContent, /乐观偏差预警/);
+});
+
+test('1.26 group scheduling: codes carry only a 0/1 mask, and common slots come back from the service', async t => {
+  const app = await boot(t, { routes: {
+    '/api/v3/group/export-mask': async body => [200, { free_mask: '0'.repeat(300) + '1'.repeat(36), slots_total: 336, range: body.range }],
+    '/api/v3/group/coordinate': async body => [200, { participant_count: body.participants.length, recommended_slots: [{ start: '2099-01-01T10:00:00+08:00', end: '2099-01-01T11:00:00+08:00', available_count: 2, conflict_count: 0 }] }],
+  } });
+  app.find('#groupExport').click();
+  await settle();
+  const code = app.find('#groupMine').value;
+  assert.match(code, /^SX1\.\d{4}-\d{2}-\d{2}\.\d{4}-\d{2}-\d{2}\.30\.336\.[0-9a-f]+$/);
+  assert.doesNotMatch(code, /[一-鿿]/);
+  app.set('#groupOthers', code, 'input');
+  app.find('#groupFind').click();
+  await settle();
+  const sent = app.calls.find(call => call.path === '/api/v3/group/coordinate').body;
+  assert.equal(sent.participants.length, 2);
+  assert.ok(sent.participants.every(item => /^[01]+$/.test(item.free_mask) && item.free_mask.length === 336));
+  assert.match(app.find('#groupResult').textContent, /2\/2 人有空/);
+});
+
 test('an unreachable service is explained in plain words and the notice stays in the box', async t => {
   const app = await boot(t, { routes: { '/api/v3/extract': async () => { throw new TypeError('Failed to fetch'); } } });
   app.set('#noticeText', API.notice, 'input');
