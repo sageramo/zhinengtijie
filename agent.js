@@ -6,7 +6,7 @@ import {
   addAdjustment, addTimetable, setReferenceTime, setRoutinesConfirmed, skipRoutineDate, isPersonal, personalDay, addPersonalTask, setPersonalDay, setTaskDeadline,
 } from './time-state.js';
 import { agendaReply, hasPersonalClock, isConversation } from './agenda.js';
-import { calendarMarkup, conflictKey, digestChanges, minutesLabel, resultDigest, weekStart, weekRange } from './calendar.js';
+import { calendarMarkup, conflictKey, conflictsInWeek, digestChanges, minutesLabel, resultDigest, weekStart, weekRange } from './calendar.js';
 import { LEADS, dueReminders, icsCalendar, reminderText, upcomingCount } from './reminders.js';
 import { createBellToggle } from './bell-toggle.js';
 import { readMemory, writeMemory, recordActual, suggestEstimate, readCalibration, writeCalibration, recordCalibration, calibrationFor } from './estimate-memory.js';
@@ -74,7 +74,10 @@ let skipDiffFor = ''; // the text the user chose to import as new despite a dete
 let groupMask = null; // my anonymous free mask for the shown week: { code, mask, range, slot }
 let workGroup = null; // which 落笔 group is spread open ('appointment' | 'personal' | 'deadline'); null = pick one
 const weighs = {}; // conflictKey -> { loading, error, pick, reason, note } from 请模型权衡
-let scrollRolled = true; // 画卷 opens as a closed scroll each time the page is entered
+const isPhoneViewport = () => typeof window !== 'undefined' && window.innerWidth <= 760;
+let scrollRolled = !isPhoneViewport(); // Desktop enters as 山水 cover; phones open directly on the 7-column week grid
+let calendarAnalyzed = false; // 画卷 defaults to full-width solo view; click 解析画卷 to open the left analysis panel
+let calendarListView = false; // Phones default to the WakeUp-style 7-column week grid; toggle for agenda list
 let coverPainted = false; // the 山水 brushes in once per cover, not on every recalculation
 let unrollTimer = null;
 let parseSequence = 0;
@@ -95,7 +98,14 @@ function tell(message, type = '') {
 }
 $('appMessage').addEventListener('click', () => { window.clearTimeout(tellTimer); $('appMessage').hidden = true; });
 
-// ---- Rolls: 铺纸 and 笔墨 show two rolled cards; one unrolls at a time, 返回 rolls it up again.
+// ---- 铺纸 and 笔墨: keep the entrances the height of the viewport below the header.
+if (typeof ResizeObserver === 'function') {
+  const header = document.querySelector('[data-app] .site-header');
+  const observer = new ResizeObserver(() => {
+    document.documentElement.style.setProperty('--layer-header-height', `${header.offsetHeight}px`);
+  });
+  observer.observe(header);
+}
 function openRoll(key) {
   const roll = document.querySelector(`[data-roll="${key}"]`);
   const group = roll?.closest('[data-rolls]');
@@ -111,9 +121,19 @@ function closeRolls(group) {
 }
 document.addEventListener('click', event => {
   const face = event.target.closest('[data-roll-open]');
-  if (face) { openRoll(face.dataset.rollOpen); window.scrollTo({ top: 0, behavior: scrollBehavior() }); return; }
+  if (face) {
+    openRoll(face.dataset.rollOpen);
+    $(face.getAttribute('aria-controls')).querySelector('[data-roll-close]').focus({ preventScroll: true });
+    window.scrollTo({ top: 0, behavior: scrollBehavior() });
+    return;
+  }
   const back = event.target.closest('[data-roll-close]');
-  if (back) { closeRolls(back.closest('[data-rolls]')); window.scrollTo({ top: 0, behavior: scrollBehavior() }); }
+  if (back) {
+    const roll = back.closest('[data-roll]');
+    closeRolls(roll.closest('[data-rolls]'));
+    roll.querySelector('[data-roll-open]').focus({ preventScroll: true });
+    window.scrollTo({ top: 0, behavior: scrollBehavior() });
+  }
 });
 function renderRollFaces() {
   const set = (key, lines) => { $(`rollSummary-${key}`).innerHTML = lines.filter(Boolean).map(line => `<span>${line}</span>`).join(''); };
@@ -279,9 +299,10 @@ async function computeCalendar() {
   renderCalendar();
   try {
     await ensureHealth(base);
-    const live = Math.max(Date.parse(snapshot.reference_time), Date.parse(currentMinuteISO()));
+    const nowISO = currentMinuteISO();
+    const live = Math.max(Date.parse(snapshot.reference_time), Date.parse(nowISO));
     const current = { ...snapshot, reference_time: new Date(live).toISOString() };
-    const result = await request('/api/v3/calendar', { snapshot: current, range: weekRange(shownWeek()) }, base);
+    const result = await request('/api/v3/calendar', { snapshot: current, range: weekRange(shownWeek()), now: nowISO }, base);
     if (ticket !== calendarSequence || revision !== snapshot.revision || base !== apiBase) return;
     calendarResult = result;
     calendarError = '';
@@ -296,25 +317,33 @@ async function computeCalendar() {
   }
 }
 function renderCalendar() {
-  $('calendarView').innerHTML = calendarMarkup({ result: calendarResult, start: shownWeek(), now: Date.now(), loading: calendarLoading && !calendarResult, error: calendarError, undo: strategyUndo?.label || '', note: strategyUndo?.note || '', changes: strategyUndo?.changes || [], focus: calendarFocus, plans: solveState, weighs, rolled: scrollRolled, unrolling: Boolean(unrollTimer), fresh: !coverPainted });
+  const nowMs = Date.now();
+  const refMs = Date.parse(snapshot.reference_time);
+  const futureRef = Number.isFinite(refMs) && refMs - nowMs > 5 * 60000 ? readable(snapshot.reference_time) : '';
+  $('calendarView').innerHTML = calendarMarkup({ result: calendarResult, start: shownWeek(), now: nowMs, loading: calendarLoading && !calendarResult, error: calendarError, undo: strategyUndo?.label || '', note: strategyUndo?.note || '', changes: strategyUndo?.changes || [], focus: calendarFocus, plans: solveState, weighs, rolled: scrollRolled, unrolling: Boolean(unrollTimer), fresh: !coverPainted, analyzed: calendarAnalyzed, futureRef, listView: calendarListView });
   if (scrollRolled && calendarResult) coverPainted = true;
   $('calendarView').querySelector('.cal-remind-slot')?.append(remindBar);
   fitCalendar();
 }
-/** Size the hour rows so the whole week fits the window below the week header (wide screens only). */
+/** Size the hour rows so the whole week fits the window below the week header (desktop and phone grid). */
 function fitCalendar() {
   const week = $('calendarView').querySelector('.cal-week');
-  if (!week || document.documentElement.dataset.current !== 'calendar' || window.innerWidth < 760) return;
+  if (!week || document.documentElement.dataset.current !== 'calendar') return;
+  const phone = isPhoneViewport();
+  if (phone && calendarListView) return;
   const rows = Number(week.style.getPropertyValue('--rows')) || 14;
   const head = week.querySelector('.cal-head-day')?.getBoundingClientRect().height || 0;
   const top = week.getBoundingClientRect().top + window.scrollY;
   const mount = week.closest('.scroll-mount');
   const below = mount ? parseFloat(window.getComputedStyle(mount).borderBottomWidth) || 0 : 0;
-  const row = Math.max(20, Math.min(46, Math.floor((window.innerHeight - top - head - below - 44) / rows)));
+  const pad = phone ? 18 : 44;
+  const minRow = phone ? 30 : 34;
+  const maxRow = phone ? 44 : 46;
+  const row = Math.max(minRow, Math.min(maxRow, Math.floor((window.innerHeight - top - head - below - pad) / rows)));
   week.style.setProperty('--row', `${row}px`);
   $('calendarView').style.setProperty('--cal-fit-height', `${Math.max(240, row * rows + head)}px`);
   const side = $('calendarView').querySelector('.scroll-side');
-  if (side) side.style.maxHeight = `${Math.ceil((mount || week).getBoundingClientRect().height) + 2}px`;
+  if (side && !phone) side.style.maxHeight = `${Math.ceil((mount || week).getBoundingClientRect().height) + 2}px`;
 }
 window.addEventListener('resize', fitCalendar);
 
@@ -332,7 +361,8 @@ function renderBadges() {
   renderRollFaces();
   const count = undefinedCount();
   $('itemsCount').textContent = count ? String(count) : '';
-  $('conflictCount').textContent = calendarResult?.conflicts.length ? String(calendarResult.conflicts.length) : '';
+  const weekClashCount = calendarResult ? conflictsInWeek(calendarResult.conflicts, shownWeek()).length : 0;
+  $('conflictCount').textContent = weekClashCount ? String(weekClashCount) : '';
 }
 function evidenceMarkup(item) {
   const quotes = item.evidence.filter(entry => entry.origin === 'source_text' && entry.quote).map(entry => `<blockquote>${escapeHTML(entry.quote)}</blockquote>`);
@@ -537,6 +567,7 @@ function showTurn(text, html) {
   $('importSummary').hidden = false;
   $('noticeText').value = '';
   $('noticeText').style.height = '';
+  $('noticeDate').value = '';
   if ($('noticeSection').getBoundingClientRect().bottom > window.innerHeight) {
     $('noticeForm').scrollIntoView?.({ block: 'end', behavior: scrollBehavior() });
   }
@@ -552,6 +583,7 @@ $('importSummary').addEventListener('click', event => {
   if (event.target.closest('[data-diff-import]') && pendingDiff) {
     skipDiffFor = pendingDiff.text;
     $('noticeText').value = pendingDiff.text;
+    $('noticeDate').value = pendingDiff.referenceDate || '';
     pendingDiff = null;
     $('noticeForm').requestSubmit ? $('noticeForm').requestSubmit() : $('noticeForm').dispatchEvent(new Event('submit', { cancelable: true }));
     return;
@@ -634,7 +666,7 @@ $('noticeForm').addEventListener('submit', async event => {
       const diff = await request('/api/v3/notice-diff', { snapshot: live, text, reference_date: referenceDate, range: weekRange(shownWeek()), mode: 'rules' }, base, 30000);
       if (!stillCurrent()) return;
       if (diff.summary.updated + diff.summary.cancelled > 0) {
-        pendingDiff = { text, revision: snapshot.revision, result: diff };
+        pendingDiff = { text, referenceDate, revision: snapshot.revision, result: diff };
         showTurn(text, diffMarkup(diff));
         return;
       }
@@ -656,6 +688,14 @@ $('noticeForm').addEventListener('submit', async event => {
     let next = addImported(snapshot, imported);
     const defaulted = !next.daily_window;
     if (defaulted) next = setDailyWindow(next, DEFAULT_WINDOW);
+    // If a demo button left reference_time pinned in the future, snap back to real now when the user adds
+    // a real task whose deadline falls between now and that future reference_time.
+    const nowMs = Date.now();
+    const refMs = Date.parse(next.reference_time);
+    const needsLiveClock = Number.isFinite(refMs) && refMs - nowMs > 5 * 60000
+      && (imported.tasks.some(task => task.deadline_at && Date.parse(task.deadline_at) > nowMs && Date.parse(task.deadline_at) <= refMs)
+        || imported.events.some(ev => ev.start_at && Date.parse(ev.start_at) > nowMs && Date.parse(ev.start_at) <= refMs));
+    if (needsLiveClock) { next = setReferenceTime(next, currentMinuteISO()); calendarWeek = null; }
     commit(next);
     const personal = imported.tasks.filter(isPersonal);
     lastTaskId = personal.length === 1 && imported.tasks.length === 1 && !imported.events.length ? personal[0].id : null;
@@ -985,7 +1025,10 @@ $('taskSection').addEventListener('click', event => {
   strip.closest('[data-group]').querySelector('.group-head button')?.focus({ preventScroll: true });
 });
 $('addPersonal').addEventListener('click', () => {
-  commit(addPersonalTask(snapshot, { day: localDate(Date.now()) }));
+  let next = addPersonalTask(snapshot, { day: localDate(Date.now()) });
+  const refMs = Date.parse(next.reference_time);
+  if (Number.isFinite(refMs) && refMs - Date.now() > 5 * 60000) { next = setReferenceTime(next, currentMinuteISO()); calendarWeek = null; }
+  commit(next);
   const title = $('personalList').lastElementChild.querySelector('[data-field="title"]');
   title.focus(); title.select();
 });
@@ -1212,12 +1255,30 @@ $('calendarView').addEventListener('click', event => {
   if (week) {
     const step = Number(week.dataset.calWeek);
     calendarWeek = step ? shownWeek() + step * 7 * DAY : null;
+    solveState = null;
     calendarResult = null;
     computeCalendar();
     return;
   }
+  if (event.target.closest('[data-cal-analyze]')) {
+    calendarAnalyzed = !calendarAnalyzed;
+    renderCalendar();
+    return;
+  }
+  if (event.target.closest('[data-use-now]')) {
+    calendarWeek = null;
+    commit(setReferenceTime(snapshot, currentMinuteISO()));
+    tell('已恢复按当前时间安排。');
+    return;
+  }
   const goto = event.target.closest('[data-cal-goto="time"]');
   if (goto) { window.SixuRouter?.go('time'); openRoll(goto.dataset.calRoll || 'free'); return; }
+  if (event.target.closest('[data-cal-view]')) {
+    calendarListView = !calendarListView;
+    renderCalendar();
+    (window.requestAnimationFrame || window.setTimeout)(fitCalendar);
+    return;
+  }
   if (event.target.closest('[data-scroll-open]')) { unrollScroll(); return; }
   if (event.target.closest('[data-scroll-roll]')) { scrollRolled = true; coverPainted = false; renderCalendar(); return; }
   if (event.target.closest('[data-strategy-undo]')) { undoStrategy(); return; }
@@ -1443,7 +1504,8 @@ document.addEventListener('click', event => {
   }
 });
 document.addEventListener('sixu:route', event => {
-  if (event.detail !== 'calendar') { scrollRolled = true; coverPainted = false; return; }
+  if (event.detail !== 'calendar') { scrollRolled = !isPhoneViewport(); coverPainted = false; return; }
+  if (isPhoneViewport()) scrollRolled = false;
   coverPainted = false; // paint the 山水 when the page is actually entered, even if it was redrawn off screen
   if (calendarResult) renderCalendar();
   (window.requestAnimationFrame || window.setTimeout)(fitCalendar);

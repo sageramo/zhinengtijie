@@ -796,30 +796,120 @@ html:not([data-current="home"]) body::after { content: ""; position: fixed; righ
 @media (max-width: 1360px) { [data-app] .site-header .save-state { display: none; } }
 @media (max-width: 1240px) { [data-app] .site-header .btn-text { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; } [data-app] .site-header .list-actions button { padding: 4px 10px; } }
 
-/* ---- Rolls (铺纸, 笔墨): two rolled cards side by side; one unrolls to full width, 返回 rolls it up. */
-.rolls { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: clamp(20px, 4vw, 56px); max-width: 1080px; margin: 12px auto 0; }
-.rolls[data-open] { grid-template-columns: minmax(0, 1fr); max-width: 1180px; }
-.rolls[data-open] .roll:not(.is-open) { display: none; }
-.roll-body { display: none; }
-.roll.is-open .roll-face { display: none; }
+/* ---- Full-bleed layer entrances for 铺纸 and 笔墨. */
+.workspace {
+  --workspace-gutter: 24px;
+}
+.workspace:has(> .page:not([hidden]) > .rolls:not([data-open])) {
+  max-width: none;
+  padding: 0 0 20px;
+}
+.page:has(> .rolls:not([data-open])) { max-width: none; }
+.workspace:has(> .page:not([hidden]) > .rolls:not([data-open])) > :is(.backup-nudge, #storageConflict, .settings, .page-footer),
+.page:has(> .rolls:not([data-open])) > .next-step {
+  width: calc(100% - 2 * var(--workspace-gutter));
+  margin-inline: auto;
+}
+.workspace:has(> .page:not([hidden]) > .rolls:not([data-open])) > :is(.backup-nudge, #storageConflict, .page-footer) {
+  max-width: 1320px;
+}
+.page:has(> .rolls:not([data-open])) > .next-step { max-width: 960px; }
+
+.rolls { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.rolls[data-open] { grid-template-columns: minmax(0, 1fr); margin: 12px auto 0; }
+.rolls[data-open] .roll:not(.is-open), .roll.is-open .roll-face, .roll-body { display: none; }
 .roll.is-open .roll-body { display: grid; gap: 20px; }
-.roll { position: relative; }
-.roll-face { display: grid; grid-template-rows: auto 1fr auto; width: 100%; min-height: 0; padding: 0 6px; border: 0; border-radius: 0; background: transparent; color: #3a2a18; text-align: center; cursor: pointer; }
-.roll-face:hover, .roll-face:active { background: transparent; }
-.roll-rod { position: relative; z-index: 1; display: block; height: 22px; margin: 0 -6px; border-radius: 6px; background: linear-gradient(90deg, transparent 30px, rgba(217, 162, 76, .75) 30px 33px, transparent 33px calc(100% - 33px), rgba(217, 162, 76, .75) calc(100% - 33px) calc(100% - 30px), transparent calc(100% - 30px)), var(--roller-y); box-shadow: 0 5px 10px rgba(120, 90, 40, .2); }
-.roll-rod::before, .roll-rod::after { content: ""; position: absolute; top: 3px; bottom: 3px; width: 12px; border-radius: 3px; background: var(--cap); }
-.roll-rod::before { left: -8px; }
-.roll-rod::after { right: -8px; }
-.roll-paper { position: relative; display: grid; align-content: center; justify-items: center; gap: 10px; min-height: clamp(280px, 46vh, 420px); margin: -2px 0; padding: 36px 28px; --cloud: 46px; background: var(--clouds), var(--paper); background-position: 22px 20px, calc(100% - 22px) 20px, 22px calc(100% - 20px), calc(100% - 22px) calc(100% - 20px), 0 0, 0 0; box-shadow: inset 0 12px 14px -12px rgba(150, 115, 60, .35), inset 0 -12px 14px -12px rgba(150, 115, 60, .35), 0 12px 30px rgba(29, 42, 56, .08); transition: min-height .5s cubic-bezier(.22, 1, .36, 1), padding .5s cubic-bezier(.22, 1, .36, 1); }
-.roll-paper::before { content: ""; position: absolute; inset: 14px 16px; border: 3px double rgba(201, 154, 75, .7); outline: 1px solid rgba(201, 154, 75, .3); outline-offset: 4px; pointer-events: none; }
-.roll-face:hover .roll-paper, .roll-face:focus-visible .roll-paper { min-height: clamp(300px, 50vh, 450px); }
-.roll-name { font-family: var(--font-serif); font-size: clamp(2.6rem, 5vw, 4rem); font-weight: 800; letter-spacing: .18em; line-height: 1.1; color: #2b1d0e; }
-.roll-gloss { font-family: var(--font-kai); font-size: 1rem; letter-spacing: .2em; color: rgba(74, 52, 28, .8); }
-.roll-summary { display: grid; gap: 4px; margin-top: 8px; font-size: .875rem; color: #4a341c; }
-.roll-summary b { font-family: var(--font-serif); font-size: 1.15rem; color: #2b1d0e; }
-.roll-summary em { font-style: normal; color: var(--danger); }
-.roll-hint { display: inline-flex; align-items: center; gap: 4px; margin-top: 10px; padding: 4px 14px; border: 1px solid rgba(176, 134, 58, .6); border-radius: 999px; color: #7a5530; font-size: .8125rem; letter-spacing: .1em; transition: background-color .2s ease; }
-.roll-face:hover .roll-hint { background: rgba(176, 134, 58, .14); }
+.roll { position: relative; min-width: 0; }
+.roll[data-roll="routine"] {
+  --layer-art: url("./assets/layer-entrances/routine.webp");
+  --layer-base: #102333;
+  --layer-ink: #f3f7fa;
+  --layer-shade: #0a1827;
+  --layer-position: 46%;
+}
+.roll[data-roll="free"] {
+  --layer-art: url("./assets/layer-entrances/free.webp");
+  --layer-base: #f0f2ee;
+  --layer-ink: #172d3c;
+  --layer-shade: #f1f3ee;
+  --layer-position: 38%;
+}
+.roll[data-roll="work"] {
+  --layer-art: url("./assets/layer-entrances/work.webp");
+  --layer-base: #ecd5b2;
+  --layer-ink: #392214;
+  --layer-shade: #f4dfbf;
+  --layer-position: 39%;
+}
+.roll[data-roll="event"] {
+  --layer-art: url("./assets/layer-entrances/event.webp");
+  --layer-base: #1a1615;
+  --layer-ink: #fff3ea;
+  --layer-shade: #191414;
+  --layer-position: 38%;
+}
+.roll-face, .roll-face:hover, .roll-face:active {
+  background: var(--layer-base);
+  color: var(--layer-ink);
+}
+.roll-face {
+  position: relative;
+  display: flex;
+  align-items: flex-end;
+  width: 100%;
+  height: 100%;
+  min-height: max(440px, calc(100svh - var(--layer-header-height, 74px)));
+  padding: clamp(32px, 7svh, 74px) clamp(76px, 6vw, 116px);
+  border: 0;
+  border-radius: 0;
+  overflow: hidden;
+  isolation: isolate;
+  text-align: left;
+}
+[data-app] .roll-face:focus-visible {
+  outline: 3px solid var(--layer-ink);
+  outline-offset: -8px;
+}
+.roll-face::before, .roll-face::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+}
+.roll-face::before {
+  background: var(--layer-art) center var(--layer-position) / cover no-repeat;
+  transition: transform .65s cubic-bezier(.2, .65, .25, 1);
+}
+.roll-face::after {
+  background: linear-gradient(to bottom, transparent 27%, color-mix(in srgb, var(--layer-shade) 70%, transparent) 65%, var(--layer-shade));
+}
+.roll-intro { display: grid; gap: 10px; justify-items: start; min-width: 0; }
+.roll-name {
+  display: block;
+  font: 650 clamp(4rem, 7.2vw, 8rem)/1.09 var(--font-serif);
+  letter-spacing: .12em;
+}
+.roll-gloss { font: 400 clamp(1rem, 1.65vw, 1.4rem)/1.4 var(--font-kai); letter-spacing: .07em; }
+.roll-summary { display: grid; gap: 3px; font-size: .875rem; line-height: 1.6; }
+.roll-summary > span { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; overflow: hidden; overflow-wrap: anywhere; }
+.roll-summary b { font-weight: 700; }
+.roll-summary em { font-style: normal; text-decoration: underline; text-underline-offset: 4px; }
+.roll-hint {
+  display: inline-flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 20px;
+  min-height: 40px;
+  margin-top: 8px;
+  padding: 4px 13px;
+  border: 1px solid currentColor;
+  border-radius: 2px;
+  font-weight: 600;
+  letter-spacing: .08em;
+  transition: background-color .22s ease, color .22s ease;
+}
+.roll-face:is(:hover, :focus-visible) .roll-hint { color: var(--layer-base); background: var(--layer-ink); border-color: var(--layer-ink); }
+@media (hover: hover) and (pointer: fine) { .roll-face:hover::before { transform: scale(1.045); } }
 /* Unrolled: paper between a top rod and a bottom rod that travels down as the paper opens. */
 .roll-body { position: relative; padding: 34px clamp(16px, 3vw, 36px) 40px; background: var(--paper); box-shadow: inset 0 0 0 1px rgba(201, 154, 75, .3), 0 18px 40px rgba(29, 42, 56, .08); }
 .roll-body::before, .roll-body::after { content: ""; position: absolute; left: -12px; right: -12px; z-index: 2; height: 22px; border-radius: 6px; background: linear-gradient(90deg, transparent 2px, #c99042 2px 14px, transparent 14px calc(100% - 14px), #c99042 calc(100% - 14px) calc(100% - 2px), transparent calc(100% - 2px)), linear-gradient(90deg, transparent 40px, rgba(217, 162, 76, .75) 40px 43px, transparent 43px calc(100% - 43px), rgba(217, 162, 76, .75) calc(100% - 43px) calc(100% - 40px), transparent calc(100% - 40px)), var(--roller-y); box-shadow: 0 5px 10px rgba(120, 90, 40, .2); }
@@ -834,11 +924,23 @@ html:not([data-current="home"]) body::after { content: ""; position: fixed; righ
 .roll .roll-back:hover { border-color: #7a5530; background: #fff; }
 .roll-body > .surface { margin: 0; background: rgba(255, 255, 255, .82); border-color: rgba(176, 134, 58, .3); backdrop-filter: blur(2px); }
 @media (max-width: 760px) {
-  .rolls { grid-template-columns: minmax(0, 1fr); gap: 24px; }
-  .roll-paper { min-height: 200px; }
-  .roll-face:hover .roll-paper { min-height: 200px; }
+  .workspace { --workspace-gutter: 16px; }
+  .workspace:has(> .page:not([hidden]) > .rolls:not([data-open])) { padding-bottom: 76px; }
+  .page:has(> .rolls:not([data-open])) > .next-step { padding-inline-end: 44px; }
+  .rolls { grid-template-columns: minmax(0, 1fr); }
+  .roll-face {
+    min-height: clamp(255px, 36svh, 360px);
+    padding: 26px clamp(24px, 7vw, 48px);
+  }
+  .roll-name { font-size: clamp(3rem, 11vw, 4.25rem); }
+  .roll-intro { gap: 6px; }
+  .roll-hint { min-height: 34px; margin-top: 6px; }
 }
-@media (prefers-reduced-motion: reduce) { .roll.is-open .roll-body, .roll.is-open .roll-body::after, [data-app] .message.toast { animation: none; } .roll-paper { transition: none; } }
+@media (prefers-reduced-motion: reduce) {
+  .roll.is-open .roll-body, .roll.is-open .roll-body::after, [data-app] .message.toast { animation: none; }
+  .roll-face::before, .roll-hint { transition: none; }
+  .roll-face:hover::before { transform: none; }
+}
 
 /* 大约几点结束？ under the import summary */
 .end-ask { margin-top: 14px; padding-top: 12px; border-top: 1px dashed rgba(63, 138, 92, .4); color: var(--text); }
@@ -1781,3 +1883,107 @@ html[data-dir="prev"]::view-transition-new(sixu-page) { animation-name: page-in-
 .group-slots { display: grid; gap: 6px; margin: 0; padding: 0; list-style: none; }
 .group-slots li { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 6px; padding: 8px 12px; border-radius: 10px; background: #fff; box-shadow: inset 0 0 0 1px var(--line); font-size: .8125rem; }
 .group-slots span { color: #2f6b48; font-weight: 600; }
+
+/* ---- 画卷与本周解析拆分：默认画卷铺满全宽，点击「解析画卷」展开左侧本周分析 ---- */
+.scroll { display: flex; flex-direction: column; align-items: stretch; gap: 18px; }
+.cal .cal-block.is-narrow { padding: 2px 5px; }
+.cal-bar { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 12px 20px; padding: 2px 2px 10px; border-bottom: 1px solid rgba(19, 40, 74, .08); }
+.cal-bar-left { display: flex; flex-wrap: wrap; align-items: baseline; gap: 8px 18px; min-width: 0; }
+.cal-bar-title { display: flex; flex-direction: column; gap: 2px; }
+.cal-bar .cal-range { margin: 0; font-size: clamp(1.35rem, 2.1vw, 1.9rem); line-height: 1.15; }
+.cal-bar .cal-nav { margin-top: 0; align-self: center; }
+.cal-bar-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; }
+.cal-bar .cal-roll-up { margin: 0; }
+.cal-analyze-btn { display: inline-flex; align-items: center; gap: 8px; min-height: 40px; padding: 7px 16px; border: 1px solid rgba(29, 79, 148, .28); border-radius: 999px; background: #fff; color: #163a6e; font-size: .875rem; font-weight: 600; box-shadow: 0 2px 8px rgba(19, 40, 74, .07); transition: background .2s ease, border-color .2s ease, color .2s ease, transform .18s ease; }
+.cal-analyze-btn:hover { background: #eef5fd; border-color: #1d4f94; }
+.cal-analyze-btn.is-open { background: #163a6e; border-color: #163a6e; color: #fff; }
+.cal-analyze-btn.is-open:hover { background: #1d4f94; }
+.cal-analyze-btn.has-alert:not(.is-open) { border-color: rgba(162, 51, 45, .42); }
+.cal-analyze-badge { display: inline-flex; align-items: center; padding: 1px 8px; border-radius: 999px; background: #a2332d; color: #fff; font-style: normal; font-size: .75rem; font-weight: 700; font-variant-numeric: tabular-nums; }
+.cal-clock-pill { display: inline-flex; align-items: center; gap: 6px; min-height: 36px; padding: 5px 12px; border: 1px dashed rgba(192, 122, 44, .55); border-radius: 999px; background: #fff8eb; color: #8a5218; font-size: .78rem; font-weight: 600; }
+.cal-clock-pill:hover { background: #fdf0d5; border-color: #b5781f; }
+.scroll-body { display: grid; grid-template-columns: minmax(0, 1fr); align-items: start; gap: 24px; }
+.scroll.is-analyzed .scroll-body { grid-template-columns: minmax(280px, 340px) minmax(0, 1fr); }
+.scroll-side[hidden] { display: none; }
+.scroll.is-analyzed .scroll-side { padding: 14px 14px 16px; border-radius: 16px; background: rgba(255, 255, 255, .86); box-shadow: inset 0 0 0 1px rgba(19, 40, 74, .08), 0 8px 24px rgba(19, 40, 74, .06); }
+.side-head { display: flex; align-items: center; justify-content: space-between; padding-bottom: 10px; border-bottom: 1px solid var(--line); }
+.side-head > span { font-family: var(--font-serif); font-size: 1.05rem; font-weight: 700; color: #13284a; letter-spacing: .08em; }
+.side-close { margin: 0; font-size: .8125rem; }
+.cover-actions { display: flex; flex-wrap: wrap; align-items: center; justify-content: center; gap: 12px; margin-top: 4px; }
+.cover-actions .cover-open { margin: 0; }
+.cover-analyze { min-height: 44px; padding: 0 20px; border: 1px solid rgba(29, 79, 148, .28); border-radius: 999px; background: rgba(255, 255, 255, .88); color: #163a6e; font-size: .9375rem; font-weight: 600; }
+.cover-analyze:hover { background: #eef5fd; border-color: #1d4f94; }
+.scroll.is-solo .scroll-cover { max-width: 100%; }
+@media (prefers-reduced-motion: no-preference) {
+  .scroll.is-analyzed .scroll-side { animation: week-appear .28s ease-out both; }
+}
+@media (max-width: 1000px) {
+  .scroll.is-analyzed .scroll-body { grid-template-columns: minmax(0, 1fr); gap: 18px; }
+  .scroll-side { max-height: none !important; overflow: visible; }
+}
+@media (min-width: 761px) {
+  .cal-view-toggle { display: none; }
+}
+@media (max-width: 760px) {
+  /* 手机端画卷：仿课程表首屏全周 7 列网格，一进去即见周一至周日，无需逐日下滑 */
+  html[data-current="calendar"] .site-header { padding: 8px 10px 6px; gap: 6px; }
+  html[data-current="calendar"] .site-header .aux-nav { display: none; }
+  html[data-current="calendar"] .brand-lockup.mk-lockup { font-size: 10px; }
+  html[data-current="calendar"] .site-header .page-tabs a { padding: 5px 8px; font-size: .78rem; }
+  html[data-current="calendar"] .workspace { padding: 6px 4px 56px; }
+  html[data-current="calendar"] .backup-nudge { margin: 0 2px 6px; padding: 6px 10px; gap: 4px 8px; font-size: .72rem; }
+  html[data-current="calendar"] .backup-nudge button { min-height: 28px; padding: 2px 10px; font-size: .72rem; }
+  html[data-current="calendar"] .cal { padding: 8px 6px 10px; border-radius: 14px; }
+  .scroll { gap: 8px; }
+  .cal-bar { gap: 6px; padding: 0 2px 6px; }
+  .cal-bar-left { width: 100%; justify-content: space-between; align-items: center; gap: 6px; }
+  .cal-bar .cal-eyebrow { margin: 0; font-size: .625rem; letter-spacing: .16em; }
+  .cal-bar .cal-range { font-size: 1.08rem; }
+  .cal-bar .cal-nav { padding: 2px; }
+  .cal-bar .cal-nav button { min-height: 30px; min-width: 30px; padding: 2px 8px; font-size: .75rem; }
+  .cal-bar-actions { width: 100%; justify-content: flex-end; gap: 6px; }
+  .cal-bar-actions button { min-height: 30px; padding: 3px 10px; font-size: .75rem; }
+  .cal-clock-pill { margin-right: auto; padding: 2px 8px; font-size: .6875rem; }
+  .cal-analyze-btn { min-height: 30px; padding: 3px 10px; gap: 5px; font-size: .75rem; }
+  .cal-analyze-btn svg { width: 13px; height: 13px; }
+  .cal-analyze-badge { padding: 0 6px; font-size: .65rem; }
+  .cal-layers { flex-wrap: nowrap; margin: 0 0 6px; overflow-x: auto; scrollbar-width: none; }
+  .cal-layers::-webkit-scrollbar { display: none; }
+  .cal-layers ul { flex-wrap: nowrap; gap: 3px; }
+  .cal-layers p, .cal .cal-layer span { display: none; }
+  .cal .cal-layer { grid-template-columns: auto auto auto; grid-template-areas: "dot name count"; gap: 0 3px; padding: 3px 6px 3px 5px; border-radius: 999px; white-space: nowrap; }
+  .cal .cal-layer i { width: 8px; height: 11px; border-radius: 2px; }
+  .cal .cal-layer strong { font-size: .68rem; }
+  .cal .cal-layer b { font-size: .64rem; }
+  .scroll-mount { --cloud: 20px; margin: 2px 5px 0; padding: 6px 4px; }
+  .scroll-mount::before, .scroll-mount::after { width: 8px; top: -4px; bottom: -4px; }
+  .scroll-mount::before { left: -6px; }
+  .scroll-mount::after { right: -6px; }
+  .scroll-mount .cal-board, [data-app] .scroll-mount .cal-board { border-width: 2px; outline-offset: 2px; }
+  .scroll:not(.is-list) .cal-week { display: grid; --time-col: 28px; --lane-gap: 1px; grid-template-columns: var(--time-col) repeat(7, minmax(0, 1fr)); }
+  .scroll:not(.is-list) .cal-week.has-crowded { grid-template-columns: var(--cols); }
+  .scroll:not(.is-list) .cal-empty { display: grid; left: 28px; }
+  .scroll:not(.is-list) .cal-agenda { display: none; }
+  .scroll.is-list .cal-week, .scroll.is-list .cal-empty { display: none; }
+  .scroll.is-list .cal-agenda { display: grid; gap: 14px; padding: 10px 8px; }
+  html[data-current="calendar"] .cal-head-day { flex-direction: column; gap: 1px; padding: 4px 1px 3px; }
+  html[data-current="calendar"] .cal-head-day span { font-size: .6rem; letter-spacing: 0; }
+  html[data-current="calendar"] .cal-head-day strong { width: 22px; height: 22px; font-size: .78rem; }
+  html[data-current="calendar"] .cal-head-day em { font-size: .55rem; letter-spacing: 0; }
+  .cal-hours span { right: 3px; font-size: .54rem; letter-spacing: -.04em; }
+  .cal .cal-free { padding: 1px 2px; border-left-width: 1.5px; font-size: .5rem; letter-spacing: 0; }
+  .cal .cal-free span { opacity: .6; }
+  .cal .cal-block { padding: 3px 3px; border-radius: 5px; gap: 1px; line-height: 1.15; }
+  .cal .cal-temporary, .cal .cal-appointment { padding-left: 4px; }
+  .cal .cal-block strong { display: -webkit-box; white-space: normal; word-break: break-all; font-size: .64rem; line-height: 1.2; font-weight: 600; -webkit-line-clamp: 4; -webkit-box-orient: vertical; }
+  /* 手机端左侧时间轴已标明整点起止，卡片内隐藏冗余时钟行以释放标题展示空间 */
+  .cal .cal-block span { display: none; }
+  .cal .cal-block.is-narrow { padding: 1.5px 2px; }
+  .cal .cal-block.is-narrow strong { font-size: .54rem; line-height: 1.12; -webkit-line-clamp: 3; }
+  .cal .cal-block.is-short { padding: 1px 3px; align-items: center; }
+  .cal .cal-block.is-short strong { display: block; font-size: .54rem; line-height: 1.1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .cal .cal-deadline svg { width: 9px; height: 9px; left: -5px; top: -5px; }
+  .cal .cal-deadline span { right: 1px; top: -8px; max-width: calc(100% - 2px); overflow: hidden; text-overflow: ellipsis; padding: 0 3px; font-size: .5rem; line-height: 12px; }
+  .cal .cal-overlap span { left: 1px; top: 100%; transform: translateY(-45%); padding: 0 3px; font-size: .46rem; line-height: 1.25; opacity: .92; }
+  .cal-now span { right: 1px; top: -12px; font-size: .52rem; }
+}

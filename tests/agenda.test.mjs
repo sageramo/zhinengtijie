@@ -68,3 +68,13 @@ test('capacity trial gently notes unestimated deadline tasks even when they are 
   assert.match(reply.text, /另有 1 件未估时的截止事项未占空档/);
   assert.doesNotMatch(reply.text, /待补时间/);
 });
+
+test('asking about today while reference_time is pinned on a future demo day uses real now', async () => {
+  const futureDemo = createTimeSnapshot({ referenceTime: '2026-11-25T13:30:00+08:00' });
+  const snapshot = setDailyWindow(futureDemo, Array(7).fill({ start: '12:00', end: '22:00' }));
+  let seenInput = null;
+  const calculate = async input => { seenInput = input; return result; };
+  await agendaReply('今天还能接2小时的社团工作吗？', { snapshot, now, calculate });
+  assert.equal(Date.parse(seenInput.snapshot.reference_time), now);
+  assert.equal(Date.parse(seenInput.now), now);
+});

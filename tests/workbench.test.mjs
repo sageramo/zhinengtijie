@@ -25,7 +25,17 @@ const settle = async (ms = 320) => { await sleep(ms); for (let turn = 0; turn < 
 function calendarAnswer(body) {
   const tasks = body.snapshot.tasks.map(task => ({ id: task.id, estimate_minutes: task.estimate_minutes, scheduled_minutes: 0, assumptions: [],
     state: task.status !== 'active' ? task.status : task.deadline_at === null ? 'deadline_undefined' : task.estimate_minutes === null ? 'estimate_undefined' : 'scheduled' }));
-  return { ...structuredClone(CALENDAR), revision: body.snapshot.revision, range: body.range, tasks };
+  const answer = { ...structuredClone(CALENDAR), revision: body.snapshot.revision, range: body.range, tasks };
+  // Align the fixture's Monday conflict date to the requested week so weekly conflict scoping matches real backend output.
+  if (body.range?.from && body.range.from !== '2026-11-09') {
+    const swap = value => typeof value === 'string' ? value.replaceAll('2026-11-09', body.range.from) : value;
+    for (const conflict of answer.conflicts) {
+      conflict.start = swap(conflict.start);
+      conflict.end = swap(conflict.end);
+      for (const item of conflict.items) { item.id = swap(item.id); item.start = swap(item.start); item.end = swap(item.end); }
+    }
+  }
+  return answer;
 }
 
 async function boot(t, { routes = {}, health = {}, initial = {}, ocrEngine = null } = {}) {
@@ -242,8 +252,14 @@ test('1.26 exact solver: 画卷 offers 多方案对比 on demand and applies a w
   } } });
   app.click('[data-tab="calendar"]');
   await settle();
+  // Default calendar opens in full-width solo mode; clicking 解析画卷 opens the left analysis panel.
+  assert.ok(app.find('#calendarView .scroll').classList.contains('is-solo'));
+  assert.equal(app.find('#calendarView .scroll-side').hidden, true);
   app.find('#calendarView [data-scroll-open]')?.click();
   await settle(1500);
+  app.find('#calendarView [data-cal-analyze]').click();
+  assert.ok(app.find('#calendarView .scroll').classList.contains('is-analyzed'));
+  assert.equal(app.find('#calendarView .scroll-side').hidden, false);
   app.find('#calendarView [data-solve]').click();
   await settle();
   assert.equal(app.calls.filter(call => call.path === '/api/v3/solve').at(-1).body.transit_minutes, 10);
@@ -840,4 +856,69 @@ test('a page that is not a timetable is refused with a hint', async t => {
   picker.dispatchEvent(new app.window.Event('change', { bubbles: true }));
   await settle();
   assert.match(app.message(), /没有找到课表格子/);
+});
+
+test('画卷 opens full-width by default, toggles 解析画卷, and scopes conflicts strictly to the shown week', async t => {
+  // Backend returns a conflict ONLY in next week (never in this week)
+  const nextMon = weekRange(weekStart(Date.now()) + 7 * 86400000).from;
+  const routes = {
+    '/api/v3/calendar': async body => {
+      const answer = structuredClone(CALENDAR);
+      answer.revision = body.snapshot.revision;
+      answer.range = body.range;
+      answer.conflicts.forEach(c => {
+        c.start = `${nextMon}T14:30:00+08:00`;
+        c.end = `${nextMon}T15:00:00+08:00`;
+      });
+      return [200, answer];
+    },
+  };
+  const app = await boot(t, { routes });
+  // On current week, next week's conflict must NOT show on the tab badge or analysis panel
+  assert.equal(app.find('#conflictCount').textContent, '');
+  assert.ok(app.find('#calendarView .scroll').classList.contains('is-solo'));
+  assert.equal(app.find('#calendarView .scroll-side').hidden, true);
+  app.find('#calendarView [data-cal-analyze]').click();
+  assert.equal(app.find('#calendarView .scroll-side').hidden, false);
+  assert.match(app.find('#calendarView .scroll-side').textContent, /这一卷是干净的/);
+  // Step to next week: now the conflict appears cleanly for next week
+  app.click('#calendarView [data-cal-week="1"]');
+  await settle();
+  assert.equal(app.find('#conflictCount').textContent, '1');
+  assert.match(app.find('#calendarView .scroll-side').textContent, /点墨压在底色上/);
+  // Toggle close returns to full-width solo mode
+  app.find('#calendarView [data-cal-analyze]').click();
+  assert.equal(app.find('#calendarView .scroll-side').hidden, true);
+});
+
+test('submitting a notice clears hidden #noticeDate so subsequent relative reminders use real today', async t => {
+  const seenDates = [];
+  const routes = {
+    '/api/v3/extract': async body => {
+      seenDates.push(body.reference_date);
+      return [200, {
+        source: { id: `src-${seenDates.length}`, kind: 'notice', text: body.text, published_at: null },
+        events: [],
+        tasks: [{
+          id: `t-${seenDates.length}`, title: '健身',
+          earliest_start_at: '2026-11-21T00:00:00+08:00',
+          deadline_at: '2026-11-21T23:59:00+08:00',
+          estimate_minutes: null, splittable: true, min_block_minutes: null,
+          priority: null, status: 'active', location: null, materials: [],
+          source_id: `src-${seenDates.length}`, evidence: [], notes: ['个人任务'],
+        }],
+        warnings: [],
+      }];
+    },
+  };
+  const app = await boot(t, { routes });
+  app.click('#loadPhotoCase');
+  assert.ok(app.find('#noticeDate').value, 'photo case pre-fills #noticeDate for its notice');
+  app.submit('#noticeForm');
+  await settle();
+  assert.equal(app.find('#noticeDate').value, '', 'hidden #noticeDate must reset after submission');
+  app.find('#noticeText').value = '提醒我今天健身';
+  app.submit('#noticeForm');
+  await settle();
+  assert.equal(seenDates[1], null, 'next message must not inherit stale future noticeDate');
 });

@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="description" content="把校园通知整理成可核对的事项，用真实空闲生成经过校验的个人安排。">
-  <meta name="sixu-ui-version" content="2026.11.21.48">
+  <meta name="sixu-ui-version" content="2026.11.21.50">
   <title>司序 Marshal · 知所先后</title>
   <link rel="icon" href="./assets/sixu-mark.svg" type="image/svg+xml">
   <link rel="manifest" href="./manifest.webmanifest">
@@ -12,7 +12,7 @@
   <link rel="apple-touch-icon" href="./assets/icon-192.png">
   <script>{ const h = location.hash; document.documentElement.dataset.current = h.startsWith('#/') && ['import', 'items', 'time', 'calendar', 'review', 'plan'].includes(h.slice(2).split('?')[0]) ? ({ review: 'items', plan: 'calendar' }[h.slice(2).split('?')[0]] || h.slice(2).split('?')[0]) : 'home'; if (document.documentElement.dataset.current === 'home' && !matchMedia('(prefers-reduced-motion: reduce)').matches) document.documentElement.classList.add('intro'); }</script>
   <link rel="preload" as="image" href="./assets/hero-ribbon-plate.jpg">
-  <link rel="stylesheet" href="./agent.css?v=2026.11.21.48">
+  <link rel="stylesheet" href="./agent.css?v=2026.11.21.50">
 </head>
 <body>
   <div class="intro" id="intro" aria-hidden="true">
@@ -136,7 +136,16 @@
     </div>
     <div class="page" data-page="items">
         <div class="rolls" data-rolls>
-        <article class="roll" data-roll="work"><button type="button" class="roll-face" data-roll-open="work" aria-controls="roll-work"><span class="roll-rod" aria-hidden="true"></span><span class="roll-paper"><span class="roll-name">落笔</span><span class="roll-gloss">约定、个人任务与截止之事</span><span class="roll-summary" id="rollSummary-work"></span><span class="roll-hint">展开<svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true"><path d="M6 9l6 6 6-6" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></span></span><span class="roll-rod" aria-hidden="true"></span></button><div class="roll-body" id="roll-work"><div class="roll-bar"><button type="button" class="roll-back" data-roll-close><svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true"><path d="M15 5l-7 7 7 7" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>返回</button></div>
+        <article class="roll" data-roll="work">
+          <button type="button" class="roll-face" data-roll-open="work" aria-controls="roll-work" aria-expanded="false" aria-labelledby="rollName-work" aria-describedby="rollGloss-work rollSummary-work">
+            <span class="roll-intro">
+              <span class="roll-name" id="rollName-work">落笔</span>
+              <span class="roll-gloss" id="rollGloss-work">约定、个人任务与截止之事</span>
+              <span class="roll-summary" id="rollSummary-work"></span>
+              <span class="roll-hint" aria-hidden="true">进入<svg viewBox="0 0 24 24" width="18" height="18"><path d="M4 12h15m-6-6 6 6-6 6" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></svg></span>
+            </span>
+          </button>
+          <div class="roll-body" id="roll-work"><div class="roll-bar"><button type="button" class="roll-back" data-roll-close><svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true"><path d="M15 5l-7 7 7 7" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>返回</button></div>
         <section class="surface" id="taskSection" aria-labelledby="taskHeading">
           <h2 id="taskHeading">落笔 <span class="layer-gloss">约定、个人任务与截止之事</span></h2>
           <section class="item-group is-appointment" data-group="appointment" aria-labelledby="appointmentHeading">
@@ -156,7 +165,16 @@
           </section>
         </section>
         </div></article>
-        <article class="roll" data-roll="event"><button type="button" class="roll-face" data-roll-open="event" aria-controls="roll-event"><span class="roll-rod" aria-hidden="true"></span><span class="roll-paper"><span class="roll-name">点墨</span><span class="roll-gloss">临时、突发事项</span><span class="roll-summary" id="rollSummary-event"></span><span class="roll-hint">展开<svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true"><path d="M6 9l6 6 6-6" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></span></span><span class="roll-rod" aria-hidden="true"></span></button><div class="roll-body" id="roll-event"><div class="roll-bar"><button type="button" class="roll-back" data-roll-close><svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true"><path d="M15 5l-7 7 7 7" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>返回</button></div>
+        <article class="roll" data-roll="event">
+          <button type="button" class="roll-face" data-roll-open="event" aria-controls="roll-event" aria-expanded="false" aria-labelledby="rollName-event" aria-describedby="rollGloss-event rollSummary-event">
+            <span class="roll-intro">
+              <span class="roll-name" id="rollName-event">点墨</span>
+              <span class="roll-gloss" id="rollGloss-event">临时、突发事项</span>
+              <span class="roll-summary" id="rollSummary-event"></span>
+              <span class="roll-hint" aria-hidden="true">进入<svg viewBox="0 0 24 24" width="18" height="18"><path d="M4 12h15m-6-6 6 6-6 6" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></svg></span>
+            </span>
+          </button>
+          <div class="roll-body" id="roll-event"><div class="roll-bar"><button type="button" class="roll-back" data-roll-close><svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true"><path d="M15 5l-7 7 7 7" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>返回</button></div>
         <section class="surface" id="eventSection" aria-labelledby="eventHeading">
           <h2 id="eventHeading">点墨 <span class="layer-gloss">临时、突发事项</span></h2>
           <section class="item-group is-temporary" aria-label="点墨">
@@ -170,7 +188,16 @@
     </div>
     <div class="page" data-page="time">
         <div class="rolls" data-rolls>
-        <article class="roll" data-roll="routine"><button type="button" class="roll-face" data-roll-open="routine" aria-controls="roll-routine"><span class="roll-rod" aria-hidden="true"></span><span class="roll-paper"><span class="roll-name">底色</span><span class="roll-gloss">每周照例的占用</span><span class="roll-summary" id="rollSummary-routine"></span><span class="roll-hint">展开<svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true"><path d="M6 9l6 6 6-6" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></span></span><span class="roll-rod" aria-hidden="true"></span></button><div class="roll-body" id="roll-routine"><div class="roll-bar"><button type="button" class="roll-back" data-roll-close><svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true"><path d="M15 5l-7 7 7 7" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>返回</button></div>
+        <article class="roll" data-roll="routine">
+          <button type="button" class="roll-face" data-roll-open="routine" aria-controls="roll-routine" aria-expanded="false" aria-labelledby="rollName-routine" aria-describedby="rollGloss-routine rollSummary-routine">
+            <span class="roll-intro">
+              <span class="roll-name" id="rollName-routine">底色</span>
+              <span class="roll-gloss" id="rollGloss-routine">每周照例的占用</span>
+              <span class="roll-summary" id="rollSummary-routine"></span>
+              <span class="roll-hint" aria-hidden="true">进入<svg viewBox="0 0 24 24" width="18" height="18"><path d="M4 12h15m-6-6 6 6-6 6" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></svg></span>
+            </span>
+          </button>
+          <div class="roll-body" id="roll-routine"><div class="roll-bar"><button type="button" class="roll-back" data-roll-close><svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true"><path d="M15 5l-7 7 7 7" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>返回</button></div>
         <section class="surface" id="routineSection" aria-labelledby="routineHeading">
           <div class="section-top"><div><h2 id="routineHeading">底色 <span class="layer-gloss">每周照例的占用</span></h2><p class="section-note">课表、每周例会、固定出行这类每周重复的事。</p></div><button type="button" id="addRoutine">手动添加</button></div>
                     <div id="routineList"></div>
@@ -196,7 +223,16 @@
           <div id="timetablePreview" role="status"></div>
         </section>
         </div></article>
-        <article class="roll" data-roll="free"><button type="button" class="roll-face" data-roll-open="free" aria-controls="roll-free"><span class="roll-rod" aria-hidden="true"></span><span class="roll-paper"><span class="roll-name">留白</span><span class="roll-gloss">自己能支配的时间</span><span class="roll-summary" id="rollSummary-free"></span><span class="roll-hint">展开<svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true"><path d="M6 9l6 6 6-6" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></span></span><span class="roll-rod" aria-hidden="true"></span></button><div class="roll-body" id="roll-free"><div class="roll-bar"><button type="button" class="roll-back" data-roll-close><svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true"><path d="M15 5l-7 7 7 7" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>返回</button></div>
+        <article class="roll" data-roll="free">
+          <button type="button" class="roll-face" data-roll-open="free" aria-controls="roll-free" aria-expanded="false" aria-labelledby="rollName-free" aria-describedby="rollGloss-free rollSummary-free">
+            <span class="roll-intro">
+              <span class="roll-name" id="rollName-free">留白</span>
+              <span class="roll-gloss" id="rollGloss-free">自己能支配的时间</span>
+              <span class="roll-summary" id="rollSummary-free"></span>
+              <span class="roll-hint" aria-hidden="true">进入<svg viewBox="0 0 24 24" width="18" height="18"><path d="M4 12h15m-6-6 6 6-6 6" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></svg></span>
+            </span>
+          </button>
+          <div class="roll-body" id="roll-free"><div class="roll-bar"><button type="button" class="roll-back" data-roll-close><svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true"><path d="M15 5l-7 7 7 7" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>返回</button></div>
         <section class="surface" id="windowSection" aria-labelledby="windowHeading">
           <div class="section-top"><div><h2 id="windowHeading">留白 <span class="layer-gloss">自己能支配的时间</span></h2><p class="section-note">先定每天的作息范围。留白 = 作息范围 − 底色 − 点墨与约定。</p></div><button type="button" id="presetWindow">一键填入常用作息</button></div>
           <form id="windowForm"><div class="day-grid" id="dayGrid"></div><div class="inline-actions"><button type="submit" class="primary-button">保存作息范围</button><button type="button" class="text-button" id="clearWindow">清除（自由时间改为未定义）</button></div><p class="field-error" id="windowError" role="status"></p></form>
@@ -218,7 +254,7 @@
       <form id="apiForm"><label for="apiBase">解析与计算服务地址</label><input id="apiBase" type="url" inputmode="url" required><button type="submit">保存地址并检查连接</button><p class="field-help" id="connectionStatus" role="status">尚未检查连接</p></form>
       <div class="backup-actions"><button type="button" id="importSnapshot">导入清单</button><input type="file" id="importFile" accept="application/json,.json" hidden></div>
       <p class="field-help">导出文件包含原文与个人安排，请妥善保存。</p>
-      <p class="field-help" id="uiVersion">界面版本 2026.11.21.48</p>
+      <p class="field-help" id="uiVersion">界面版本 2026.11.21.50</p>
     </details>
     <footer class="page-footer"><span>以确认后的信息计算，把取舍留给你。</span></footer>
   </main>
@@ -227,7 +263,7 @@
   <div class="access-ask" id="accessAsk" role="dialog" aria-modal="true" aria-labelledby="accessTitle" hidden><form class="access-card" id="accessForm"><h2 id="accessTitle">访问口令</h2><p class="field-help" id="accessHint"></p><label for="accessCode">口令</label><input id="accessCode" type="password" autocomplete="off" maxlength="200" required><div class="inline-actions"><button type="submit" class="primary-button">确定</button><button type="button" class="text-button" id="accessCancel">取消</button></div></form></div>
   <div class="route-veil" id="routeVeil" aria-hidden="true"><i class="ink ink-1"></i><i class="ink ink-2"></i><i class="ink ink-3"></i><svg class="veil-mark" viewBox="0 0 100 100"><path class="mark-ring" d="M22 86V28H30.56L50 63.64L69.44 28H78V86H70V43.69L54.56 72H45.44L30 43.69V86Z" fill="currentColor"/><g class="veil-needle"><path d="M50 14L53.2 40.4H46.8Z" fill="currentColor"/><path d="M46.8 40.4L50 62L53.2 40.4" fill="none" stroke="currentColor" stroke-width="1.8"/></g></svg><p class="veil-word"><span>司序</span><span>知所先后</span></p></div>
   <noscript>此页面需要启用JavaScript才能编辑和计算任务。</noscript>
-  <script type="importmap">{"imports":{"./task-state.js":"./task-state.js?v=2026.11.21.48","./snapshot-store.js":"./snapshot-store.js?v=2026.11.21.48","./model-candidates.js":"./model-candidates.js?v=2026.11.21.48","./time-review.js":"./time-review.js?v=2026.11.21.48","./planning-result.js":"./planning-result.js?v=2026.11.21.48","./agenda.js":"./agenda.js?v=2026.11.21.48","./calendar.js":"./calendar.js?v=2026.11.21.48","./shanshui.js":"./shanshui.js?v=2026.11.21.48","./reminders.js":"./reminders.js?v=2026.11.21.48","./bell-toggle.js":"./bell-toggle.js?v=2026.11.21.48","./estimate-memory.js":"./estimate-memory.js?v=2026.11.21.48","./time-state.js":"./time-state.js?v=2026.11.21.48","./scenario.js":"./scenario.js?v=2026.11.21.48","./screenshot-ocr.js":"./screenshot-ocr.js?v=2026.11.21.48","./jw-timetable.js":"./jw-timetable.js?v=2026.11.21.48"}}</script>
-  <script src="./router.js?v=2026.11.21.48"></script><script src="./about-sky.js?v=2026.11.21.48"></script><script src="./landing.js?v=2026.11.21.48"></script><script src="./api-config.js?v=2026.11.21.48"></script><script type="module" src="./agent.js?v=2026.11.21.48"></script>
+  <script type="importmap">{"imports":{"./task-state.js":"./task-state.js?v=2026.11.21.50","./snapshot-store.js":"./snapshot-store.js?v=2026.11.21.50","./model-candidates.js":"./model-candidates.js?v=2026.11.21.50","./time-review.js":"./time-review.js?v=2026.11.21.50","./planning-result.js":"./planning-result.js?v=2026.11.21.50","./agenda.js":"./agenda.js?v=2026.11.21.50","./calendar.js":"./calendar.js?v=2026.11.21.50","./shanshui.js":"./shanshui.js?v=2026.11.21.50","./reminders.js":"./reminders.js?v=2026.11.21.50","./bell-toggle.js":"./bell-toggle.js?v=2026.11.21.50","./estimate-memory.js":"./estimate-memory.js?v=2026.11.21.50","./time-state.js":"./time-state.js?v=2026.11.21.50","./scenario.js":"./scenario.js?v=2026.11.21.50","./screenshot-ocr.js":"./screenshot-ocr.js?v=2026.11.21.50","./jw-timetable.js":"./jw-timetable.js?v=2026.11.21.50"}}</script>
+  <script src="./router.js?v=2026.11.21.50"></script><script src="./about-sky.js?v=2026.11.21.50"></script><script src="./landing.js?v=2026.11.21.50"></script><script src="./api-config.js?v=2026.11.21.50"></script><script type="module" src="./agent.js?v=2026.11.21.50"></script>
 </body>
 </html>

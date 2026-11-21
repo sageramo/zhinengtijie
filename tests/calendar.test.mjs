@@ -3,7 +3,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
-import { weekStart, weekRange, calendarItems, calendarMarkup, digestChanges, resultDigest } from '../calendar.js';
+import { weekStart, weekRange, calendarItems, calendarMarkup, conflictsInWeek, digestChanges, resultDigest } from '../calendar.js';
 
 const { result } = JSON.parse(readFileSync(new URL('./fixtures/calendar-v3.json', import.meta.url), 'utf8'));
 const monday = Date.parse('2026-11-09T00:00:00+08:00');
@@ -126,4 +126,20 @@ test('work shortage pictures need against free time; a clean week says so', () =
 
 test('a week with 叠墨 never claims to be clear', () => {
   assert.doesNotMatch(calendarMarkup({ result, start: monday, now: monday }), /没有叠墨/);
+});
+
+test('weekly scoping excludes conflicts from other weeks and solo view hides the analysis panel until opened', () => {
+  const nextWeek = monday + 7 * 86400000;
+  // Conflict in fixture is on 2026-11-09 (first week); viewing next week (2026-11-16..22) must show 0 conflicts.
+  assert.equal(conflictsInWeek(result.conflicts, monday).length, 1);
+  assert.equal(conflictsInWeek(result.conflicts, nextWeek).length, 0);
+  const nextWeekHtml = calendarMarkup({ result, start: nextWeek, now: nextWeek, analyzed: true });
+  assert.match(nextWeekHtml, /叠墨 · 对策 <span>0<\/span>/);
+  assert.match(nextWeekHtml, /这一卷是干净的/);
+  assert.doesNotMatch(nextWeekHtml, /点墨压在底色上/);
+  // Solo mode (default on page open) hides .scroll-side and exposes the 解析画卷 toggle button.
+  const soloHtml = calendarMarkup({ result, start: monday, now: monday, analyzed: false });
+  assert.match(soloHtml, /class="scroll[^"]*is-solo"/);
+  assert.match(soloHtml, /class="scroll-side" aria-label="本周解析" hidden>/);
+  assert.match(soloHtml, /data-cal-analyze aria-expanded="false"[^>]*>.*解析画卷.*1 处叠墨/);
 });

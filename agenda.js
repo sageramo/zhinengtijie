@@ -71,9 +71,13 @@ export async function answerCapacity(snapshot, question, now, calculate) {
   if (!snapshot.daily_window) return { text: '先设置作息，再把课表和固定例会补进来，我才能估算还有多少时间。', action: 'setup' };
   if (question.needed === 0) return { text: '新承诺至少需要 1 分钟，请再告诉我预计用时。' };
   const { start, from, to } = capacityBounds(question.scope, now);
-  const reference = Math.max(Math.ceil(now / MINUTE) * MINUTE, Date.parse(snapshot.reference_time));
+  const nowMinute = Math.ceil(now / MINUTE) * MINUTE;
+  const savedRef = Date.parse(snapshot.reference_time);
+  // If the user asks about "今天" while reference_time is pinned on a future day (e.g. after a demo),
+  // calculate from real `now` so today's tasks are never falsely treated as overdue.
+  const reference = question.scope === 'today' && savedRef >= to ? nowMinute : Math.max(nowMinute, savedRef);
   const current = setReferenceTime(snapshot, new Date(reference).toISOString());
-  const result = await calculate({ snapshot: current, range: weekRange(start) });
+  const result = await calculate({ snapshot: current, range: weekRange(start), now: new Date(nowMinute).toISOString() });
   const capacity = remainingCapacity(result, from, to);
   if (!capacity) return { text: '作息还未设置，暂时算不出可用时间。', action: 'setup' };
   const { total, longest, slots } = capacity;
