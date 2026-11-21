@@ -327,7 +327,12 @@ export function weeklyBrief(items, start, now) {
   return lines;
 }
 
-export function calendarMarkup({ result, start, now, loading = false, error = '', undo = '', note = '', changes = [], plans = null, weighs = {}, focus = '', rolled = false, unrolling = false, fresh = false, analyzed = true, futureRef = '', listView = false }) {
+/**
+ * Optional page-supplied parts (kept out of this module so the mini program can share it unchanged):
+ * band(dayStart, firstHour, lastHour) draws the 专注时段带 in each day head, bandLegend explains it,
+ * banner is the 重排卡 above the week, sideTop opens 本周解析, alertLabel badges the 解析画卷 button.
+ */
+export function calendarMarkup({ result, start, now, loading = false, error = '', undo = '', note = '', changes = [], plans = null, weighs = {}, focus = '', rolled = false, unrolling = false, fresh = false, analyzed = true, futureRef = '', listView = false, band = null, bandLegend = '', banner = '', sideTop = '', alertLabel = '' }) {
   const weekConflicts = conflictsInWeek(result?.conflicts || [], start);
   const weekUndefined = undefinedInWeek(result, start);
   const items = calendarItems(result, start);
@@ -390,7 +395,7 @@ export function calendarMarkup({ result, start, now, loading = false, error = ''
   const heads = days.map((dayStart, index) => {
     const d = local(dayStart);
     const state = index === today ? ' is-today' : dayStart + DAY <= now ? ' is-past' : '';
-    return `<div class="cal-head-day${state}"><span>${WEEKDAYS[index]}</span><strong>${d.getUTCDate()}</strong>${d.getUTCDate() === 1 || index === 0 ? `<em>${d.getUTCMonth() + 1}月</em>` : ''}</div>`;
+    return `<div class="cal-head-day${state}${band ? ' has-band' : ''}"><span>${WEEKDAYS[index]}</span><strong>${d.getUTCDate()}</strong>${d.getUTCDate() === 1 || index === 0 ? `<em>${d.getUTCMonth() + 1}月</em>` : ''}${band ? band(dayStart, first, last) : ''}</div>`;
   }).join('');
   const hours = Array.from({ length: last - first }, (_, index) => `<span style="top:${((index / (last - first)) * 100).toFixed(3)}%">${String(first + index).padStart(2, '0')}:00</span>`).join('');
 
@@ -426,7 +431,7 @@ export function calendarMarkup({ result, start, now, loading = false, error = ''
   const layerStrip = result ? `<div class="cal-layers"><ul aria-label="四层时间，点一层只看这一层">${layerButton('routine', '底色', '每周照例的课与例会', count('routine'))}${layerButton('free', '留白', '自己支配的时间', `${Math.round(freeMinutes / 60)} 小时`)}${layerButton('work', '落笔', '约定与截止之事', count('work') + count('appointment'))}${layerButton('temporary', '点墨', '临时、突发事项', count('temporary'))}${layerButton('conflict', '叠墨', '两件事相撞', weekConflicts.filter(conflict => conflict.start).length)}</ul><p>${focus ? '再点一次，恢复全部图层' : '点一层，只看这一层'}</p></div>` : '';
   // 本周山水: on the cover it is the painting; once the scroll is open it stays as a faint wash behind the week.
   const painting = result ? shanshuiMarkup({ items: inWeek, start, now, conflicts: weekConflicts, id: rolled ? 'ss-cover' : 'ss-board' }) : '';
-  const analyzeBadge = !analyzed && weekConflicts.length ? `<em class="cal-analyze-badge">${weekConflicts.length} 处叠墨</em>` : '';
+  const analyzeBadge = !analyzed && (weekConflicts.length || alertLabel) ? `<em class="cal-analyze-badge">${[weekConflicts.length ? `${weekConflicts.length} 处叠墨` : '', alertLabel].filter(Boolean).join(' · ')}</em>` : '';
   const analyzeBtn = `<button type="button" class="cal-analyze-btn${analyzed ? ' is-open' : ''}${weekConflicts.length ? ' has-alert' : ''}" data-cal-analyze aria-expanded="${analyzed}"><svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true"><path d="M4 6h16M4 12h10M4 18h7M17 14l3 3-3 3" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"/></svg><span>${analyzed ? '收起解析' : '解析画卷'}</span>${analyzeBadge}</button>`;
   const clockPill = futureRef ? `<button type="button" class="cal-clock-pill" data-use-now title="当前清单的开始安排时刻设在未来，点此切回今天真实时刻">演示时刻 ${escape(futureRef)} · 恢复当前时间</button>` : '';
   const cover = `<section class="scroll-cover" aria-labelledby="coverHeading">
@@ -455,6 +460,7 @@ export function calendarMarkup({ result, start, now, loading = false, error = ''
     <div class="scroll-body">
       <aside class="scroll-side" aria-label="本周解析"${analyzed ? '' : ' hidden'}>
         <div class="side-head"><span>本周解析</span><button type="button" class="text-button side-close" data-cal-analyze aria-label="收起解析">收起</button></div>
+        ${sideTop}
         ${status}
         <div class="cal-pending">${side}</div>
         <div class="cal-remind-slot"></div>
@@ -462,8 +468,8 @@ export function calendarMarkup({ result, start, now, loading = false, error = ''
         ${brief.length ? `<ul class="cal-brief" aria-label="本周提要">${brief.map(line => `<li>${line}</li>`).join('')}</ul>` : ''}
         <ul class="cal-stats" aria-label="本周统计">${stat(count('routine'), '底色')}${stat(count('work') + count('appointment'), '落笔')}${stat(count('temporary'), '点墨')}${stat(count('deadline'), '截止')}</ul>
       </aside>
-      ${rolled ? cover : `    <div class="scroll-mount"><div class="cal-board">${backdrop}${layerStrip}
-        <div class="cal-week${crowded.size ? ' has-crowded' : ''}"${focus ? ` data-focus="${escape(focus)}"` : ''} style="--rows:${last - first}${crowded.size ? `;--cols:var(--time-col, 54px) ${days.map((_, index) => crowded.has(index) ? 'minmax(0, 1.5fr)' : 'minmax(0, 1fr)').join(' ')}` : ''}">
+      ${rolled ? cover : `    <div class="scroll-mount"><div class="cal-board">${backdrop}${banner}${layerStrip}${bandLegend}
+        <div class="cal-week${crowded.size ? ' has-crowded' : ''}${band ? ' has-band' : ''}"${focus ? ` data-focus="${escape(focus)}"` : ''} style="--rows:${last - first}${crowded.size ? `;--cols:var(--time-col, 54px) ${days.map((_, index) => crowded.has(index) ? 'minmax(0, 1.5fr)' : 'minmax(0, 1fr)').join(' ')}` : ''}">
           <div class="cal-corner" aria-hidden="true"></div>${heads}
           <div class="cal-hours" aria-hidden="true">${hours}</div>${columns}
         </div>${empty}

@@ -28,8 +28,11 @@ const dayOf = ms => new Date(ms + OFFSET).toISOString().slice(0, 10);
 const dayLabel = ms => dayOf(ms).slice(5).replace('-', '月') + '日';
 const clock = ms => new Date(ms + OFFSET).toISOString().slice(11, 16);
 
+const WEEKDAY_CHARS = '一二三四五六日天';
+const WEEKDAY_LABELS = ['周一', '周二', '周三', '周四', '周五', '周六', '周日'];
+
 function capacityQuestion(text) {
-  const planning = /(?:^试算|剩.*(?:时间|空档|留白)|(?:多少|几个|还有|多长).*(?:空档|空闲|留白)|有空(?:吗|没|么|[？?])|排得下|排不下|时间够|够不够|来得及|(?:再接|能接|还能|想接).*(?:社团|活动|组织|工作))/;
+  const planning = /(?:^试算|剩.*(?:时间|空档|留白)|(?:多少|几个|还有|多长).*(?:空档|空闲|留白)|有没有(?:时间|空|空档|空闲)|有时间(?:吗|没|么|去|参加|做|[？?])|有空(?:吗|没|么|去|参加|做|[？?])|能(?:不能)?(?:参加|去|抽空|安排)|可(?:以|不可以)(?:参加|去)|排得下|排不下|时间够|够不够|来得及|(?:再接|能接|还能|想接).*(?:社团|活动|组织|工作))/;
   if (/\n|^【|^.{0,12}通知[:：]|各位同学|请各班/.test(text) || text.length > 250) return null;
   if (!planning.test(text)) return null;
   const needed = [], reserved = [];
@@ -49,33 +52,74 @@ function capacityQuestion(text) {
     || [...needed, ...reserved].some(value => !Number.isSafeInteger(value))
     || /(?:预留|保留|留(?:出|下|够)?)\s*[^，,。]{0,10}(?:休息|缓冲|小时|钟头|分钟|个钟)/.test(masked) && !reserved.length
     || /[\d半一二两三四五六七八九十几]+\s*(?:个\s*)?(?:小时|钟头|分钟|个钟|天|个半小时)/.test(masked);
-  const fixed = /(?:周|星期)[一二三四五六日天]|(?:明天|后天|周末|上午|下午|中午|晚上|早上)|\d{1,2}(?:月|日|号|点|[:：]\d{2})/.test(text);
-  return { scope: /下周/.test(text) ? 'next' : /今天|今晚/.test(text) ? 'today' : 'week',
+  // Specific clock times or calendar dates still need visual checking on 画卷;
+  // day-level scopes (今天/明天/周末/下周末/本周X/下周X/本周/下周) are computed directly here!
+  const fixed = /(?:上午|下午|中午|晚上|早上)|\d{1,2}(?:月|日|号|点|[:：]\d{2})/.test(text);
+  const weekendMatch = text.match(/(下个?|本|这)?周末/);
+  const weekdayMatch = text.match(/(下个?|本|这)?(?:周|星期|礼拜)([一二三四五六日天])/);
+  let scope = 'week';
+  let weekdayIndex = null;
+  let weekdayNext = false;
+  if (weekendMatch) {
+    scope = weekendMatch[1] && weekendMatch[1].startsWith('下') ? 'next_weekend' : 'weekend';
+  } else if (weekdayMatch) {
+    scope = 'weekday';
+    const rawIdx = WEEKDAY_CHARS.indexOf(weekdayMatch[2]);
+    weekdayIndex = rawIdx === 7 ? 6 : rawIdx;
+    weekdayNext = Boolean(weekdayMatch[1] && weekdayMatch[1].startsWith('下'));
+  } else if (/明天|明早|明晚/.test(text)) {
+    scope = 'tomorrow';
+  } else if (/下周/.test(text)) {
+    scope = 'next';
+  } else if (/今天|今晚|今日/.test(text)) {
+    scope = 'today';
+  }
+  return { scope, weekdayIndex, weekdayNext,
     needed: needed[0] ?? null, reserve: reserved[0] ?? 0, ambiguous, fixed,
     split: /(?:可以|能|允许|愿意)拆|分开做|分几次/.test(text) && !/不能拆|不可以拆|一次做完/.test(text) };
 
 }
 
-function capacityBounds(scope, now) {
+function capacityBounds(question, now) {
+  const scope = typeof question === 'string' ? question : question.scope;
   const week = weekStart(now);
-  const start = scope === 'next' ? week + 7 * DAY : week;
+  const nowMin = Math.ceil(now / MINUTE) * MINUTE;
   const dayStart = Math.floor((now + OFFSET) / DAY) * DAY - OFFSET;
-  return { start, from: Math.max(start, Math.ceil(now / MINUTE) * MINUTE),
-    to: scope === 'today' ? dayStart + DAY : start + 7 * DAY };
+  if (scope === 'today') return { start: week, from: nowMin, to: dayStart + DAY, label: '今天' };
+  if (scope === 'tomorrow') {
+    const tom = dayStart + DAY;
+    return { start: weekStart(tom), from: tom, to: tom + DAY, label: '明天' };
+  }
+  if (scope === 'weekend' || scope === 'next_weekend') {
+    const baseWeek = scope === 'next_weekend' ? week + 7 * DAY : week;
+    const sat = baseWeek + 5 * DAY;
+    const sunEnd = baseWeek + 7 * DAY;
+    return { start: baseWeek, from: Math.max(sat, nowMin), to: sunEnd, label: scope === 'next_weekend' ? '下周末' : '本周末' };
+  }
+  if (scope === 'weekday' && typeof question === 'object' && Number.isInteger(question.weekdayIndex)) {
+    const todayIdx = Math.floor((dayStart - week) / DAY);
+    const offsetWeeks = question.weekdayNext || question.weekdayIndex < todayIdx ? 1 : 0;
+    const baseWeek = week + offsetWeeks * 7 * DAY;
+    const targetDay = baseWeek + question.weekdayIndex * DAY;
+    const prefix = offsetWeeks ? '下' : '本';
+    return { start: baseWeek, from: Math.max(targetDay, nowMin), to: targetDay + DAY, label: `${prefix}${WEEKDAY_LABELS[question.weekdayIndex]}` };
+  }
+  const start = scope === 'next' ? week + 7 * DAY : week;
+  return { start, from: Math.max(start, nowMin), to: start + 7 * DAY, label: scope === 'next' ? '下周' : '本周' };
 }
 
 export async function answerCapacity(snapshot, question, now, calculate) {
-  const label = { next: '下周', today: '今天', week: '本周' }[question.scope];
+  const bounds = capacityBounds(question, now);
+  const { start, from, to, label } = bounds;
   if (question.ambiguous) return { text: '请分别写清新增用时和想预留的时间，例如「再接90分钟，留30分钟休息」。' };
-  if (question.fixed) return { text: '这次试算支持今天、本周或下周的总量和连续空档。你提到了具体日期或时段，可以到画卷核对那一段是否有安排。', action: 'calendar', week: capacityBounds(question.scope, now).start };
+  if (question.fixed) return { text: '这次试算支持今天、明天、周末、具体某天或整周的总量和连续空档。你提到了具体钟点或日期，可以到画卷核对那一段是否有安排。', action: 'calendar', week: start };
   if (!snapshot.daily_window) return { text: '先设置作息，再把课表和固定例会补进来，我才能估算还有多少时间。', action: 'setup' };
   if (question.needed === 0) return { text: '新承诺至少需要 1 分钟，请再告诉我预计用时。' };
-  const { start, from, to } = capacityBounds(question.scope, now);
   const nowMinute = Math.ceil(now / MINUTE) * MINUTE;
   const savedRef = Date.parse(snapshot.reference_time);
-  // If the user asks about "今天" while reference_time is pinned on a future day (e.g. after a demo),
-  // calculate from real `now` so today's tasks are never falsely treated as overdue.
-  const reference = question.scope === 'today' && savedRef >= to ? nowMinute : Math.max(nowMinute, savedRef);
+  // If the user asks about a window before a future demo reference_time, calculate from real `now`
+  // so current/weekend tasks are never falsely treated as overdue.
+  const reference = savedRef >= to ? nowMinute : Math.max(nowMinute, savedRef);
   const current = setReferenceTime(snapshot, new Date(reference).toISOString());
   const result = await calculate({ snapshot: current, range: weekRange(start), now: new Date(nowMinute).toISOString() });
   const capacity = remainingCapacity(result, from, to);
@@ -112,6 +156,9 @@ export async function answerCapacity(snapshot, question, now, calculate) {
     }
   } else {
     if (question.reserve) text += ` 预留 ${minutesLabel(question.reserve)}后，${total < question.reserve ? `还差 ${minutesLabel(question.reserve - total)} 才能留足。` : `还可用 ${minutesLabel(total - question.reserve)}。`}`;
+    const examples = slots.filter(s => s.end - s.start >= 30 * MINUTE).slice(0, 3)
+      .map(s => `${dayLabel(s.start)} ${clock(s.start)}–${dayOf(s.end) === dayOf(s.start) ? clock(s.end) : '24:00'}`);
+    if (examples.length) text += ` 可用空档例如：${examples.join('、')}。`;
     text += ' 说一下新承诺预计几小时，就可以试算。';
   }
   if (pending || shortages) text += ` 还有 ${pending + shortages} 件待补时间或尚未排下的事，补齐后空档可能减少。`;
@@ -171,7 +218,7 @@ export async function agendaReply(text, { snapshot, lastTaskId, calculate, now =
 
 export function isConversation(text) {
   return !/^(?:提醒我|帮我记|记得|别忘了|待办)|【|通知|各位同学|报名方式/.test(text)
-    && (/[？?]$|(?:吗|呢|如何|怎么办)$/.test(text) || /^(?:聊|陪我|我觉得|我感觉|我今天(?:好|很|有点)|我最近)/.test(text));
+    && (/[？?]$|(?:吗|呢|如何|怎么办)$|(?:有没有|能不能|可不可以|是否|会不会)/.test(text) || /^(?:聊|陪我|我觉得|我感觉|我今天(?:好|很|有点)|我最近)/.test(text));
 }
 
 // Timed personal tasks should expose the original clock time when users edit the list.

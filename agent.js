@@ -11,6 +11,7 @@ import { LEADS, dueReminders, icsCalendar, reminderText, upcomingCount } from '.
 import { createBellToggle } from './bell-toggle.js';
 import { readMemory, writeMemory, recordActual, suggestEstimate, readCalibration, writeCalibration, recordCalibration, calibrationFor } from './estimate-memory.js';
 import { createRecognizer, imageProblem } from './screenshot-ocr.js';
+import { readFocus, writeFocus, pruneStates, setMark, setCommonWindows, addStates, removeState, parseStateSentence, draftLabel, previewRequest, confirmRequest, bandMarkup, bandUsed, bandLegend, todayStateMarkup, replanMarkup, spanText, dayLabel } from './focus.js';
 import { parseJwTimetable, termStartFrom } from './jw-timetable.js';
 
 /*
@@ -78,6 +79,10 @@ const isPhoneViewport = () => typeof window !== 'undefined' && window.innerWidth
 let scrollRolled = !isPhoneViewport(); // Desktop enters as 山水 cover; phones open directly on the 7-column week grid
 let calendarAnalyzed = false; // 画卷 defaults to full-width solo view; click 解析画卷 to open the left analysis panel
 let calendarListView = false; // Phones default to the WakeUp-style 7-column week grid; toggle for agenda list
+let focusSettings = pruneStates(readFocus(storage), Date.now()); // 专注时段、精力状态与任务标记 (focus.js), this browser only
+let replanState = null; // the 重排卡: { loading, draft } | { error } | { preview, draft, body, range, revision, chosen } | { applied, label, starter }
+let replanClock = null; // the 5-minute start: { left, timer }
+let flipFrom = null; // work-block rectangles before a replan, so the blocks glide to their new places
 let coverPainted = false; // the 山水 brushes in once per cover, not on every recalculation
 let unrollTimer = null;
 let parseSequence = 0;
@@ -320,10 +325,52 @@ function renderCalendar() {
   const nowMs = Date.now();
   const refMs = Date.parse(snapshot.reference_time);
   const futureRef = Number.isFinite(refMs) && refMs - nowMs > 5 * 60000 ? readable(snapshot.reference_time) : '';
-  $('calendarView').innerHTML = calendarMarkup({ result: calendarResult, start: shownWeek(), now: nowMs, loading: calendarLoading && !calendarResult, error: calendarError, undo: strategyUndo?.label || '', note: strategyUndo?.note || '', changes: strategyUndo?.changes || [], focus: calendarFocus, plans: solveState, weighs, rolled: scrollRolled, unrolling: Boolean(unrollTimer), fresh: !coverPainted, analyzed: calendarAnalyzed, futureRef, listView: calendarListView });
+  // The 重排卡 shows while a choice waits; after one is taken it stays only as long as it can be undone.
+  if (replanState?.applied && !strategyUndo?.replan) replanState = null;
+  const pending = replanState && !replanState.applied ? replanState.draft : null;
+  const showBand = bandUsed(focusSettings, snapshot, pending);
+  const card = { ...replanState, timer: replanClock?.left || 0 };
+  const waiting = Boolean(replanState?.preview && (replanState.preview.needs_decision || replanState.preview.status === 'infeasible'));
+  $('calendarView').innerHTML = calendarMarkup({ result: calendarResult, start: shownWeek(), now: nowMs, loading: calendarLoading && !calendarResult, error: calendarError, undo: strategyUndo?.replan ? '' : strategyUndo?.label || '', note: strategyUndo?.note || '', changes: strategyUndo?.changes || [], focus: calendarFocus, plans: solveState, weighs, rolled: scrollRolled, unrolling: Boolean(unrollTimer), fresh: !coverPainted, analyzed: calendarAnalyzed, futureRef, listView: calendarListView,
+    band: showBand ? (dayStart, first, last) => bandMarkup(focusSettings, snapshot, dayStart, first, last, pending) : null,
+    bandLegend: showBand ? bandLegend(focusSettings, snapshot, pending) : '',
+    banner: replanState ? replanMarkup(card, 'board') : '',
+    sideTop: (replanState ? replanMarkup(card, 'side') : '') + todayStateMarkup(focusSettings, snapshot, nowMs, pending),
+    alertLabel: waiting ? '1 个取舍' : '' });
   if (scrollRolled && calendarResult) coverPainted = true;
   $('calendarView').querySelector('.cal-remind-slot')?.append(remindBar);
   fitCalendar();
+  if (flipFrom && calendarResult && !calendarLoading) glideBlocks();
+}
+/** Moved work blocks glide from where they were to where the chosen plan put them. */
+function workRects() {
+  const seen = {};
+  const rects = {};
+  for (const block of $('calendarView').querySelectorAll('.cal-block.cal-work')) {
+    const id = block.dataset.calItem;
+    seen[id] = (seen[id] || 0) + 1;
+    rects[`${id}#${seen[id]}`] = block.getBoundingClientRect();
+  }
+  return rects;
+}
+function glideBlocks() {
+  const before = flipFrom;
+  flipFrom = null;
+  if (window.matchMedia?.('(prefers-reduced-motion: reduce)').matches) return;
+  const seen = {};
+  for (const block of $('calendarView').querySelectorAll('.cal-block.cal-work')) {
+    const id = block.dataset.calItem;
+    seen[id] = (seen[id] || 0) + 1;
+    const old = before[`${id}#${seen[id]}`];
+    if (!old) continue;
+    const now = block.getBoundingClientRect();
+    const dx = old.left - now.left;
+    const dy = old.top - now.top;
+    if (Math.abs(dx) < 2 && Math.abs(dy) < 2) continue;
+    block.classList.add('is-gliding');
+    block.animate?.([{ transform: `translate(${dx}px, ${dy}px)` }, { transform: 'none' }], { duration: 700, easing: 'cubic-bezier(.2,.7,.2,1)' })
+      .finished.then(() => block.classList.remove('is-gliding'), () => {});
+  }
 }
 /** Size the hour rows so the whole week fits the window below the week header (desktop and phone grid). */
 function fitCalendar() {
@@ -421,6 +468,7 @@ function taskMarkup(task) {
       <div class="field-wide chips" role="group" aria-label="预计用时快捷选择">${chips}</div>
       <label>能否拆开做<select data-field="splittable"><option value="true"${task.splittable ? ' selected' : ''}>可以分几次做</option><option value="false"${task.splittable ? '' : ' selected'}>需要一次做完</option></select></label>
       <label>优先级 <span class="optional">可选，0–100</span><input type="number" inputmode="numeric" min="0" max="100" data-field="priority" value="${task.priority ?? ''}" placeholder="未填按50"></label>
+      <div class="field-wide chips mark-chips" role="group" aria-label="这件事适合什么时候做（选填，计划被打断时用来重排）"><span class="chips-label">这件事<span class="optional">选填</span></span><button type="button" class="chip" data-mark="focus" aria-pressed="${focusSettings.marks[task.id] === 'focus'}">需要专注</button><button type="button" class="chip" data-mark="fragment" aria-pressed="${focusSettings.marks[task.id] === 'fragment'}">适合碎片时间</button></div>
     </div></details>
     ${evidenceMarkup(task)}
     <div class="item-actions"><button type="button" data-action="complete">${task.status === 'completed' ? '恢复' : '完成了'}</button><button type="button" data-action="cancel">${task.status === 'cancelled' ? '恢复' : '不做了'}</button><button type="button" class="danger-text" data-action="delete">删除</button></div>
@@ -501,7 +549,7 @@ function renderTime() {
   renderAdjustments();
   $('referenceTime').value = toLocalInput(snapshot.reference_time);
 }
-function renderAll() { renderSources(); renderItems(); renderTime(); renderCalendar(); renderBadges(); }
+function renderAll() { renderSources(); renderItems(); renderTime(); renderFocusSetup(); renderCalendar(); renderBadges(); }
 
 // ---- Import -------------------------------------------------------------
 let parseTimer = null;
@@ -622,6 +670,17 @@ $('noticeForm').addEventListener('submit', async event => {
   tell('');
   try {
     const inputSnapshot = snapshot;
+    // "下午四点半到五点半想歇会儿" / "三点到四点临时要帮辅导员搬东西" / "有点累": a change to the plan, not an item.
+    const draft = mode === 'chat' ? null : parseStateSentence(text, Date.now());
+    if (draft) {
+      if (draft.missing) { showTurn(text, replyMarkup({ text: `这次打断大概${draft.missing}？比如说「3点到4点半临时开会」，我好算要挪哪些事。` })); return; }
+      $('parseStep').textContent = '正在按你说的重算这一周';
+      const state = await startReplan(draft);
+      if (!stillCurrent()) return;
+      agendaWeek = weekStart(Date.parse(draft.disruption?.start_at || draft.rest?.start || draft.state?.start_at || '') || Date.now());
+      showTurn(text, stateReply(draft, state));
+      return;
+    }
     let reply = mode === 'chat' ? null : await agendaReply(text, { snapshot, lastTaskId, calculate: async body => {
       await ensureHealth(base);
       return request('/api/v3/calendar', body, base);
@@ -953,6 +1012,12 @@ function onItemClick(event) {
   try {
     const actual = event.target.closest('[data-actual]');
     if (actual) { saveActual(id, actual.dataset.actual); return; }
+    const mark = event.target.closest('[data-mark]');
+    if (mark) {
+      saveFocus(setMark(focusSettings, id, mark.dataset.mark));
+      for (const button of card.querySelectorAll('[data-mark]')) button.setAttribute('aria-pressed', String(focusSettings.marks[id] === button.dataset.mark));
+      return;
+    }
     const chip = event.target.closest('[data-estimate]');
     if (chip) {
       const minutes = Number(chip.dataset.estimate);
@@ -1282,6 +1347,11 @@ $('calendarView').addEventListener('click', event => {
   if (event.target.closest('[data-scroll-open]')) { unrollScroll(); return; }
   if (event.target.closest('[data-scroll-roll]')) { scrollRolled = true; coverPainted = false; renderCalendar(); return; }
   if (event.target.closest('[data-strategy-undo]')) { undoStrategy(); return; }
+  const pick = event.target.closest('[data-rp-pick]');
+  if (pick && replanState?.preview) { replanState.chosen = pick.dataset.rpPick; renderCalendar(); return; }
+  if (event.target.closest('[data-rp-apply]')) { applyReplan(); return; }
+  if (event.target.closest('[data-rp-dismiss]')) { dismissReplan(); return; }
+  if (event.target.closest('[data-rp-start]')) { toggleStart(); return; }
   if (event.target.closest('[data-solve]')) { runSolve(); return; }
   const plan = event.target.closest('[data-plan]');
   if (plan) { applyPlan(Number(plan.dataset.plan)); return; }
@@ -1338,6 +1408,127 @@ function applyPlan(index) {
   commit(next);
   strategyUndo = { before, label: `${plan.name}（${plan.actions.map(action => action.label).join('；')}）`, note: '', digest, changes: null };
   tell(`已采用：${plan.name}`);
+}
+
+// ---- 计划被打断：重排预览与确认（后端 /api/v3/replan/*）-----------------------------
+// One sentence in 研磨 becomes a draft (an interruption, a rest to keep, a low/high-energy window). The backend
+// plans every option inside the hard constraints and says whether the user has to choose; only then a card shows.
+// Nothing is written until a plan is taken, and what is written is exactly what the 画卷 then draws.
+function saveFocus(next, { render = true } = {}) {
+  focusSettings = next;
+  writeFocus(storage, next);
+  renderFocusSetup();
+  if (render) renderCalendar();
+}
+function liveSnapshot() {
+  return { ...snapshot, reference_time: new Date(Math.max(Date.parse(snapshot.reference_time), Date.parse(currentMinuteISO()))).toISOString() };
+}
+async function startReplan(draft) {
+  const base = apiBase;
+  const at = Date.parse(draft.disruption?.start_at || draft.rest?.start || draft.state?.start_at || '') || Date.now();
+  const range = weekRange(weekStart(at));
+  replanState = { loading: true, draft };
+  stopStart();
+  renderCalendar();
+  try {
+    const service = await ensureHealth(base);
+    if (!service.capabilities?.includes('replan_loop_v1')) throw new Error('当前计算服务还不能重排（需要后端 1.29 及以上）。');
+    const body = previewRequest({ snapshot: liveSnapshot(), focus: focusSettings, draft, now: Date.now(), range, history: readCalibration(storage) });
+    const preview = await request('/api/v3/replan/preview', body, base, 60000);
+    if (base !== apiBase) return replanState;
+    replanState = { preview, draft, body, range, revision: snapshot.revision, chosen: null };
+    if (preview.status === 'ready' && !preview.needs_decision) await applyReplan({ quiet: true });
+  } catch (error) {
+    replanState = { error: `没能按这句话重算：${error.message}`, draft };
+  } finally { renderCalendar(); }
+  return replanState;
+}
+async function applyReplan({ quiet = false } = {}) {
+  const state = replanState;
+  if (!state?.preview || state.applying || state.preview.status !== 'ready') return;
+  const plans = state.preview.candidate_plans || [];
+  const plan = plans.find(item => item.plan_id === state.chosen) || plans.find(item => item.recommended) || plans[0];
+  if (!plan) return;
+  if (state.revision !== snapshot.revision) { tell('清单刚刚变过，已按最新清单重算。', 'warning'); await startReplan(state.draft); return; }
+  state.applying = true;
+  renderCalendar();
+  const moved = plan.task_changes.filter(change => change.changed);
+  const before = snapshot;
+  const focusBefore = focusSettings;
+  try {
+    const result = await request('/api/v3/replan/confirm', confirmRequest({ snapshot: state.body.snapshot, range: state.range, preview: state.preview, plan }), apiBase, 60000);
+    const next = parseTimeSnapshot(JSON.stringify({ ...result.snapshot, revision: snapshot.revision + 1 }));
+    if (state.draft?.state) saveFocus(addStates(focusSettings, [state.draft.state]), { render: false });
+    flipFrom = moved.length ? workRects() : null;
+    commit(next);
+    const said = draftLabel(state.draft || {});
+    const label = moved.length ? `${plan.name}：${moved.map(change => `「${change.title}」挪到 ${change.after.map(block => spanText(Date.parse(block.start), Date.parse(block.end))).join('、')}`).join('；')}` : `${said}，安排不用动`;
+    strategyUndo = { before, label, note: '', digest: null, changes: [], replan: true, focusBefore };
+    replanState = { applied: true, label, starter: state.preview.five_minute_starter || null };
+    if (!quiet) tell(`已采用：${plan.name}`);
+  } catch (error) {
+    if (error.code === 'stale_preview') { tell('清单刚刚变过，已按最新清单重算。', 'warning'); await startReplan(state.draft); return; }
+    replanState = { ...state, applying: false };
+    tell(`没能写回：${error.message}`, 'error');
+  }
+  renderCalendar();
+}
+function dismissReplan() {
+  const waiting = replanState && !replanState.applied;
+  replanState = null;
+  stopStart();
+  renderCalendar();
+  if (waiting) tell('没改安排；你刚才说的没有写进画卷。');
+}
+function stopStart() {
+  if (replanClock) window.clearInterval(replanClock.timer);
+  replanClock = null;
+}
+function toggleStart() {
+  if (replanClock) { stopStart(); renderCalendar(); return; }
+  replanClock = { left: 300, timer: window.setInterval(() => {
+    replanClock.left -= 1;
+    for (const button of $('calendarView').querySelectorAll('[data-rp-start]')) button.textContent = `还剩 ${Math.floor(replanClock.left / 60)}:${String(replanClock.left % 60).padStart(2, '0')} · 结束`;
+    if (replanClock.left <= 0) { stopStart(); renderCalendar(); tell('五分钟到了。想接着做就继续，停在这里也算开了头。'); }
+  }, 1000) };
+  renderCalendar();
+}
+/** 铺纸 · 常用专注时段 and the temporary states said in 研磨 (each can be removed). */
+function renderFocusSetup() {
+  const form = $('focusForm');
+  if (!form) return;
+  const fill = (key, id) => {
+    const w = focusSettings.windows.find(item => item.id === id);
+    $(`focus${key}On`).checked = Boolean(w);
+    if (w) { $(`focus${key}Start`).value = w.start; $(`focus${key}End`).value = w.end; }
+  };
+  fill('Weekday', 'w-weekday');
+  fill('Weekend', 'w-weekend');
+  const states = focusSettings.states.filter(state => Date.parse(state.end_at) > Date.now());
+  $('focusStates').innerHTML = states.length ? `<p class="field-help">研磨里说过的状态</p><ul class="focus-state-list">${states.map(state => `<li><span>${state.level === 'low' ? '精力偏低' : '临时专注'} ${escapeHTML(dayLabel(Date.parse(state.start_at)))} ${spanText(Date.parse(state.start_at), Date.parse(state.end_at))}</span><em>“${escapeHTML(state.text)}”</em><button type="button" class="text-button" data-focus-state="${escapeHTML(state.id)}">删去</button></li>`).join('')}</ul>` : '';
+}
+$('focusForm')?.addEventListener('submit', event => {
+  event.preventDefault();
+  const span = key => ($(`focus${key}On`).checked ? { start: $(`focus${key}Start`).value, end: $(`focus${key}End`).value } : null);
+  try {
+    saveFocus(setCommonWindows(focusSettings, { weekday: span('Weekday'), weekend: span('Weekend') }));
+    $('focusError').textContent = '';
+    tell(focusSettings.windows.length ? '专注时段已保存。只有计划被打断、需要取舍时，画卷才会用到它。' : '已清除常用专注时段。');
+  } catch (error) { $('focusError').textContent = error.message; }
+});
+$('focusStates')?.addEventListener('click', event => {
+  const button = event.target.closest('[data-focus-state]');
+  if (button) saveFocus(removeState(focusSettings, button.dataset.focusState));
+});
+
+/** What 研磨 answers after a sentence about one's state or an interruption. */
+function stateReply(draft, state) {
+  const said = escapeHTML(draftLabel(draft));
+  const go = '<p class="inline-links"><a href="#/calendar" data-agenda-calendar>去画卷看</a></p>';
+  if (!state || state.error) return `<p>${escapeHTML(state?.error || '没能重算。')}</p>`;
+  if (state.applied) return `<p>记下了：${said}。原来的安排不用动，截止都赶得上。</p>${state.starter ? `<p class="field-help">现在五分钟能做：${escapeHTML(state.starter.action)}</p>` : ''}`;
+  if (state.preview?.status === 'infeasible') return `<p>记下了：${said}。照这样，截止前排不下：${escapeHTML((state.preview.missing_windows || []).map(gap => `「${gap.title}」还差 ${gap.shortfall_minutes} 分钟`).join('；'))}。</p>${go}`;
+  return `<p>记下了：${said}。${escapeHTML(state.preview?.decision_reason || '')}</p><p class="inline-links"><a href="#/calendar" data-agenda-calendar class="primary-link">去画卷选方案</a></p>`;
 }
 
 // ---- 通知变更识别（后端 /api/v3/notice-diff）---------------------------------
@@ -1461,8 +1652,10 @@ async function copyNote() {
 }
 function undoStrategy() {
   if (!strategyUndo) return;
-  const { before, label } = strategyUndo;
+  const { before, label, focusBefore, replan } = strategyUndo;
   strategyUndo = null;
+  if (focusBefore) saveFocus(focusBefore, { render: false });
+  if (replan) { replanState = null; stopStart(); flipFrom = workRects(); }
   commit({ ...before, revision: snapshot.revision + 1 });
   tell(`已撤销：${label}`);
 }

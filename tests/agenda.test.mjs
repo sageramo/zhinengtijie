@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { agendaReply } from '../agenda.js';
+import { agendaReply, isConversation } from '../agenda.js';
 import { addPersonalTask, createTimeSnapshot, setDailyWindow } from '../time-state.js';
 
 const now = Date.parse('2026-11-13T14:00:00+08:00');
@@ -77,4 +77,25 @@ test('asking about today while reference_time is pinned on a future demo day use
   await agendaReply('今天还能接2小时的社团工作吗？', { snapshot, now, calculate });
   assert.equal(Date.parse(seenInput.snapshot.reference_time), now);
   assert.equal(Date.parse(seenInput.now), now);
+});
+
+test('weekend and weekday availability questions calculate real slots instead of turning into fake tasks', async () => {
+  // now = 2026-11-13 (Friday) 14:00 -> weekend is Sat Nov 14 & Sun Nov 15
+  const snapshot = setDailyWindow(baseline, Array(7).fill({ start: '09:00', end: '22:00' }));
+  const weekendResult = {
+    definition: { free_time: 'defined' }, conflicts: [], undefined: [], markers: [],
+    layers: {
+      free: [
+        { start: '2026-11-14T09:00:00+08:00', end: '2026-11-14T12:00:00+08:00' },
+        { start: '2026-11-15T14:00:00+08:00', end: '2026-11-15T18:00:00+08:00' },
+      ],
+      routine: [], appointment: [], temporary: [], work: [],
+    },
+  };
+  const reply = await agendaReply('周末我有没有时间参加社团活动', { snapshot, now, calculate: async () => weekendResult });
+  assert.ok(reply, 'weekend question must be answered directly by agendaReply');
+  assert.match(reply.text, /本周末还剩 7 小时，最长连续 4 小时/);
+  assert.match(reply.text, /11月14日 09:00–12:00/);
+  assert.match(reply.text, /11月15日 14:00–18:00/);
+  assert.equal(isConversation('周末我有没有时间参加社团活动'), true);
 });
