@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import {
-  parseStateSentence, draftLabel, previewRequest, confirmRequest, normalizeFocus, setMark, setCommonWindows, addStates,
+  parseStateSentence, draftLabel, previewRequest, confirmRequest, replanRange, normalizeFocus, setMark, setCommonWindows, addStates,
   pruneStates, daySegments, bandMarkup, bandUsed, replanMarkup, lockedRests, dayStartOf,
 } from '../focus.js';
 
@@ -62,6 +62,19 @@ test('the preview request carries common windows, said states, marks and the dra
   const preview = fixtures.success_replan.preview_response;
   const plan = preview.candidate_plans.find(item => item.recommended);
   assert.deepEqual(Object.keys(confirmRequest({ snapshot, range: body.range, preview, plan })).sort(), Object.keys(fixtures.success_replan.confirm_request).sort());
+});
+
+test('a replan looks from this Monday to the latest deadline, not only at this week', () => {
+  const snapshot = fixtures.success_replan.preview_request.snapshot;
+  const sunday = Date.parse('2026-11-22T01:17:00+08:00');
+  const nextWeek = { ...snapshot, reference_time: '2026-11-25T13:30:00+08:00', tasks: snapshot.tasks.map(task => ({ ...task, deadline_at: '2026-11-25T18:00:00+08:00' })) };
+  assert.deepEqual(replanRange(nextWeek, null, sunday), { from: '2026-11-16', to: '2026-11-25' });
+  assert.deepEqual(replanRange({ ...nextWeek, tasks: [], reference_time: '2026-11-22T01:00:00+08:00' }, null, sunday), { from: '2026-11-16', to: '2026-11-22' });
+  const far = { ...nextWeek, tasks: [{ ...nextWeek.tasks[0], deadline_at: '2027-02-01T12:00:00+08:00' }] };
+  assert.equal(replanRange(far, null, sunday).to, '2026-12-16', 'capped at 31 days, the backend limit');
+  const preview = fixtures.success_replan.preview_response;
+  const plan = preview.candidate_plans[0];
+  assert.equal(confirmRequest({ snapshot, range: {}, preview, plan, now: '2026-11-22T01:17:00+08:00' }).now, '2026-11-22T01:17:00+08:00');
 });
 
 test('the 重排卡 says why, from when to when, each plan\'s cost, and a five-minute start', () => {

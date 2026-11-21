@@ -11,7 +11,7 @@ import { LEADS, dueReminders, icsCalendar, reminderText, upcomingCount } from '.
 import { createBellToggle } from './bell-toggle.js';
 import { readMemory, writeMemory, recordActual, suggestEstimate, readCalibration, writeCalibration, recordCalibration, calibrationFor } from './estimate-memory.js';
 import { createRecognizer, imageProblem } from './screenshot-ocr.js';
-import { readFocus, writeFocus, pruneStates, setMark, setCommonWindows, addStates, removeState, parseStateSentence, draftLabel, previewRequest, confirmRequest, bandMarkup, bandUsed, bandLegend, todayStateMarkup, replanMarkup, spanText, dayLabel } from './focus.js';
+import { readFocus, writeFocus, pruneStates, setMark, setCommonWindows, addStates, removeState, parseStateSentence, draftLabel, previewRequest, confirmRequest, replanRange, bandMarkup, bandUsed, bandLegend, todayStateMarkup, replanMarkup, spanText, dayLabel } from './focus.js';
 import { parseJwTimetable, termStartFrom } from './jw-timetable.js';
 
 /*
@@ -1425,9 +1425,10 @@ function liveSnapshot() {
 }
 async function startReplan(draft) {
   const base = apiBase;
-  const at = Date.parse(draft.disruption?.start_at || draft.rest?.start || draft.state?.start_at || '') || Date.now();
-  const range = weekRange(weekStart(at));
-  replanState = { loading: true, draft };
+  const revision = snapshot.revision;
+  const range = replanRange(snapshot, draft, Date.now());
+  const loading = { loading: true, draft };
+  replanState = loading;
   stopStart();
   renderCalendar();
   try {
@@ -1435,8 +1436,10 @@ async function startReplan(draft) {
     if (!service.capabilities?.includes('replan_loop_v1')) throw new Error('当前计算服务还不能重排（需要后端 1.29 及以上）。');
     const body = previewRequest({ snapshot: liveSnapshot(), focus: focusSettings, draft, now: Date.now(), range, history: readCalibration(storage) });
     const preview = await request('/api/v3/replan/preview', body, base, 60000);
-    if (base !== apiBase) return replanState;
-    replanState = { preview, draft, body, range, revision: snapshot.revision, chosen: null };
+    // The list changed (cleared, edited, another plan taken) while the preview was computed: it no longer applies.
+    if (replanState !== loading) return replanState;
+    if (base !== apiBase || snapshot.revision !== revision) { replanState = { error: '清单在重算途中有变化，这次没有记下；需要的话请再说一遍。', draft }; return replanState; }
+    replanState = { preview, draft, body, range, revision, chosen: null };
     if (preview.status === 'ready' && !preview.needs_decision) await applyReplan({ quiet: true });
   } catch (error) {
     replanState = { error: `没能按这句话重算：${error.message}`, draft };
@@ -1455,8 +1458,17 @@ async function applyReplan({ quiet = false } = {}) {
   const moved = plan.task_changes.filter(change => change.changed);
   const before = snapshot;
   const focusBefore = focusSettings;
+  const base = apiBase;
   try {
-    const result = await request('/api/v3/replan/confirm', confirmRequest({ snapshot: state.body.snapshot, range: state.range, preview: state.preview, plan }), apiBase, 60000);
+    const result = await request('/api/v3/replan/confirm', confirmRequest({ snapshot: state.body.snapshot, range: state.range, preview: state.preview, plan, now: state.body.now }), base, 60000);
+    // Checked again on the way back: if the list changed while the server confirmed (清空清单, an edit,
+    // another tab), writing the old plan back would undo the user's newer change. Drop it instead.
+    if (replanState !== state || snapshot !== before || base !== apiBase) {
+      if (replanState === state) replanState = null;
+      tell('清单在写回途中有变化，这次重排没有写入；需要的话请再说一遍。', 'warning');
+      renderCalendar();
+      return;
+    }
     const next = parseTimeSnapshot(JSON.stringify({ ...result.snapshot, revision: snapshot.revision + 1 }));
     if (state.draft?.state) saveFocus(addStates(focusSettings, [state.draft.state]), { render: false });
     flipFrom = moved.length ? workRects() : null;
@@ -1467,9 +1479,11 @@ async function applyReplan({ quiet = false } = {}) {
     replanState = { applied: true, label, starter: state.preview.five_minute_starter || null };
     if (!quiet) tell(`已采用：${plan.name}`);
   } catch (error) {
+    if (replanState !== state) return; // the card was dismissed or the list cleared meanwhile
     if (error.code === 'stale_preview') { tell('清单刚刚变过，已按最新清单重算。', 'warning'); await startReplan(state.draft); return; }
-    replanState = { ...state, applying: false };
-    tell(`没能写回：${error.message}`, 'error');
+    // Nothing was for the user to choose, so there is no card to fall back to: say it was not recorded.
+    replanState = quiet ? { error: `没能记下这次变化：${error.message}`, draft: state.draft } : { ...state, applying: false };
+    if (!quiet) tell(`没能写回：${error.message}`, 'error');
   }
   renderCalendar();
 }
@@ -1757,6 +1771,8 @@ $('importFile').addEventListener('change', async event => {
 $('clearSnapshot').addEventListener('click', () => {
   if (!window.confirm('清空此浏览器中的当前清单？请先导出需要保留的内容。')) return;
   calendarWeek = null;
+  replanState = null; // a waiting or in-flight replan belongs to the list being cleared
+  stopStart();
   commit({ ...createTimeSnapshot({ referenceTime: currentMinuteISO() }), revision: snapshot.revision + 1 }, { unlock: true });
   $('noticeText').value = ''; $('noticeDate').value = ''; $('importSummary').hidden = true;
   tell('清单已清空。');

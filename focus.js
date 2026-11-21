@@ -202,9 +202,27 @@ export function previewRequest({ snapshot, focus, draft = null, now, range, hist
   if (history.length >= 2) body.calibration_history = history.slice(-30);
   return body;
 }
-export function confirmRequest({ snapshot, range, preview, plan }) {
-  return { snapshot, range, base_revision: preview.base_revision, snapshot_fingerprint: preview.snapshot_fingerprint, plan_id: plan.plan_id,
+/** Confirm with the same range and clock the preview used, so both sides plan the same days. */
+export function confirmRequest({ snapshot, range, preview, plan, now = null }) {
+  const body = { snapshot, range, base_revision: preview.base_revision, snapshot_fingerprint: preview.snapshot_fingerprint, plan_id: plan.plan_id,
     preview_token: plan.preview_token, preview_snapshot: plan.preview_snapshot, expected_schedule: plan.expected_schedule };
+  if (now) body.now = now;
+  return body;
+}
+const dateText = ms => { const d = new Date(ms + OFFSET); return `${d.getUTCFullYear()}-${pad(d.getUTCMonth() + 1)}-${pad(d.getUTCDate())}`; };
+/**
+ * The days a replan has to look at: from this Monday to the latest active deadline (or the planning start
+ * a demo pinned in the future), at most 31 days. A single week would miss a task due next Wednesday and
+ * report it as impossible.
+ */
+export function replanRange(snapshot, draft, now) {
+  const from = dayStartOf(now) - (weekdayOf(now) - 1) * DAY;
+  let last = from + 6 * DAY;
+  const reach = ms => { if (Number.isFinite(ms) && ms > now) last = Math.max(last, dayStartOf(ms)); };
+  for (const task of snapshot.tasks) if (task.status === 'active' && task.deadline_at) reach(Date.parse(task.deadline_at));
+  reach(Date.parse(snapshot.reference_time));
+  reach(Date.parse(draft?.disruption?.end_at || draft?.rest?.end || draft?.state?.end_at || ''));
+  return { from: dateText(from), to: dateText(Math.min(last, from + 30 * DAY)) };
 }
 
 // ---- The band ---------------------------------------------------------------------
