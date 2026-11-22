@@ -12,7 +12,7 @@ import { createBellToggle } from './bell-toggle.js';
 import { readMemory, writeMemory, recordActual, suggestEstimate, readCalibration, writeCalibration, recordCalibration, calibrationFor } from './estimate-memory.js';
 import { createRecognizer, imageProblem } from './screenshot-ocr.js';
 import { parseChatAction, findTask, starterReply, nextChips } from './chat-actions.js';
-import { readFocus, writeFocus, pruneStates, setMark, setCommonWindows, addStates, removeState, parseStateSentence, draftLabel, previewRequest, confirmRequest, replanRange, lockedRests, bandMarkup, ribbonMarkup, bandUsed, bandLegend, todayStateMarkup, replanMarkup, spanText, dayLabel } from './focus.js';
+import { readFocus, writeFocus, pruneStates, setMark, setCommonWindows, addStates, removeState, parseStateSentence, draftLabel, previewRequest, confirmRequest, replanRange, lockedRests, daySegments, bandMarkup, ribbonMarkup, bandUsed, bandLegend, todayStateMarkup, replanMarkup, spanText, dayLabel } from './focus.js';
 import { parseJwTimetable, termStartFrom } from './jw-timetable.js';
 
 /*
@@ -349,6 +349,7 @@ function renderCalendar() {
   $('calendarView').innerHTML = calendarMarkup({ result: calendarResult, start: shownWeek(), now: nowMs, loading: calendarLoading && !calendarResult, error: calendarError, undo: strategyUndo?.replan ? '' : strategyUndo?.label || '', note: strategyUndo?.note || '', changes: strategyUndo?.changes || [], focus: calendarFocus, plans: solveState, weighs, rolled: scrollRolled, unrolling: Boolean(unrollTimer), fresh: !coverPainted, analyzed: calendarAnalyzed, futureRef, listView: calendarListView,
     band: showBand ? (dayStart, first, last) => bandMarkup(focusSettings, snapshot, dayStart, first, last, pending) : null,
     ribbon: showBand ? (dayStart, first, last) => ribbonMarkup(focusSettings, snapshot, dayStart, first, last, pending) : null,
+    energy: showBand ? Array.from({ length: 7 }, (_, index) => daySegments(focusSettings, snapshot, shownWeek() + index * DAY, pending)).flat() : [],
     bandLegend: showBand ? bandLegend(focusSettings, snapshot, pending) : '',
     banner: replanState ? replanMarkup(card, 'board') : '',
     sideTop: (replanState ? replanMarkup(card, 'side') : '') + todayStateMarkup(focusSettings, snapshot, nowMs, pending),
@@ -400,8 +401,9 @@ function fitCalendar() {
   const mount = week.closest('.scroll-mount');
   const below = mount ? parseFloat(window.getComputedStyle(mount).borderBottomWidth) || 0 : 0;
   const pad = phone ? 18 : 44;
-  const minRow = phone ? 30 : 34;
-  const maxRow = phone ? 44 : 46;
+  // Readable rows first: an hour is tall enough for a block's name, time and place; the page scrolls.
+  const minRow = phone ? 42 : 56;
+  const maxRow = phone ? 50 : 68;
   const row = Math.max(minRow, Math.min(maxRow, Math.floor((window.innerHeight - top - head - below - pad) / rows)));
   week.style.setProperty('--row', `${row}px`);
   $('calendarView').style.setProperty('--cal-fit-height', `${Math.max(240, row * rows + head)}px`);
@@ -2112,19 +2114,20 @@ $('loadDemoWeek').addEventListener('click', () => {
   tell('已载入示例一周（下周，从下周一7:00开始安排）：讲座撞上高数是一处叠墨，讲座报名没填用时，只标截止，周六和朋友去公园是一笔约定。想按真实时间安排，可在“铺纸”页点“使用当前时间”。');
   window.SixuRouter?.go('calendar');
 });
-// 路演案例 (the case in the design report and the deck): a fictional 摄影社 notice for next week's Wednesday.
-// Only 铺纸 is prepared and the notice is put in the box; the presenter still sends it, adds the estimate and
-// applies the strategy. Planning starts that Wednesday 13:30 (the 铺纸 "开始安排时刻"), so the same numbers come
-// out on any day: 说明会 14:30–15:30 overlaps 专业课 14:00–15:00 by 30 minutes; 报名表 (30 minutes) sits at
-// 15:30–16:00, and 15:00–15:30 once the 说明会 is dropped.
-function photoClubCase(now) {
-  const monday = weekStart(now) + 7 * DAY;
-  const wednesday = localDate(monday + 2 * DAY);
+// 路演案例 (the case in the design report and the deck), pinned to the roadshow itself: planning starts
+// Tuesday 2026-11-24 14:15, the moment it is presented, so on stage "now" and the plan's start agree and
+// no future-start pill shows. The fictional 摄影社 notice is for the next day: 说明会 Wed 25th 14:30–15:30
+// overlaps 专业课 14:00–15:00 by 30 minutes; 报名表 (30 minutes) is due that day 18:00. Only 铺纸 is
+// prepared and the notice is put in the box; the presenter still sends it, adds the estimate and decides.
+const ROADSHOW = { day: '2026-11-24', at: '14:15', event: '2026-11-25' };
+function photoClubCase() {
+  const monday = weekStart(Date.parse(`${ROADSHOW.day}T12:00:00+08:00`));
+  const wednesday = ROADSHOW.event;
   const [year, month, date] = wednesday.split('-').map(Number);
   const day = `${year}年${month}月${date}日`;
   const notice = `【摄影社招新通知】\n${day}14:30-15:30举行摄影社招新说明会（学活204）。\n${day}18:00前提交社团报名表。`;
   const window = DEFAULT_WINDOW.map((span, index) => index === 2 ? { start: '14:00', end: '18:00' } : span);
-  let next = createTimeSnapshot({ referenceTime: `${wednesday}T13:30:00+08:00` });
+  let next = createTimeSnapshot({ referenceTime: `${ROADSHOW.day}T${ROADSHOW.at}:00+08:00` });
   next = setDailyWindow(next, window);
   const from = localDate(monday - 77 * DAY);
   next = addRoutine(next, { title: '专业课', weekdays: [3], start: '14:00', end: '15:00', from, location: '新闻楼402' });
@@ -2137,12 +2140,12 @@ function photoClubCase(now) {
 $('loadPhotoCase').addEventListener('click', () => {
   const hasData = snapshot.events.length || snapshot.tasks.length || snapshot.routines.length;
   if (hasData && !window.confirm('载入路演案例会替换当前清单，请先导出要保留的内容。是否继续？')) return;
-  const prepared = photoClubCase(Date.now());
+  const prepared = photoClubCase();
   calendarWeek = prepared.monday;
   commit({ ...prepared.snapshot, revision: snapshot.revision + 1 }, { unlock: !externalConflict && !storageLocked });
   $('noticeText').value = prepared.notice;
   $('noticeDate').value = prepared.wednesday;
-  tell('已铺好虚构课表与作息（下周三 14:00–18:00 留白，从 13:30 开始安排），招新通知已放进砚池，点发送即可导入。');
+  tell('已铺好虚构课表与作息，从路演时刻 11月24日 14:15 开始安排；招新通知（11月25日说明会）已放进砚池，点发送即可导入。');
   $('noticeText').focus();
 });
 

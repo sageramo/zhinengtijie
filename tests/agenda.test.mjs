@@ -99,3 +99,18 @@ test('weekend and weekday availability questions calculate real slots instead of
   assert.match(reply.text, /11月15日 14:00–18:00/);
   assert.equal(isConversation('周末我有没有时间参加社团活动'), true);
 });
+
+test('plain-spoken availability questions are capacity questions too', async () => {
+  const snapshot = setDailyWindow(baseline, Array(7).fill({ start: '09:00', end: '22:00' }));
+  const weekendResult = {
+    definition: { free_time: 'defined' }, conflicts: [], undefined: [], markers: [],
+    layers: { free: [{ start: '2026-11-14T09:00:00+08:00', end: '2026-11-14T12:00:00+08:00' }], routine: [], appointment: [], temporary: [], work: [] },
+  };
+  for (const line of ['我这周末还有时间出去玩吗', '这周末能出去玩吗', '周末社团和作业排得开吗']) {
+    const reply = await agendaReply(line, { snapshot, now, calculate: async () => weekendResult });
+    assert.ok(reply, line);
+    assert.match(reply.text, /本周末还剩 3 小时/, line);
+  }
+  const week = await agendaReply('这周我还有时间出去玩吗', { snapshot, now, calculate: async () => weekendResult });
+  assert.ok(week && /还剩/.test(week.text));
+});

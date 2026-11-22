@@ -333,7 +333,7 @@ export function weeklyBrief(items, start, now) {
  * inside each day column on the week's time axis, bandLegend explains them,
  * banner is the 重排卡 above the week, sideTop opens 本周解析, alertLabel badges the 解析画卷 button.
  */
-export function calendarMarkup({ result, start, now, loading = false, error = '', undo = '', note = '', changes = [], plans = null, weighs = {}, focus = '', rolled = false, unrolling = false, fresh = false, analyzed = true, futureRef = '', listView = false, band = null, ribbon = null, bandLegend = '', banner = '', sideTop = '', alertLabel = '' }) {
+export function calendarMarkup({ result, start, now, loading = false, error = '', undo = '', note = '', changes = [], plans = null, weighs = {}, focus = '', rolled = false, unrolling = false, fresh = false, analyzed = true, futureRef = '', listView = false, band = null, ribbon = null, energy = [], bandLegend = '', banner = '', sideTop = '', alertLabel = '' }) {
   const weekConflicts = conflictsInWeek(result?.conflicts || [], start);
   const weekUndefined = undefinedInWeek(result, start);
   const items = calendarItems(result, start);
@@ -431,14 +431,24 @@ export function calendarMarkup({ result, start, now, loading = false, error = ''
   const layerButton = (key, name, meaning, value) => `<li><button type="button" class="cal-layer lg-${key}" data-cal-focus="${key}" aria-pressed="${focus === key}"><i aria-hidden="true"></i><strong>${name}</strong><span>${meaning}</span><b>${value}</b></button></li>`;
   const layerStrip = result ? `<div class="cal-layers"><ul aria-label="四层时间，点一层只看这一层">${layerButton('routine', '底色', '每周照例的课与例会', count('routine'))}${layerButton('free', '留白', '自己支配的时间', `${Math.round(freeMinutes / 60)} 小时`)}${layerButton('work', '落笔', '约定与截止之事', count('work') + count('appointment'))}${layerButton('temporary', '点墨', '临时、突发事项', count('temporary'))}${layerButton('conflict', '叠墨', '两件事相撞', weekConflicts.filter(conflict => conflict.start).length)}</ul><p>${focus ? '再点一次，恢复全部图层' : '点一层，只看这一层'}</p></div>` : '';
   // 本周山水: on the cover it is the painting; once the scroll is open it stays as a faint wash behind the week.
-  const painting = result ? shanshuiMarkup({ items: inWeek, start, now, conflicts: weekConflicts, id: rolled ? 'ss-cover' : 'ss-board' }) : '';
+  const painting = result ? shanshuiMarkup({ items: inWeek, start, now, conflicts: weekConflicts, energy, id: rolled ? 'ss-cover' : 'ss-board' }) : '';
   const analyzeBadge = !analyzed && (weekConflicts.length || alertLabel) ? `<em class="cal-analyze-badge">${[weekConflicts.length ? `${weekConflicts.length} 处叠墨` : '', alertLabel].filter(Boolean).join(' · ')}</em>` : '';
   const analyzeBtn = `<button type="button" class="cal-analyze-btn${analyzed ? ' is-open' : ''}${weekConflicts.length ? ' has-alert' : ''}" data-cal-analyze aria-expanded="${analyzed}"><svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true"><path d="M4 6h16M4 12h10M4 18h7M17 14l3 3-3 3" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"/></svg><span>${analyzed ? '回到画卷' : '解析画卷'}</span>${analyzeBadge}</button>`;
-  const clockPill = futureRef ? `<button type="button" class="cal-clock-pill" data-use-now title="当前清单的开始安排时刻设在未来，点此切回今天真实时刻">演示时刻 ${escape(futureRef)} · 恢复当前时间</button>` : '';
+  // 本周还可用: the one number the week is for, up in the bar on every view of 画卷: what is left of
+  // this week's 留白 (from now on), the longest stretch, and how much of the week's 留白 that is.
+  const remainLabel = start > now ? '这一周可用' : '本周还可用';
+  const split = minutes => { const h = Math.floor(minutes / 60); const m = Math.round(minutes % 60); return `${h ? `${h}<small>小时</small>` : ''}${m || !h ? `${m}<small>分</small>` : ''}`; };
+  const share = freeMinutes > 0 && remaining ? Math.max(0, Math.min(100, remaining.total / freeMinutes * 100)) : 0;
+  const remain = result && remaining && end > now ? `<div class="cal-remain" role="group" aria-label="${remainLabel} ${minutesLabel(remaining.total)}，最长连续 ${minutesLabel(remaining.longest)}">
+      <span class="cr-label">${remainLabel}</span><strong class="cr-value">${split(remaining.total)}</strong>
+      <span class="cr-meta">最长连续 ${minutesLabel(remaining.longest)} · 本周留白共 ${minutesLabel(freeMinutes)}</span>
+      <i class="cr-bar" aria-hidden="true"><b style="width:${share.toFixed(1)}%"></b></i>
+    </div>` : '';
+  const clockPill = futureRef ? `<button type="button" class="cal-clock-pill" data-use-now title="安排的起点设在了未来（铺纸里的“从什么时刻开始安排”）。点这里改成从现在开始">从 ${escape(futureRef)} 开始安排 · 改用现在</button>` : '';
   const cover = `<section class="scroll-cover" aria-labelledby="coverHeading">
       <header class="cover-head"><p class="cal-eyebrow">本周山水</p><h3 id="coverHeading">峰高是忙，云白是留白</h3></header>
       <div class="cover-painting">${painting || (error ? `<p class="cover-wait is-error" role="status">${escape(error)}</p>` : '<p class="cover-wait">正在铺开这一周…</p>')}</div>
-      <ul class="cover-legend" aria-label="山水图例"><li class="lg-peak">峰 · 这天排了多少</li><li class="lg-cloud">云 · 留白</li><li class="lg-dot">墨点 · 点墨</li><li class="lg-star">金星 · 截止</li><li class="lg-bleed">朱晕 · 叠墨</li><li class="lg-moon">朱日 · 今天</li></ul>
+      <ul class="cover-legend" aria-label="山水图例"><li class="lg-peak">峰 · 这天排了多少</li><li class="lg-cloud">云 · 留白</li><li class="lg-dot">墨点 · 点墨</li><li class="lg-star">金星 · 截止</li><li class="lg-bleed">朱晕 · 叠墨</li><li class="lg-moon">朱日 · 今天</li>${energy.length ? '<li class="lg-glow">暖光 · 专注时段</li><li class="lg-haze">灰雾 · 精力偏低</li>' : ''}</ul>
       <div class="cover-actions">
         <button type="button" class="primary-button cover-open" data-scroll-open${result ? '' : ' disabled'}><svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><path d="M4 5v14M20 5v14M8 12h8M11 9l-3 3 3 3M13 9l3 3-3 3" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>展开画卷</button>
         <button type="button" class="cover-analyze" data-cal-analyze aria-expanded="${analyzed}">${analyzed ? '收起本周解析' : `解析画卷${weekConflicts.length ? `（${weekConflicts.length} 处叠墨）` : ''}`}</button>
@@ -451,6 +461,7 @@ export function calendarMarkup({ result, start, now, loading = false, error = ''
         <div class="cal-bar-title"><p class="cal-eyebrow">${local(start).getUTCFullYear()} · 第 ${weekNumber(start)} 周</p><h2 class="cal-range" id="calendarHeading">${range}</h2></div>
         <div class="cal-nav"><button type="button" data-cal-week="-1" aria-label="上一周"><svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><path d="M15 5l-7 7 7 7" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></button><button type="button" data-cal-week="0">本周</button><button type="button" data-cal-week="1" aria-label="下一周"><svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><path d="M9 5l7 7-7 7" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></button></div>
       </div>
+      ${remain}
       <div class="cal-bar-actions">
         ${clockPill}
         ${result && !rolled ? `<button type="button" class="text-button cal-view-toggle" data-cal-view aria-pressed="${listView}">${listView ? '周网格' : '列表'}</button>` : ''}

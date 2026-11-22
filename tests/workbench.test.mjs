@@ -180,13 +180,13 @@ test('rules import adds events and tasks at once, explains what is still undefin
   assert.match(app.find("#taskList").textContent, /只标截止/);
 });
 
-test('the roadshow case prepares 铺纸 for next Wednesday and puts the 摄影社 notice in the box without importing it', async t => {
+test('the roadshow case starts at the roadshow (11-24 14:15) and puts the 摄影社 notice for the 25th in the box without importing it', async t => {
   const app = await boot(t);
   app.click('#loadPhotoCase');
   await settle();
   const stored = app.stored();
-  const wednesday = new Date(weekStart(Date.now()) + 9 * 86400000 + 8 * 3600000).toISOString().slice(0, 10);
-  assert.equal(stored.reference_time.slice(0, 16), `${wednesday}T13:30`);
+  const wednesday = '2026-11-25';
+  assert.equal(stored.reference_time.slice(0, 16), '2026-11-24T14:15');
   assert.deepEqual(stored.daily_window[2], { start: '14:00', end: '18:00' });
   assert.deepEqual(stored.routines.find(routine => routine.title === '专业课') && [stored.routines.find(routine => routine.title === '专业课').start, stored.routines.find(routine => routine.title === '专业课').end], ['14:00', '15:00']);
   assert.equal(stored.routines_confirmed, true);

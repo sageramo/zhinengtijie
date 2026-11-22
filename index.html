@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="description" content="把校园通知整理成可核对的事项，用真实空闲生成经过校验的个人安排。">
-  <meta name="sixu-ui-version" content="2026.11.22.61">
+  <meta name="sixu-ui-version" content="2026.11.22.62">
   <title>司序 Marshal · 知所先后</title>
   <link rel="icon" href="./assets/sixu-mark.svg" type="image/svg+xml">
   <link rel="manifest" href="./manifest.webmanifest">
@@ -12,7 +12,7 @@
   <link rel="apple-touch-icon" href="./assets/icon-192.png">
   <script>{ const h = location.hash; document.documentElement.dataset.current = h.startsWith('#/') && ['import', 'items', 'time', 'calendar', 'review', 'plan'].includes(h.slice(2).split('?')[0]) ? ({ review: 'items', plan: 'calendar' }[h.slice(2).split('?')[0]] || h.slice(2).split('?')[0]) : 'home'; if (document.documentElement.dataset.current === 'home' && !matchMedia('(prefers-reduced-motion: reduce)').matches) document.documentElement.classList.add('intro'); }</script>
   <link rel="preload" as="image" href="./assets/hero-poster.webp">
-  <link rel="stylesheet" href="./agent.css?v=2026.11.22.61">
+  <link rel="stylesheet" href="./agent.css?v=2026.11.22.62">
 </head>
 <body>
   <div class="intro" id="intro" aria-hidden="true">
@@ -247,8 +247,16 @@
         <section class="surface" id="windowSection" aria-labelledby="windowHeading">
           <div class="section-top"><div><h2 id="windowHeading">留白 <span class="layer-gloss">自己能支配的时间</span></h2><p class="section-note">先定每天的作息范围。留白 = 作息范围 − 底色 − 点墨与约定。</p></div><button type="button" id="presetWindow">一键填入常用作息</button></div>
           <form id="windowForm"><div class="day-grid" id="dayGrid"></div><div class="inline-actions"><button type="submit" class="primary-button">保存作息范围</button><button type="button" class="text-button" id="clearWindow">清除（自由时间改为未定义）</button></div><p class="field-error" id="windowError" role="status"></p></form>
-          <section class="focus-setup" aria-labelledby="focusHeading">
-            <h3 id="focusHeading">常用专注时段 <span class="optional">选填</span></h3>
+          
+          <label for="referenceTime">从什么时刻开始安排</label><div class="reference-row"><input type="datetime-local" id="referenceTime" aria-describedby="referenceTimeHelp" required><button type="button" id="useCurrentTime">使用当前时间</button></div><p class="field-help" id="referenceTimeHelp">工作时间只会排在这个时刻之后。所有时间按北京时间（UTC+8）。</p>
+        </section>
+        <section class="surface" id="adjustSection" aria-labelledby="adjustHeading">
+          <div class="section-top"><div><h2 id="adjustHeading">调整留白</h2><p class="section-note">临时多出或少掉的留白：比如周六下午回家、某晚多学一小时。</p></div><button type="button" id="addAdjustment">添加调整</button></div>
+          <div id="adjustmentList"></div>
+          <form class="availability-form" id="adjustmentForm" hidden><label>类型<select id="adjustmentKind"><option value="remove">扣除留白</option><option value="add">增加留白</option></select></label><label>备注 <span class="optional">可选</span><input id="adjustmentNote" maxlength="500"></label><label>开始<input type="datetime-local" id="adjustmentStart" required></label><label>结束<input type="datetime-local" id="adjustmentEnd" required></label><div class="inline-actions"><button type="submit">保存</button><button type="button" class="text-button" id="cancelAdjustment">取消</button></div><p class="field-error" id="adjustmentError" role="status"></p></form>
+        </section>
+        <section class="surface focus-setup" id="focusSection" aria-labelledby="focusHeading">
+            <h2 id="focusHeading">常用专注时段 <span class="layer-gloss">选填 · 画卷里会标出来</span></h2>
             <p class="section-note">设一次就好。计划被打断时，标了“需要专注”的事会优先往这里放；平时不打扰你。临时的状态（累了、想歇会儿）在研磨里说一句就行。</p>
             <form id="focusForm" class="focus-rows">
               <div class="focus-row"><label class="focus-on"><input type="checkbox" id="focusWeekdayOn">工作日</label><input type="time" id="focusWeekdayStart" value="19:00" aria-label="工作日专注开始"><span aria-hidden="true">–</span><input type="time" id="focusWeekdayEnd" value="21:00" aria-label="工作日专注结束"></div>
@@ -258,13 +266,6 @@
             </form>
             <div id="focusStates"></div>
           </section>
-          <label for="referenceTime">从什么时刻开始安排</label><div class="reference-row"><input type="datetime-local" id="referenceTime" aria-describedby="referenceTimeHelp" required><button type="button" id="useCurrentTime">使用当前时间</button></div><p class="field-help" id="referenceTimeHelp">工作时间只会排在这个时刻之后。所有时间按北京时间（UTC+8）。</p>
-        </section>
-        <section class="surface" id="adjustSection" aria-labelledby="adjustHeading">
-          <div class="section-top"><div><h2 id="adjustHeading">调整留白</h2><p class="section-note">临时多出或少掉的留白：比如周六下午回家、某晚多学一小时。</p></div><button type="button" id="addAdjustment">添加调整</button></div>
-          <div id="adjustmentList"></div>
-          <form class="availability-form" id="adjustmentForm" hidden><label>类型<select id="adjustmentKind"><option value="remove">扣除留白</option><option value="add">增加留白</option></select></label><label>备注 <span class="optional">可选</span><input id="adjustmentNote" maxlength="500"></label><label>开始<input type="datetime-local" id="adjustmentStart" required></label><label>结束<input type="datetime-local" id="adjustmentEnd" required></label><div class="inline-actions"><button type="submit">保存</button><button type="button" class="text-button" id="cancelAdjustment">取消</button></div><p class="field-error" id="adjustmentError" role="status"></p></form>
-        </section>
         </div></article>
         </div>
         <a class="next-step" href="#/items">下一步：笔墨 · 落笔与点墨<svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><path d="M5 12h14M13 6l6 6-6 6" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></a>
@@ -276,7 +277,7 @@
       <form id="apiForm"><label for="apiBase">解析与计算服务地址</label><input id="apiBase" type="url" inputmode="url" required><button type="submit">保存地址并检查连接</button><p class="field-help" id="connectionStatus" role="status">尚未检查连接</p></form>
       <div class="backup-actions"><button type="button" id="importSnapshot">导入清单</button><input type="file" id="importFile" accept="application/json,.json" hidden></div>
       <p class="field-help">导出文件包含原文与个人安排，请妥善保存。</p>
-      <p class="field-help" id="uiVersion">界面版本 2026.11.22.61</p>
+      <p class="field-help" id="uiVersion">界面版本 2026.11.22.62</p>
     </details>
     <footer class="page-footer"><span>以确认后的信息计算，把取舍留给你。</span></footer>
   </main>
@@ -285,7 +286,7 @@
   <div class="access-ask" id="accessAsk" role="dialog" aria-modal="true" aria-labelledby="accessTitle" hidden><form class="access-card" id="accessForm"><h2 id="accessTitle">访问口令</h2><p class="field-help" id="accessHint"></p><label for="accessCode">口令</label><input id="accessCode" type="password" autocomplete="off" maxlength="200" required><div class="inline-actions"><button type="submit" class="primary-button">确定</button><button type="button" class="text-button" id="accessCancel">取消</button></div></form></div>
   <div class="route-veil" id="routeVeil" aria-hidden="true"><i class="ink ink-1"></i><i class="ink ink-2"></i><i class="ink ink-3"></i><svg class="veil-mark" viewBox="0 0 100 100"><path class="mark-ring" d="M22 86V28H30.56L50 63.64L69.44 28H78V86H70V43.69L54.56 72H45.44L30 43.69V86Z" fill="currentColor"/><g class="veil-needle"><path d="M50 14L53.2 40.4H46.8Z" fill="currentColor"/><path d="M46.8 40.4L50 62L53.2 40.4" fill="none" stroke="currentColor" stroke-width="1.8"/></g></svg><p class="veil-word"><span>司序</span><span>知所先后</span></p></div>
   <noscript>此页面需要启用JavaScript才能编辑和计算任务。</noscript>
-  <script type="importmap">{"imports":{"./task-state.js":"./task-state.js?v=2026.11.22.61","./snapshot-store.js":"./snapshot-store.js?v=2026.11.22.61","./model-candidates.js":"./model-candidates.js?v=2026.11.22.61","./time-review.js":"./time-review.js?v=2026.11.22.61","./planning-result.js":"./planning-result.js?v=2026.11.22.61","./agenda.js":"./agenda.js?v=2026.11.22.61","./calendar.js":"./calendar.js?v=2026.11.22.61","./shanshui.js":"./shanshui.js?v=2026.11.22.61","./reminders.js":"./reminders.js?v=2026.11.22.61","./bell-toggle.js":"./bell-toggle.js?v=2026.11.22.61","./estimate-memory.js":"./estimate-memory.js?v=2026.11.22.61","./time-state.js":"./time-state.js?v=2026.11.22.61","./scenario.js":"./scenario.js?v=2026.11.22.61","./screenshot-ocr.js":"./screenshot-ocr.js?v=2026.11.22.61","./jw-timetable.js":"./jw-timetable.js?v=2026.11.22.61","./focus.js":"./focus.js?v=2026.11.22.61","./chat-actions.js":"./chat-actions.js?v=2026.11.22.61"}}</script>
-  <script src="./koi.js?v=2026.11.22.61"></script><script src="./router.js?v=2026.11.22.61"></script><script src="./about-sky.js?v=2026.11.22.61"></script><script src="./landing.js?v=2026.11.22.61"></script><script src="./api-config.js?v=2026.11.22.61"></script><script type="module" src="./agent.js?v=2026.11.22.61"></script>
+  <script type="importmap">{"imports":{"./task-state.js":"./task-state.js?v=2026.11.22.62","./snapshot-store.js":"./snapshot-store.js?v=2026.11.22.62","./model-candidates.js":"./model-candidates.js?v=2026.11.22.62","./time-review.js":"./time-review.js?v=2026.11.22.62","./planning-result.js":"./planning-result.js?v=2026.11.22.62","./agenda.js":"./agenda.js?v=2026.11.22.62","./calendar.js":"./calendar.js?v=2026.11.22.62","./shanshui.js":"./shanshui.js?v=2026.11.22.62","./reminders.js":"./reminders.js?v=2026.11.22.62","./bell-toggle.js":"./bell-toggle.js?v=2026.11.22.62","./estimate-memory.js":"./estimate-memory.js?v=2026.11.22.62","./time-state.js":"./time-state.js?v=2026.11.22.62","./scenario.js":"./scenario.js?v=2026.11.22.62","./screenshot-ocr.js":"./screenshot-ocr.js?v=2026.11.22.62","./jw-timetable.js":"./jw-timetable.js?v=2026.11.22.62","./focus.js":"./focus.js?v=2026.11.22.62","./chat-actions.js":"./chat-actions.js?v=2026.11.22.62"}}</script>
+  <script src="./koi.js?v=2026.11.22.62"></script><script src="./router.js?v=2026.11.22.62"></script><script src="./about-sky.js?v=2026.11.22.62"></script><script src="./landing.js?v=2026.11.22.62"></script><script src="./api-config.js?v=2026.11.22.62"></script><script type="module" src="./agent.js?v=2026.11.22.62"></script>
 </body>
 </html>

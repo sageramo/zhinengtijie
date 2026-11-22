@@ -61,7 +61,32 @@ const xAt = (time, start) => {
   return LEFT + day * STEP + (hour - 14) / 14 * STEP * 0.45;
 };
 
-export function shanshuiMarkup({ items, start, now, conflicts = [], id = 'ss' }) {
+/**
+ * 精力 in the painting, from the same self-reported intervals as the 专注时段 in the week: a day with
+ * focus time has warm light on its peak (the longer, the wider the glow); a day said to be low on energy
+ * has a grey haze over it; a rest is a pale clearing at the mountain's foot. Intervals, not a curve.
+ */
+function energyMarks(energy, start, near) {
+  const per = NAMES.map(() => ({ focus: 0, low: 0, rest: 0 }));
+  for (const segment of energy) {
+    const day = Math.floor((segment.start - start) / DAY);
+    if (day < 0 || day > 6) continue;
+    const hours = Math.max(0, segment.end - segment.start) / HOUR;
+    const kind = segment.kind === 'high' ? 'focus' : segment.kind;
+    if (per[day][kind] !== undefined) per[day][kind] += hours;
+  }
+  return per.map((day, index) => {
+    const x = LEFT + index * STEP;
+    const ridge = near(x);
+    let out = '';
+    if (day.focus > 0) out += `<ellipse class="ss-glow" cx="${fixed(x)}" cy="${fixed(ridge - 18)}" rx="${fixed(46 + Math.min(day.focus, 6) * 9)}" ry="${fixed(30 + Math.min(day.focus, 6) * 4)}"/>`;
+    if (day.low > 0) out += `<ellipse class="ss-haze" cx="${fixed(x)}" cy="${fixed(ridge + 10)}" rx="${fixed(60 + Math.min(day.low, 6) * 8)}" ry="34"/>`;
+    if (day.rest > 0) out += `<ellipse class="ss-rest" cx="${fixed(x)}" cy="${fixed(Math.min(H - 70, ridge + 70))}" rx="${fixed(40 + Math.min(day.rest, 4) * 10)}" ry="14"/>`;
+    return out;
+  }).join('');
+}
+
+export function shanshuiMarkup({ items, start, now, conflicts = [], energy = [], id = 'ss' }) {
   const busy = dayTotals(items, start, BUSY);
   const free = dayTotals(items, start, new Set(['free']));
   const near = ridge(busy);
@@ -89,6 +114,9 @@ export function shanshuiMarkup({ items, start, now, conflicts = [], id = 'ss' })
     return `<ellipse class="ss-bleed" cx="${x}" cy="${fixed(near(x) + 6)}" rx="34" ry="26" filter="url(#${id}-bleed)"/>`;
   }).join('');
   const moon = today >= 0 ? `<g class="ss-moon"><circle cx="${fixed(LEFT + today * STEP)}" cy="72" r="26" class="ss-moon-glow"/><circle cx="${fixed(LEFT + today * STEP)}" cy="72" r="13" class="ss-moon-disc"/></g>` : '';
+  const marks = energy.length ? energyMarks(energy, start, near) : '';
+  const glows = marks.replace(/<ellipse class="ss-(?:haze|rest)"[^>]*>/g, '').replace(/class="ss-glow"/g, `class="ss-glow" fill="url(#${id}-sun)"`);
+  const veils = marks.replace(/<ellipse class="ss-glow"[^>]*>/g, '').replace(/class="ss-haze"/g, `class="ss-haze" fill="url(#${id}-grey)"`);
   const labels = NAMES.map((name, index) => `<text x="${fixed(LEFT + index * STEP)}" y="${H - 14}" class="ss-day${index === today ? ' is-today' : ''}">${name}</text>`).join('');
   const busiest = busy.indexOf(Math.max(...busy));
   const summary = `本周山水：${busy.map((h, index) => `周${NAMES[index]}${Number(h.toFixed(1))}小时`).join('，')}${busy[busiest] >= 1 ? `；最高的峰是周${NAMES[busiest]}` : ''}。`;
@@ -102,17 +130,21 @@ export function shanshuiMarkup({ items, start, now, conflicts = [], id = 'ss' })
       <filter id="${id}-paper" x="0" y="0" width="100%" height="100%"><feTurbulence type="fractalNoise" baseFrequency=".8" numOctaves="2" seed="4"/><feColorMatrix values="0 0 0 0 .42  0 0 0 0 .38  0 0 0 0 .32  0 0 0 .05 0"/></filter>
       <filter id="${id}-brush" x="-5%" y="-10%" width="110%" height="130%"><feTurbulence type="fractalNoise" baseFrequency=".018 .06" numOctaves="3" seed="7"/><feDisplacementMap in="SourceGraphic" scale="9"/></filter>
       <filter id="${id}-haze" x="-5%" y="-10%" width="110%" height="130%"><feTurbulence type="fractalNoise" baseFrequency=".014 .05" numOctaves="2" seed="5"/><feDisplacementMap in="SourceGraphic" scale="12"/><feGaussianBlur stdDeviation="1.6"/></filter>
+      <radialGradient id="${id}-sun"><stop offset="0" stop-color="#f6dfa8" stop-opacity=".75"/><stop offset=".55" stop-color="#f3d699" stop-opacity=".28"/><stop offset="1" stop-color="#f3d699" stop-opacity="0"/></radialGradient>
+      <radialGradient id="${id}-grey"><stop offset="0" stop-color="#8e969c" stop-opacity=".55"/><stop offset="1" stop-color="#8e969c" stop-opacity="0"/></radialGradient>
       <filter id="${id}-mist" x="-30%" y="-80%" width="160%" height="260%"><feGaussianBlur stdDeviation="9"/></filter>
       <filter id="${id}-bleed" x="-60%" y="-60%" width="220%" height="220%"><feTurbulence type="fractalNoise" baseFrequency=".06" numOctaves="2" seed="3"/><feDisplacementMap in="SourceGraphic" scale="18"/><feGaussianBlur stdDeviation="2.5"/></filter>
     </defs>
     <rect class="ss-sky" width="${W}" height="${H}" fill="url(#${id}-sky)"/>
     <rect class="ss-paper" width="${W}" height="${H}" filter="url(#${id}-paper)"/>
     ${moon}
+    <g class="ss-energy-light">${glows}</g>
     <path class="ss-distant" d="${range(y => distant(y) - 40)}" fill="url(#${id}-distant)" filter="url(#${id}-haze)"/>
     <path class="ss-far" d="${range(far)}" fill="url(#${id}-far)" filter="url(#${id}-haze)"/>
     <path class="ss-near" d="${range(near)}" fill="url(#${id}-near)" filter="url(#${id}-brush)"/>
     <path class="ss-line" d="${range(near, false)}" filter="url(#${id}-brush)"/>
     ${bleeds}
+    <g class="ss-energy-veil" filter="url(#${id}-mist)">${veils}</g>
     <rect class="ss-foot" y="${H - 150}" width="${W}" height="150" fill="url(#${id}-foot)"/>
     <g class="ss-clouds" filter="url(#${id}-mist)">${clouds}</g>
     ${dots}${stars}
