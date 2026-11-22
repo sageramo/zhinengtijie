@@ -9,8 +9,8 @@ const DAY = 86400000;
 const HOUR = 3600000;
 const W = 1000;
 const H = 420;
-const BASE = 330; // ridge height for an empty day
-const PEAK = 230; // extra height for a full day
+const BASE = 318; // ridge height for an empty day
+const PEAK = 272; // extra height for a full day
 const FULL = 12; // a 12-hour day is a full peak; a lighter week is scaled to its own busiest day (at least 6 h)
 const LEFT = 70;
 const STEP = (W - 2 * LEFT) / 6;
@@ -88,32 +88,36 @@ export function shanshuiMarkup({ items, start, now, conflicts = [], id = 'ss' })
     const x = fixed(xAt(Date.parse(conflict.start), start));
     return `<ellipse class="ss-bleed" cx="${x}" cy="${fixed(near(x) + 6)}" rx="34" ry="26" filter="url(#${id}-bleed)"/>`;
   }).join('');
-  const moon = today >= 0 ? `<g class="ss-moon"><circle cx="${fixed(LEFT + today * STEP)}" cy="62" r="34" class="ss-moon-glow"/><circle cx="${fixed(LEFT + today * STEP)}" cy="62" r="17"/></g>` : '';
+  const moon = today >= 0 ? `<g class="ss-moon"><circle cx="${fixed(LEFT + today * STEP)}" cy="72" r="26" class="ss-moon-glow"/><circle cx="${fixed(LEFT + today * STEP)}" cy="72" r="13" class="ss-moon-disc"/></g>` : '';
   const labels = NAMES.map((name, index) => `<text x="${fixed(LEFT + index * STEP)}" y="${H - 14}" class="ss-day${index === today ? ' is-today' : ''}">${name}</text>`).join('');
   const busiest = busy.indexOf(Math.max(...busy));
   const summary = `本周山水：${busy.map((h, index) => `周${NAMES[index]}${Number(h.toFixed(1))}小时`).join('，')}${busy[busiest] >= 1 ? `；最高的峰是周${NAMES[busiest]}` : ''}。`;
   return `<svg class="shanshui" viewBox="0 0 ${W} ${H}" preserveAspectRatio="xMidYMid slice" role="img" aria-label="${summary}">
     <defs>
-      <linearGradient id="${id}-near" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#1d3a5f"/><stop offset=".45" stop-color="#2d5b8c" stop-opacity=".85"/><stop offset="1" stop-color="#9fcdf5" stop-opacity="0"/></linearGradient>
-      <linearGradient id="${id}-far" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#5e8fc4" stop-opacity=".55"/><stop offset="1" stop-color="#cfe3f7" stop-opacity="0"/></linearGradient>
- <linearGradient id="${id}-distant" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#9fbedf" stop-opacity=".45"/><stop offset=".6" stop-color="#dbe9f7" stop-opacity=".2"/><stop offset="1" stop-color="#ffffff" stop-opacity="0"/></linearGradient>
-      <radialGradient id="${id}-glow" cx="50%" cy="20%" r="60%"><stop offset="0" stop-color="#ffffff"/><stop offset="1" stop-color="#ffffff" stop-opacity="0"/></radialGradient>
-      <linearGradient id="${id}-sky" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#eaf3fc"/><stop offset="1" stop-color="#fbfdff"/></linearGradient>
+      <linearGradient id="${id}-near" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#0f2135"/><stop offset=".3" stop-color="#1e3953" stop-opacity=".96"/><stop offset=".56" stop-color="#46637f" stop-opacity=".62"/><stop offset=".8" stop-color="#f3eee6" stop-opacity="0"/></linearGradient>
+      <linearGradient id="${id}-far" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#36506b" stop-opacity=".88"/><stop offset=".45" stop-color="#6c859d" stop-opacity=".45"/><stop offset=".72" stop-color="#f3eee6" stop-opacity="0"/></linearGradient>
+      <linearGradient id="${id}-distant" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#8fa2b4" stop-opacity=".66"/><stop offset=".4" stop-color="#bac5cf" stop-opacity=".24"/><stop offset=".6" stop-color="#f3eee6" stop-opacity="0"/></linearGradient>
+      <linearGradient id="${id}-sky" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#f5f1ea"/><stop offset="1" stop-color="#eee8dd"/></linearGradient>
+      <linearGradient id="${id}-foot" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#f1ece3" stop-opacity="0"/><stop offset=".45" stop-color="#f1ece3" stop-opacity=".85"/><stop offset="1" stop-color="#efe9df"/></linearGradient>
+      <filter id="${id}-paper" x="0" y="0" width="100%" height="100%"><feTurbulence type="fractalNoise" baseFrequency=".8" numOctaves="2" seed="4"/><feColorMatrix values="0 0 0 0 .42  0 0 0 0 .38  0 0 0 0 .32  0 0 0 .05 0"/></filter>
       <filter id="${id}-brush" x="-5%" y="-10%" width="110%" height="130%"><feTurbulence type="fractalNoise" baseFrequency=".018 .06" numOctaves="3" seed="7"/><feDisplacementMap in="SourceGraphic" scale="9"/></filter>
+      <filter id="${id}-haze" x="-5%" y="-10%" width="110%" height="130%"><feTurbulence type="fractalNoise" baseFrequency=".014 .05" numOctaves="2" seed="5"/><feDisplacementMap in="SourceGraphic" scale="12"/><feGaussianBlur stdDeviation="1.6"/></filter>
       <filter id="${id}-mist" x="-30%" y="-80%" width="160%" height="260%"><feGaussianBlur stdDeviation="9"/></filter>
       <filter id="${id}-bleed" x="-60%" y="-60%" width="220%" height="220%"><feTurbulence type="fractalNoise" baseFrequency=".06" numOctaves="2" seed="3"/><feDisplacementMap in="SourceGraphic" scale="18"/><feGaussianBlur stdDeviation="2.5"/></filter>
     </defs>
     <rect class="ss-sky" width="${W}" height="${H}" fill="url(#${id}-sky)"/>
- <rect width="${W}" height="${H}" fill="url(#${id}-glow)" opacity=".8"/>
+    <rect class="ss-paper" width="${W}" height="${H}" filter="url(#${id}-paper)"/>
     ${moon}
-    <path class="ss-distant" d="${range(y => distant(y) - 40)}" fill="url(#${id}-distant)" filter="url(#${id}-brush)"/>
-    <path class="ss-far" d="${range(far)}" fill="url(#${id}-far)" filter="url(#${id}-brush)"/>
+    <path class="ss-distant" d="${range(y => distant(y) - 40)}" fill="url(#${id}-distant)" filter="url(#${id}-haze)"/>
+    <path class="ss-far" d="${range(far)}" fill="url(#${id}-far)" filter="url(#${id}-haze)"/>
     <path class="ss-near" d="${range(near)}" fill="url(#${id}-near)" filter="url(#${id}-brush)"/>
     <path class="ss-line" d="${range(near, false)}" filter="url(#${id}-brush)"/>
     ${bleeds}
+    <rect class="ss-foot" y="${H - 150}" width="${W}" height="150" fill="url(#${id}-foot)"/>
     <g class="ss-clouds" filter="url(#${id}-mist)">${clouds}</g>
     ${dots}${stars}
     <path class="ss-water" d="M40 ${H - 46}Q260 ${H - 54} 500 ${H - 46}T960 ${H - 46}M140 ${H - 34}Q360 ${H - 40} 560 ${H - 34}T880 ${H - 34}"/>
+    <g class="ss-seal" transform="translate(${W - 58} 26)"><rect width="30" height="44" rx="3"/><text x="15" y="19">山</text><text x="15" y="37">水</text></g>
     ${labels}
   </svg>`;
 }

@@ -1464,8 +1464,14 @@ $('calendarView').addEventListener('click', event => {
     return;
   }
   if (event.target.closest('[data-cal-analyze]')) {
+    // 画卷 and 本周解析 are two full pages side by side: the analysis turns in from the right, the
+    // painting comes back from the left. The class lives only on this render, so a later refresh
+    // of the same page does not play the turn again.
     calendarAnalyzed = !calendarAnalyzed;
     renderCalendar();
+    $('calendarView').querySelector('.scroll')?.classList.add(calendarAnalyzed ? 'turn-in-right' : 'turn-in-left');
+    const top = $('calendarView').getBoundingClientRect().top;
+    if (top < 0) window.scrollBy({ top: top - 90, behavior: matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth' });
     return;
   }
   if (event.target.closest('[data-use-now]')) {

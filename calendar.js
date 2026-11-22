@@ -432,12 +432,12 @@ export function calendarMarkup({ result, start, now, loading = false, error = ''
   // 本周山水: on the cover it is the painting; once the scroll is open it stays as a faint wash behind the week.
   const painting = result ? shanshuiMarkup({ items: inWeek, start, now, conflicts: weekConflicts, id: rolled ? 'ss-cover' : 'ss-board' }) : '';
   const analyzeBadge = !analyzed && (weekConflicts.length || alertLabel) ? `<em class="cal-analyze-badge">${[weekConflicts.length ? `${weekConflicts.length} 处叠墨` : '', alertLabel].filter(Boolean).join(' · ')}</em>` : '';
-  const analyzeBtn = `<button type="button" class="cal-analyze-btn${analyzed ? ' is-open' : ''}${weekConflicts.length ? ' has-alert' : ''}" data-cal-analyze aria-expanded="${analyzed}"><svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true"><path d="M4 6h16M4 12h10M4 18h7M17 14l3 3-3 3" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"/></svg><span>${analyzed ? '收起解析' : '解析画卷'}</span>${analyzeBadge}</button>`;
+  const analyzeBtn = `<button type="button" class="cal-analyze-btn${analyzed ? ' is-open' : ''}${weekConflicts.length ? ' has-alert' : ''}" data-cal-analyze aria-expanded="${analyzed}"><svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true"><path d="M4 6h16M4 12h10M4 18h7M17 14l3 3-3 3" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"/></svg><span>${analyzed ? '回到画卷' : '解析画卷'}</span>${analyzeBadge}</button>`;
   const clockPill = futureRef ? `<button type="button" class="cal-clock-pill" data-use-now title="当前清单的开始安排时刻设在未来，点此切回今天真实时刻">演示时刻 ${escape(futureRef)} · 恢复当前时间</button>` : '';
   const cover = `<section class="scroll-cover" aria-labelledby="coverHeading">
       <header class="cover-head"><p class="cal-eyebrow">本周山水</p><h3 id="coverHeading">峰高是忙，云白是留白</h3></header>
       <div class="cover-painting">${painting || (error ? `<p class="cover-wait is-error" role="status">${escape(error)}</p>` : '<p class="cover-wait">正在铺开这一周…</p>')}</div>
-      <ul class="cover-legend" aria-label="山水图例"><li class="lg-peak">峰 · 这天排了多少</li><li class="lg-cloud">云 · 留白</li><li class="lg-dot">墨点 · 点墨</li><li class="lg-star">金星 · 截止</li><li class="lg-bleed">朱晕 · 叠墨</li><li class="lg-moon">月 · 今天</li></ul>
+      <ul class="cover-legend" aria-label="山水图例"><li class="lg-peak">峰 · 这天排了多少</li><li class="lg-cloud">云 · 留白</li><li class="lg-dot">墨点 · 点墨</li><li class="lg-star">金星 · 截止</li><li class="lg-bleed">朱晕 · 叠墨</li><li class="lg-moon">朱日 · 今天</li></ul>
       <div class="cover-actions">
         <button type="button" class="primary-button cover-open" data-scroll-open${result ? '' : ' disabled'}><svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><path d="M4 5v14M20 5v14M8 12h8M11 9l-3 3 3 3M13 9l3 3-3 3" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>展开画卷</button>
         <button type="button" class="cover-analyze" data-cal-analyze aria-expanded="${analyzed}">${analyzed ? '收起本周解析' : `解析画卷${weekConflicts.length ? `（${weekConflicts.length} 处叠墨）` : ''}`}</button>
@@ -459,7 +459,7 @@ export function calendarMarkup({ result, start, now, loading = false, error = ''
     </header>
     <div class="scroll-body">
       <aside class="scroll-side" aria-label="本周解析"${analyzed ? '' : ' hidden'}>
-        <div class="side-head"><span>本周解析</span><button type="button" class="text-button side-close" data-cal-analyze aria-label="收起解析">收起</button></div>
+        <div class="side-head"><span>本周解析</span><button type="button" class="text-button side-close" data-cal-analyze aria-label="回到画卷">回到画卷</button></div>
         ${sideTop}
         ${status}
         <div class="cal-pending">${side}</div>

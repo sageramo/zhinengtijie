@@ -2472,40 +2472,267 @@ html.koi-landed .site-header, html.koi-landed .page-arrow { animation: koi-fade 
 @keyframes koi-fade { from { opacity: 0; } to { opacity: 1; } }
 @keyframes koi-stone { 0% { opacity: 0; transform: scale(.6); } 55% { opacity: 1; transform: scale(1.4); } 100% { opacity: 1; transform: scale(1); } }
 
-/* ==== 进入页标题：白色飞白 + 朱印 + 金线 + 疏朗标语 ===================================================
-   The brush lettering is warm white with dry-brush streaks (no multiply: it would vanish), lifted off
-   the painting by a soft dark shadow; a vermilion seal sits at its top right and travels with it;
-   under 司序·知所 (beside the sweep of 后) a gold glow line and the motto in spaced serif. */
+/* ==== 进入页标题：白色书法 + 朱印 + 金线 + 疏朗标语 =====================================================
+   The lettering and its seal are one transparent image lifted from the brand artwork (white brush,
+   red seal), raised off the painting by a soft dark shadow. Under it, centred, a gold glow line and the
+   motto in spaced serif with long dashes, as on the artwork. */
 /* The shadow goes on the h1: on the img the clip-path of its brush-in would cut it into a box. */
 .hero.is-genie .hero-brush, .hero-brush { mix-blend-mode: normal; filter: none; }
-.hero-title.hero-title-brush { filter: drop-shadow(0 1px 1px rgba(8, 14, 22, .45)) drop-shadow(0 6px 26px rgba(8, 14, 22, .5)); }
-.hero-seal { position: absolute; right: -5.5%; top: -3%; width: 6.2%; height: auto; overflow: visible; filter: drop-shadow(0 3px 8px rgba(60, 10, 6, .35)); transform: rotate(2deg); }
-.hero-seal text { font-family: "Sixu Kai", var(--font-serif); font-size: 34px; font-weight: 700; fill: #f8efe4; }
-.hero-tagline { left: 1%; bottom: 5%; width: 58%; line-height: 1; text-align: center; }
+.hero-title.hero-title-brush { filter: drop-shadow(0 1px 1px rgba(8, 14, 22, .4)) drop-shadow(0 6px 26px rgba(8, 14, 22, .45)); }
+.hero-brand { width: clamp(300px, 50vw, 820px); }
+.hero-tagline { position: static; width: 100%; margin: clamp(10px, 1.6vw, 22px) 0 0; line-height: 1; text-align: center; }
 .hero-glow {
-  display: block; height: 2px; width: 86%; margin: 0 auto 1.05em; border-radius: 2px;
+  display: block; height: 1.5px; width: 62%; margin: 0 auto 1.1em; border-radius: 2px;
   background: linear-gradient(90deg, rgba(231, 194, 122, 0), #d9b066 22%, #fff0c8 50%, #d9b066 78%, rgba(231, 194, 122, 0));
-  box-shadow: 0 0 10px 1px rgba(236, 196, 120, .65), 0 0 28px 6px rgba(236, 196, 120, .28);
+  box-shadow: 0 0 10px 1px rgba(236, 196, 120, .6), 0 0 26px 5px rgba(236, 196, 120, .24);
 }
 .hero-motto {
-  display: block; white-space: nowrap; color: #f6f1e7; font-family: var(--font-serif); font-weight: 500;
-  font-size: clamp(11px, 1.28vw, 20px); letter-spacing: .42em; text-indent: .42em;
+  display: block; white-space: nowrap; color: #f8f4ec; font-family: var(--font-serif); font-weight: 600;
+  font-size: clamp(12px, 1.4vw, 22px); letter-spacing: .5em; text-indent: .5em;
   text-shadow: 0 1px 2px rgba(8, 14, 22, .55), 0 2px 16px rgba(8, 14, 22, .55);
 }
-.hero-motto > span { color: rgba(236, 206, 150, .9); letter-spacing: 0; }
+.hero-motto > span { letter-spacing: 0; opacity: .85; }
 /* Once the lens is open the lettering sits on pale paper: a soft dusk mist behind the block keeps the
    white readable without touching the painting itself. It comes in with the words. */
 .hero.is-genie .hero-brand { isolation: isolate; }
 .hero.is-genie .hero-brand::before {
-  content: ""; position: absolute; inset: -16% -12% -14% -14%; z-index: -1; pointer-events: none;
-  background: radial-gradient(ellipse 60% 62% at 40% 60%, rgba(14, 22, 32, .46) 0%, rgba(14, 22, 32, .26) 50%, rgba(12, 20, 30, 0) 100%);
+  content: ""; position: absolute; inset: -18% -10% -16% -10%; z-index: -1; pointer-events: none;
+  background: radial-gradient(ellipse 58% 60% at 50% 52%, rgba(14, 22, 32, .46) 0%, rgba(14, 22, 32, .26) 50%, rgba(12, 20, 30, 0) 100%);
   filter: blur(14px); opacity: var(--words, 1);
 }
-.hero.is-genie .hero-motto { font-weight: 600; }
 @media (max-width: 760px) {
-  .hero-seal { width: 7.5%; right: -3%; }
-  .hero-tagline { width: 64%; bottom: 3%; }
-  .hero-glow { margin-bottom: .8em; }
-  .hero-motto { font-size: 10px; letter-spacing: .16em; text-indent: .16em; }
+  .hero-brand { width: min(100%, 380px); }
+  .hero-motto { font-size: 11px; letter-spacing: .22em; text-indent: .22em; }
   .hero-motto > span { display: none; }
 }
+
+/* ==== 水墨统一（.57）=================================================================================
+   The landing's lower sections, 本周山水, 本周解析 and the four layer sheets were still in the bright
+   sky-blue app style; they now share the landing's rice paper, ink and one vermilion accent.
+   Tokens: ink #1e2a35 / #34424f / #5d6873, paper #f5f0e6 / #efe8da, hairline rgba(30,42,53,.14). */
+
+/* ---- 进入页：《大学》与四步 ---- */
+.landing .about { padding: clamp(56px, 9vw, 120px) 16px; background: #f2ece0; isolation: isolate; }
+.landing .about::before {
+  content: ""; position: absolute; inset: 0 0 auto; z-index: -1; height: 70%; pointer-events: none;
+  background: url("./assets/hero-scroll.webp") 50% 72% / cover no-repeat; opacity: .26; filter: saturate(.6);
+  -webkit-mask-image: linear-gradient(180deg, #000 0%, rgba(0, 0, 0, .5) 45%, transparent 100%);
+  mask-image: linear-gradient(180deg, #000 0%, rgba(0, 0, 0, .5) 45%, transparent 100%);
+}
+.landing .about-night, .landing .about-sky { display: none; }
+.landing .about-card { border: 0; border-radius: 0; background: none; box-shadow: none; backdrop-filter: none; padding: 24px 20px; }
+.landing .about-label { color: #8a7a62; font-family: var(--font-kai); font-weight: 400; letter-spacing: .4em; }
+.landing .about-title { color: #1e2a35; }
+.landing .about-title .kai { color: #a8372c; }
+.landing .about-body { max-width: 36em; color: #3d4650; font-family: var(--font-serif); font-size: 1rem; line-height: 2.05; text-align: justify; }
+.landing .about-card::after { content: ""; display: block; width: 44px; height: 1px; margin: 40px auto 0; background: #a8372c; opacity: .7; }
+.landing .features { background: #efe8da; }
+.landing .features .bg-noise { opacity: .18; }
+.landing .features-head { font-family: var(--font-serif); color: #1e2a35; font-weight: 700; letter-spacing: .04em; }
+.landing .features-head .muted { color: #a8372c; }
+.landing .feature-grid { gap: 0; border-top: 1px solid rgba(30, 42, 53, .18); border-bottom: 1px solid rgba(30, 42, 53, .18); }
+.landing .feature-card { min-height: 0; padding: 30px 26px 26px; border: 0; border-radius: 0; background: transparent; box-shadow: none; color: #1e2a35; }
+.landing .feature-grid.is-in .feature-card:hover { transform: none; box-shadow: none; background: rgba(255, 252, 245, .55); }
+.landing .feature-no { color: #a8372c; font-family: var(--font-serif); font-weight: 600; font-size: .9375rem; letter-spacing: .2em; }
+.landing .feature-title { font-family: var(--font-serif); font-weight: 700; letter-spacing: .1em; color: #1e2a35; }
+.landing .feature-sub { font-family: var(--font-kai); letter-spacing: .12em; color: #6a6358; opacity: 1; }
+.landing .feature-card ul { color: #3d4650; }
+.landing .feature-card li svg { color: #8a7a62; }
+.landing .feature-link { color: #1e2a35; text-decoration: underline; text-decoration-color: rgba(168, 55, 44, .5); text-underline-offset: 5px; }
+@media (min-width: 761px) { .landing .feature-card + .feature-card { border-left: 1px solid rgba(30, 42, 53, .12); } }
+@media (max-width: 760px) { .landing .feature-card + .feature-card { border-top: 1px solid rgba(30, 42, 53, .12); } }
+.landing .landing-foot { color: #6a6358; }
+
+/* ---- 画卷页：墨色强调、本周山水装裱 ---- */
+.page-calendar { --accent: #2f4a5f; --accent-deep: #1e2a35; --accent-soft: #e9edef; }
+.page-calendar .cal-eyebrow { color: #8a7a62; }
+.page-calendar .cal-range { color: #1e2a35; }
+.scroll-cover { border: 0; outline: 0; padding: clamp(14px, 2vw, 26px); background: #fbf9f5; box-shadow: inset 0 0 0 1px rgba(52, 73, 94, .12), 0 18px 40px -28px rgba(30, 42, 53, .35); border-radius: 2px; }
+.cover-head .cal-eyebrow { color: #a8372c; font-family: var(--font-kai); font-size: .875rem; letter-spacing: .4em; }
+.cover-head h3 { color: #5d6873; }
+.cover-painting { border-radius: 0; background: #f3eee6; box-shadow: 0 0 0 1px rgba(52, 73, 94, .16); }
+.shanshui .ss-paper { fill: #000; }
+.shanshui .ss-line { stroke: #12212f; stroke-width: 2.6; opacity: .85; }
+.shanshui .ss-cloud { fill: #f6f2eb; opacity: .95; }
+.shanshui .ss-dot { fill: #1b2228; stroke: rgba(27, 34, 40, .18); stroke-width: 5; }
+.shanshui .ss-star { fill: #b88a3e; filter: none; }
+.shanshui .ss-bleed { fill: rgba(168, 55, 44, .5); }
+.shanshui .ss-moon .ss-moon-disc { fill: #b8452f; opacity: .88; }
+.shanshui .ss-moon .ss-moon-glow { fill: rgba(184, 69, 47, .08); }
+.shanshui .ss-water { stroke: rgba(52, 73, 94, .2); }
+.shanshui .ss-day { fill: #5d6873; }
+.shanshui .ss-day.is-today { fill: #a8372c; }
+.shanshui .ss-seal rect { fill: #a8372c; opacity: .9; }
+.shanshui .ss-seal text { fill: #f8efe4; font-family: var(--font-kai); font-size: 15px; text-anchor: middle; }
+.ss-backdrop .ss-seal { display: none; }
+.cover-legend { color: #5d6873; }
+.cover-legend .lg-peak::before { background: #546a80; }
+.cover-legend .lg-cloud::before { background: #f8f4ea; box-shadow: inset 0 0 0 1px rgba(30, 42, 53, .25); }
+.cover-legend .lg-dot::before { background: #1b2228; }
+.cover-legend .lg-star::before { background: #b88a3e; }
+.cover-legend .lg-bleed::before { background: radial-gradient(circle, rgba(168, 55, 44, .85), rgba(168, 55, 44, .2)); }
+.cover-legend .lg-moon::before { background: #b8452f; box-shadow: none; }
+.page-calendar .cover-open, .page-calendar .primary-button { background: #1e2a35; border-color: #1e2a35; color: #f8f4ec; box-shadow: none; }
+.page-calendar .cover-open:hover, .page-calendar .primary-button:hover { background: #34424f; }
+.page-calendar .cover-analyze { border-color: rgba(30, 42, 53, .3); color: #1e2a35; background: transparent; }
+.page-calendar .cal-analyze-btn { border-color: rgba(30, 42, 53, .28); color: #1e2a35; background: #fbf8f1; }
+.page-calendar .cal-analyze-btn.is-open { background: #1e2a35; border-color: #1e2a35; color: #f8f4ec; }
+.page-calendar .cal-analyze-badge { background: #a8372c; }
+
+/* ---- 画卷 ⇄ 本周解析：两张整页，左右翻 ---- */
+.scroll.is-analyzed .scroll-body { grid-template-columns: minmax(0, 1fr); }
+.scroll.is-analyzed :is(.scroll-mount, .scroll-cover) { display: none; }
+.scroll.is-analyzed .scroll-side {
+  display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 360px), 1fr)); align-items: start; gap: 18px 22px;
+  max-height: none !important; overflow: visible; padding: clamp(18px, 2.4vw, 32px); border-radius: 2px;
+  background: #f7f2e8; box-shadow: inset 0 0 0 1px rgba(120, 95, 60, .22), 0 18px 40px -26px rgba(30, 42, 53, .45);
+}
+.scroll.is-analyzed .scroll-side > * { min-width: 0; margin: 0; }
+.scroll.is-analyzed .scroll-side > :is(.side-head, .cal-hint, .cal-stats) { grid-column: 1 / -1; }
+.scroll.is-analyzed .side-head { padding-bottom: 14px; border-bottom-color: rgba(30, 42, 53, .14); }
+.scroll.is-analyzed .side-head > span { font-size: 1.5rem; color: #1e2a35; letter-spacing: .2em; }
+.scroll.is-analyzed .side-head .side-close::before { content: "← "; }
+.scroll.is-analyzed .cal-pending { grid-column: span 2; }
+@media (max-width: 900px) { .scroll.is-analyzed .cal-pending { grid-column: 1 / -1; } }
+.scroll.is-analyzed .cal-stats { display: flex; flex-wrap: wrap; gap: 0; border-top: 1px solid rgba(30, 42, 53, .12); padding-top: 12px; }
+.scroll.is-analyzed .cal-stats li { flex: 1 1 0; text-align: center; }
+.scroll-side :is(.cal-capacity, .cal-brief, .cal-side-block) { padding: 16px 18px; border-radius: 4px; background: rgba(255, 253, 248, .8); box-shadow: inset 0 0 0 1px rgba(30, 42, 53, .1); }
+@media (prefers-reduced-motion: no-preference) {
+  .scroll.turn-in-right .scroll-side { animation: page-turn-right .55s cubic-bezier(.22, 1, .36, 1) both; }
+  .scroll.turn-in-left :is(.scroll-mount, .scroll-cover) { animation: page-turn-left .55s cubic-bezier(.22, 1, .36, 1) both; }
+}
+@keyframes page-turn-right { from { opacity: 0; transform: translateX(8%); } to { opacity: 1; transform: none; } }
+@keyframes page-turn-left { from { opacity: 0; transform: translateX(-8%); } to { opacity: 1; transform: none; } }
+
+/* ---- 底色 · 留白 · 落笔 · 点墨 详细页：宣纸上的一张单子 ---- */
+:is(html[data-current="time"]:has([data-page="time"] .rolls[data-open]), html[data-current="items"]:has([data-page="items"] .rolls[data-open])),
+:is(html[data-current="time"]:has([data-page="time"] .rolls[data-open]), html[data-current="items"]:has([data-page="items"] .rolls[data-open])) body { background: #f2ece1; }
+.roll-body {
+  --accent: #2f4a5f; --accent-deep: #1e2a35; --accent-soft: #e9edef; --line: rgba(30, 42, 53, .14); --muted: #5d6873; --text: #1e2a35;
+  padding: clamp(120px, 13vw, 180px) clamp(16px, 4vw, 56px) 48px; background: #f6f1e7; box-shadow: none; isolation: isolate; color: #1e2a35;
+}
+/* The face's own painting runs along the top of the sheet, fading into the paper. */
+.roll-body::before {
+  top: 0; left: 0; right: 0; z-index: -1; height: clamp(220px, 30vw, 340px); border-radius: 0; box-shadow: none;
+  background: var(--layer-art) right 30% / cover no-repeat; opacity: .55;
+  -webkit-mask-image: linear-gradient(180deg, #000 0%, rgba(0, 0, 0, .6) 45%, transparent 100%);
+  mask-image: linear-gradient(180deg, #000 0%, rgba(0, 0, 0, .6) 45%, transparent 100%);
+}
+.roll-body::after { display: none; }
+.roll.is-open .roll-body { animation: sheet-in .6s cubic-bezier(.22, 1, .36, 1) both; }
+@keyframes sheet-in { from { opacity: 0; transform: translateY(14px); } to { opacity: 1; transform: none; } }
+.roll-bar { position: absolute; top: 22px; left: clamp(16px, 4vw, 56px); margin: 0; }
+.roll .roll-back { min-height: 36px; padding: 4px 16px 4px 10px; border: 1px solid rgba(30, 42, 53, .22); border-radius: 2px; background: rgba(246, 241, 231, .85); color: #1e2a35; box-shadow: none; letter-spacing: .08em; }
+.roll .roll-back:hover { border-color: #1e2a35; background: #f6f1e7; }
+.roll[data-roll="routine"] .roll-back::after, .roll[data-roll="free"] .roll-back::after { content: "铺纸"; }
+.roll[data-roll="work"] .roll-back::after, .roll[data-roll="event"] .roll-back::after { content: "笔墨"; }
+.roll .roll-back::after { margin-left: .4em; color: #8a7a62; font-family: var(--font-kai); }
+.roll-body > .surface {
+  padding: clamp(20px, 2.4vw, 32px); border: 0; border-radius: 2px; background: rgba(255, 253, 248, .92); backdrop-filter: none;
+  box-shadow: inset 0 0 0 1px rgba(30, 42, 53, .1), 0 22px 44px -30px rgba(30, 42, 53, .4);
+}
+.roll-body > .surface > h2, .roll-body > .surface > .section-top h2 { font-family: var(--font-serif); font-size: clamp(1.5rem, 2.2vw, 2rem); font-weight: 650; letter-spacing: .14em; color: #1e2a35; }
+.roll-body .layer-gloss { font-family: var(--font-kai); font-size: 1rem; font-weight: 400; letter-spacing: .08em; color: #6a6358; }
+.roll-body .section-note, .roll-body .empty-note { color: #5d6873; }
+.roll-body .empty-note { padding: 18px 20px; border: 1px dashed rgba(30, 42, 53, .2); border-radius: 2px; background: transparent; font-family: var(--font-kai); }
+.roll-body button:not(.roll-back):not(.group-expand):not(.primary-button), .roll-body .secondary-button { border-radius: 2px; border-color: rgba(30, 42, 53, .26); background: transparent; color: #1e2a35; box-shadow: none; }
+.roll-body button:not(.roll-back):not(.group-expand):not(.primary-button):hover { border-color: #1e2a35; background: rgba(30, 42, 53, .04); }
+.roll-body .primary-button { border-radius: 2px; background: #1e2a35; border-color: #1e2a35; color: #f8f4ec; box-shadow: none; }
+.roll-body .primary-button:hover { background: #34424f; }
+.roll-body :is(input:not([type="checkbox"]):not([type="radio"]), textarea, select) { border-radius: 2px; border-color: rgba(30, 42, 53, .2); background: #fffdf8; }
+.roll-body :is(input:not([type="checkbox"]):not([type="radio"]), textarea, select):focus { border-color: #1e2a35; box-shadow: 0 0 0 3px rgba(30, 42, 53, .1); }
+.roll-body a { color: #1e2a35; }
+.roll-body .item-group { --g: #34424f; --g-bg: transparent; --g-line: rgba(30, 42, 53, .14); border-radius: 0; background: transparent; box-shadow: none; }
+.roll-body .item-group.is-deadline, .roll-body .item-group.is-personal { --g: #8a5a2b; }
+.roll-body .item-group.is-temporary { --g: #1b2228; padding: 0; border: 0; }
+.roll-body .group-head h3 { font-family: var(--font-serif); letter-spacing: .1em; color: #1e2a35; }
+.roll-body .group-glyph { display: none; }
+.roll-body .group-count { background: #1e2a35; color: #f8f4ec; }
+.roll-body .item-card { border-radius: 2px; }
+
+/* 落笔: the three groups become tabs along one rule instead of vertical strips. */
+#taskSection, #taskSection[data-active] { display: grid; grid-template-columns: repeat(3, max-content) minmax(0, 1fr); column-gap: 0; align-items: end; }
+#taskSection > h2 { grid-column: 1 / -1; margin-bottom: 18px; }
+#taskSection > .item-group { display: contents; }
+#taskSection::after { content: ""; grid-row: 2; grid-column: 1 / -1; align-self: end; height: 1px; background: rgba(30, 42, 53, .16); }
+#taskSection > .item-group > .group-expand,
+#taskSection > .item-group:not(.is-spread) > .group-expand {
+  grid-row: 2; z-index: 1; display: flex; flex-direction: row; align-items: center; gap: 10px; width: auto; height: auto; min-height: 0;
+  padding: 10px 22px 12px; border: 0; border-bottom: 2px solid transparent; border-radius: 0; background: transparent; color: #5d6873; cursor: pointer;
+}
+#taskSection > .is-appointment > .group-expand { grid-column: 1; }
+#taskSection > .is-personal > .group-expand { grid-column: 2; }
+#taskSection > .is-deadline > .group-expand { grid-column: 3; }
+#taskSection > .item-group.is-spread > .group-expand { color: #1e2a35; border-bottom-color: #a8372c; }
+#taskSection > .item-group > .group-expand:hover { color: #1e2a35; }
+#taskSection .group-expand::before, #taskSection .group-expand-hint { display: none; }
+#taskSection .group-expand-name { writing-mode: horizontal-tb; font-family: var(--font-serif); font-size: 1.0625rem; font-weight: 650; letter-spacing: .12em; }
+#taskSection .group-expand-count, #taskSection .is-appointment .group-expand-count { min-width: 22px; height: 20px; padding: 0 6px; background: rgba(30, 42, 53, .1); color: #1e2a35; font-size: .75rem; }
+#taskSection > .item-group.is-spread .group-expand-count { background: #1e2a35; color: #f8f4ec; }
+#taskSection > .item-group.is-spread > .group-head { grid-row: 3; grid-column: 1 / -1; margin-top: 22px; }
+#taskSection > .item-group.is-spread > .item-list { grid-row: 4; grid-column: 1 / -1; }
+#taskSection > .item-group.is-spread { animation: none; }
+@media (max-width: 760px) {
+  .roll-body { padding: 128px 12px 32px; }
+  .roll-bar { top: 14px; left: 12px; }
+  #taskSection, #taskSection[data-active] { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  #taskSection > .item-group > .group-expand, #taskSection > .item-group:not(.is-spread) > .group-expand { justify-content: center; padding: 10px 4px 12px; }
+  #taskSection > .item-group > .group-expand, #taskSection > .item-group:not(.is-spread) > .group-expand { gap: 5px; padding-inline: 2px; }
+  #taskSection .group-expand-name { font-size: .875rem; letter-spacing: 0; white-space: nowrap; }
+  #taskSection .group-expand-count, #taskSection .is-appointment .group-expand-count { min-width: 18px; height: 18px; padding: 0 4px; }
+}
+.roll-body .plain-list li { border-radius: 2px; border-color: rgba(30, 42, 53, .12); background: #fbf8f1; }
+.roll-body .focus-on { display: inline-flex; align-items: center; gap: 6px; min-width: 5em; white-space: nowrap; }
+.roll-body input[type="checkbox"] { width: auto; accent-color: #1e2a35; }
+:is(html[data-current="time"], html[data-current="items"]) [data-app] .next-step { color: #1e2a35; }
+.ss-backdrop .ss-foot { display: none; }
+
+/* ---- 画卷周网格：与本周山水同一套水墨 ---------------------------------------------------------------
+   No gold rods or double gold frame: the week sits on one sheet of paper with a hairline mount. Blocks
+   are flat ink washes with square-ish corners and no drop shadows; the layer colours stay apart:
+   底色 花青, 留白 a faint wash, 落笔 赭石, 约定 缃, 点墨 墨, 叠墨 and 今天 朱. */
+.page-calendar .cal {
+  --c-routine: #46617b; --c-routine-solid: #46617b;
+  --c-free: rgba(70, 97, 123, .045); --c-free-edge: rgba(70, 97, 123, .4); --c-free-text: #5d6873;
+  --c-work: #9a6a3f; --c-work-solid: #9a6a3f;
+  --c-appt: #ece0c6; --c-appt-edge: #9a6a3f; --c-appt-text: #4a3219;
+  --gold: #b88a3e; --gold-soft: #d8b878; --night: #1e2a35; --night-soft: #2c3a47; --danger: #a8372c;
+}
+.page-calendar .scroll-mount { margin: 14px 0 0; padding: clamp(10px, 1.6vw, 22px); background: #f3eee6; box-shadow: inset 0 0 0 1px rgba(52, 73, 94, .14), 0 18px 40px -28px rgba(30, 42, 53, .35); }
+.page-calendar .scroll-mount::before, .page-calendar .scroll-mount::after { display: none; }
+.page-calendar .scroll-mount .cal-board, [data-app] .page-calendar .scroll-mount .cal-board { border: 0; outline: 0; background: #fbf9f5; box-shadow: 0 0 0 1px rgba(52, 73, 94, .16); }
+.page-calendar .ss-backdrop { opacity: .1; }
+.page-calendar .cal-corner, .page-calendar .cal-head-day { border-bottom-color: rgba(30, 42, 53, .14); }
+.page-calendar .cal-head-day, .page-calendar .cal-day { border-left-color: rgba(30, 42, 53, .08); }
+.page-calendar .cal-day { background-image: linear-gradient(rgba(30, 42, 53, .06) 1px, transparent 1px); }
+.page-calendar .cal-day.is-today { background-color: rgba(168, 55, 44, .035); box-shadow: inset 0 0 0 1px rgba(168, 55, 44, .18); }
+.page-calendar .cal-head-day span { color: #5d6873; }
+.page-calendar .cal-head-day strong { color: #1e2a35; }
+.page-calendar .cal-head-day em, .page-calendar .cal-head-day.is-today span { color: #a8372c; }
+[data-app] .page-calendar .cal-head-day.is-today strong, html[data-current="calendar"] .page-calendar .cal-head-day.is-today strong { background: #a8372c; color: #fbf8f0; box-shadow: none; }
+.page-calendar .cal-hours span { color: rgba(30, 42, 53, .45); }
+.page-calendar .cal .cal-block { border-radius: 3px; box-shadow: none; }
+.page-calendar .cal .cal-block:hover { transform: none; filter: brightness(1.08); }
+.page-calendar .cal .cal-routine, .page-calendar .cal .cal-routine:hover { background: var(--c-routine); color: #f6f3ec; box-shadow: inset 3px 0 0 rgba(20, 40, 60, .45); }
+.page-calendar .cal .cal-work, .page-calendar .cal .cal-work:hover { background: var(--c-work); color: #fbf6ec; box-shadow: inset 3px 0 0 rgba(70, 40, 15, .45); }
+.page-calendar .cal .cal-appointment, .page-calendar .cal .cal-appointment:hover { background: var(--c-appt); color: var(--c-appt-text); box-shadow: inset 3px 0 0 var(--c-appt-edge); }
+.page-calendar .cal .cal-temporary, .page-calendar .cal .cal-temporary:hover { background: #1e2a35; color: #f6f3ec; box-shadow: inset 3px 0 0 #b88a3e; }
+.page-calendar .cal .cal-free { border-left: 2px solid var(--c-free-edge); background: var(--c-free); color: var(--c-free-text); }
+.page-calendar .cal .cal-free:hover { background: rgba(70, 97, 123, .13); border-color: #46617b; }
+.page-calendar .cal .cal-deadline { border-top-color: #b88a3e; }
+.page-calendar .cal .cal-deadline svg { color: #b88a3e; filter: none; }
+.page-calendar .cal .cal-deadline span { border-color: rgba(184, 138, 62, .6); border-radius: 2px; background: #fbf9f5; color: #4a3219; }
+.page-calendar .cal-now { background: #a8372c; box-shadow: none; }
+.page-calendar .cal-now::before { background: #a8372c; }
+.page-calendar .cal-now span { color: #a8372c; }
+.page-calendar .cal .cal-block.is-conflict { box-shadow: 0 0 0 2px rgba(168, 55, 44, .9), 0 0 14px 2px rgba(168, 55, 44, .22); }
+.page-calendar .cal .cal-layer { border-radius: 2px; border-color: rgba(30, 42, 53, .16); background: #fbf9f5; box-shadow: none; }
+.page-calendar .cal .cal-layer[aria-pressed="true"] { border-color: #1e2a35; background: #f1ece2; box-shadow: inset 0 -2px 0 #a8372c; }
+.page-calendar .cal-layer i { border-radius: 2px; }
+.page-calendar .cal-layer.lg-free i { background: rgba(70, 97, 123, .14); }
+.page-calendar .cal-layer.lg-temporary i { background: #1e2a35; box-shadow: inset 3px 0 0 #b88a3e; }
+.page-calendar .cal-layer.lg-conflict i { background: repeating-linear-gradient(135deg, rgba(168, 55, 44, .75) 0 3px, rgba(168, 55, 44, .18) 3px 6px); box-shadow: inset 0 0 0 1.5px #a8372c; }
+.page-calendar .cal-nav { background: #f1ece2; }
+.page-calendar .cal-nav button { color: #1e2a35; }
+.page-calendar .cal-agenda-day h3 { font-family: var(--font-serif); color: #1e2a35; }
+@media (max-width: 760px) { .page-calendar .scroll-mount { margin: 8px 0 0; padding: 6px; } }
