@@ -329,10 +329,11 @@ export function weeklyBrief(items, start, now) {
 
 /**
  * Optional page-supplied parts (kept out of this module so the mini program can share it unchanged):
- * band(dayStart, firstHour, lastHour) draws the 专注时段带 in each day head, bandLegend explains it,
+ * band(dayStart, firstHour, lastHour) draws the 专注时段带 in each day head, ribbon(...) the same intervals
+ * inside each day column on the week's time axis, bandLegend explains them,
  * banner is the 重排卡 above the week, sideTop opens 本周解析, alertLabel badges the 解析画卷 button.
  */
-export function calendarMarkup({ result, start, now, loading = false, error = '', undo = '', note = '', changes = [], plans = null, weighs = {}, focus = '', rolled = false, unrolling = false, fresh = false, analyzed = true, futureRef = '', listView = false, band = null, bandLegend = '', banner = '', sideTop = '', alertLabel = '' }) {
+export function calendarMarkup({ result, start, now, loading = false, error = '', undo = '', note = '', changes = [], plans = null, weighs = {}, focus = '', rolled = false, unrolling = false, fresh = false, analyzed = true, futureRef = '', listView = false, band = null, ribbon = null, bandLegend = '', banner = '', sideTop = '', alertLabel = '' }) {
   const weekConflicts = conflictsInWeek(result?.conflicts || [], start);
   const weekUndefined = undefinedInWeek(result, start);
   const items = calendarItems(result, start);
@@ -389,7 +390,7 @@ export function calendarMarkup({ result, start, now, loading = false, error = ''
       .map(({ conflict, from, to }) => `<div class="cal-overlap" style="top:${pct(from - top)};height:${pct(to - from)}" aria-hidden="true"><span>叠 ${minutesText(conflict.minutes || Math.round((to - from) / MINUTE))}</span></div>`).join('');
     const needle = index === today && now >= top && now <= top + span ? `<div class="cal-now" style="top:${pct(now - top)}" aria-hidden="true"><span>${clock(now)}</span></div>` : '';
     const state = index === today ? ' is-today' : dayEnd <= now ? ' is-past' : '';
-    return `<div class="cal-day${state}" role="group" aria-label="${monthDay(dayStart)} ${WEEKDAYS[index]}">${bands}${body}${overlaps}${lines}${needle}</div>`;
+    return `<div class="cal-day${state}" role="group" aria-label="${monthDay(dayStart)} ${WEEKDAYS[index]}">${ribbon ? ribbon(dayStart, first, last) : ''}${bands}${body}${overlaps}${lines}${needle}</div>`;
   }).join('');
 
   const heads = days.map((dayStart, index) => {

@@ -12,7 +12,7 @@ import { createBellToggle } from './bell-toggle.js';
 import { readMemory, writeMemory, recordActual, suggestEstimate, readCalibration, writeCalibration, recordCalibration, calibrationFor } from './estimate-memory.js';
 import { createRecognizer, imageProblem } from './screenshot-ocr.js';
 import { parseChatAction, findTask, starterReply, nextChips } from './chat-actions.js';
-import { readFocus, writeFocus, pruneStates, setMark, setCommonWindows, addStates, removeState, parseStateSentence, draftLabel, previewRequest, confirmRequest, replanRange, lockedRests, bandMarkup, bandUsed, bandLegend, todayStateMarkup, replanMarkup, spanText, dayLabel } from './focus.js';
+import { readFocus, writeFocus, pruneStates, setMark, setCommonWindows, addStates, removeState, parseStateSentence, draftLabel, previewRequest, confirmRequest, replanRange, lockedRests, bandMarkup, ribbonMarkup, bandUsed, bandLegend, todayStateMarkup, replanMarkup, spanText, dayLabel } from './focus.js';
 import { parseJwTimetable, termStartFrom } from './jw-timetable.js';
 
 /*
@@ -348,6 +348,7 @@ function renderCalendar() {
   const waiting = Boolean(replanState?.preview && (replanState.preview.needs_decision || replanState.preview.status === 'infeasible'));
   $('calendarView').innerHTML = calendarMarkup({ result: calendarResult, start: shownWeek(), now: nowMs, loading: calendarLoading && !calendarResult, error: calendarError, undo: strategyUndo?.replan ? '' : strategyUndo?.label || '', note: strategyUndo?.note || '', changes: strategyUndo?.changes || [], focus: calendarFocus, plans: solveState, weighs, rolled: scrollRolled, unrolling: Boolean(unrollTimer), fresh: !coverPainted, analyzed: calendarAnalyzed, futureRef, listView: calendarListView,
     band: showBand ? (dayStart, first, last) => bandMarkup(focusSettings, snapshot, dayStart, first, last, pending) : null,
+    ribbon: showBand ? (dayStart, first, last) => ribbonMarkup(focusSettings, snapshot, dayStart, first, last, pending) : null,
     bandLegend: showBand ? bandLegend(focusSettings, snapshot, pending) : '',
     banner: replanState ? replanMarkup(card, 'board') : '',
     sideTop: (replanState ? replanMarkup(card, 'side') : '') + todayStateMarkup(focusSettings, snapshot, nowMs, pending),

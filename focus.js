@@ -258,6 +258,22 @@ export function bandMarkup(focus, snapshot, dayStart, firstHour, lastHour, pendi
   }).join('');
   return segments ? `<span class="cal-fb">${segments}</span>` : '<span class="cal-fb is-empty"></span>';
 }
+/**
+ * The same intervals inside a day column, on the week's own (vertical) time axis: a faint wash behind
+ * the blocks, a thin rule down its left edge and the state's name at its top. The head strip runs
+ * hours left to right while the grid runs them top to bottom; drawing in the column keeps one axis.
+ */
+export function ribbonMarkup(focus, snapshot, dayStart, firstHour, lastHour, pending = null) {
+  const top = dayStart + firstHour * HOUR;
+  const span = (lastHour - firstHour) * HOUR;
+  return daySegments(focus, snapshot, dayStart, pending).map(segment => {
+    const a = Math.max(segment.start, top);
+    const b = Math.min(segment.end, top + span);
+    if (b <= a) return '';
+    const label = `${SEG_NAME[segment.kind]} ${spanText(segment.start, segment.end)} · 来自${segment.source}`;
+    return `<i class="fb-rib fb-${segment.kind}" style="top:${((a - top) / span * 100).toFixed(3)}%;height:${((b - a) / span * 100).toFixed(3)}%" title="${escape(label)}" aria-hidden="true"><span>${SEG_NAME[segment.kind]}</span></i>`;
+  }).join('');
+}
 export function bandUsed(focus, snapshot, pending = null) {
   return Boolean(focus.windows.length || focus.states.length || lockedRests(snapshot).length || pending?.rest || pending?.state);
 }
