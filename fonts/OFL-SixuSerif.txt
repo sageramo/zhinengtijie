@@ -1,4 +1,6 @@
-Copyright 2012 Google Inc. All Rights Reserved.
+Sixu Serif (fonts/SixuSerif-sixu.woff2) is a renamed subset of Source Han Serif SC.
+
+Copyright 2017-2022 Adobe (http://www.adobe.com/), with Reserved Font Name 'Source'.
 
 This Font Software is licensed under the SIL Open Font License,
 Version 1.1.

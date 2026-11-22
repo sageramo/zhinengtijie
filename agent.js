@@ -11,7 +11,7 @@ import { LEADS, dueReminders, icsCalendar, reminderText, upcomingCount } from '.
 import { createBellToggle } from './bell-toggle.js';
 import { readMemory, writeMemory, recordActual, suggestEstimate, readCalibration, writeCalibration, recordCalibration, calibrationFor } from './estimate-memory.js';
 import { createRecognizer, imageProblem } from './screenshot-ocr.js';
-import { readFocus, writeFocus, pruneStates, setMark, setCommonWindows, addStates, removeState, parseStateSentence, draftLabel, previewRequest, confirmRequest, replanRange, bandMarkup, bandUsed, bandLegend, todayStateMarkup, replanMarkup, spanText, dayLabel } from './focus.js';
+import { readFocus, writeFocus, pruneStates, setMark, setCommonWindows, addStates, removeState, parseStateSentence, draftLabel, previewRequest, confirmRequest, replanRange, lockedRests, bandMarkup, bandUsed, bandLegend, todayStateMarkup, replanMarkup, spanText, dayLabel } from './focus.js';
 import { parseJwTimetable, termStartFrom } from './jw-timetable.js';
 
 /*
@@ -103,13 +103,27 @@ function tell(message, type = '') {
 }
 $('appMessage').addEventListener('click', () => { window.clearTimeout(tellTimer); $('appMessage').hidden = true; });
 
-// ---- 铺纸 and 笔墨: keep the entrances the height of the viewport below the header.
+// ---- The header floats over the page: pages leave room for it (--hdr-h), and it tucks away while the
+// user scrolls down, coming back on scrolling up, on pointing at the top edge, on focus, or from its handle.
+const siteHeader = document.querySelector('[data-app] .site-header');
 if (typeof ResizeObserver === 'function') {
-  const header = document.querySelector('[data-app] .site-header');
   const observer = new ResizeObserver(() => {
-    document.documentElement.style.setProperty('--layer-header-height', `${header.offsetHeight}px`);
+    document.documentElement.style.setProperty('--hdr-h', `${siteHeader.offsetHeight}px`);
   });
-  observer.observe(header);
+  observer.observe(siteHeader);
+}
+{
+  let lastY = window.scrollY;
+  const tuck = on => { siteHeader.classList.toggle('is-tucked', on); $('hdrHandle').hidden = !on; };
+  window.addEventListener('scroll', () => {
+    const y = window.scrollY;
+    if (y < 48 || y < lastY - 6) tuck(false);
+    else if (y > lastY + 6 && !siteHeader.contains(document.activeElement)) tuck(true);
+    lastY = y;
+  }, { passive: true });
+  document.addEventListener('pointermove', event => { if (event.pointerType === 'mouse' && event.clientY < 40) tuck(false); }, { passive: true });
+  siteHeader.addEventListener('focusin', () => tuck(false));
+  $('hdrHandle').addEventListener('click', () => { tuck(false); siteHeader.querySelector('[aria-current="page"], a')?.focus({ preventScroll: true }); });
 }
 function openRoll(key) {
   const roll = document.querySelector(`[data-roll="${key}"]`);
@@ -549,7 +563,7 @@ function renderTime() {
   renderAdjustments();
   $('referenceTime').value = toLocalInput(snapshot.reference_time);
 }
-function renderAll() { renderSources(); renderItems(); renderTime(); renderFocusSetup(); renderCalendar(); renderBadges(); }
+function renderAll() { renderSources(); renderItems(); renderTime(); renderFocusSetup(); renderInkRail(); renderCalendar(); renderBadges(); }
 
 // ---- Import -------------------------------------------------------------
 let parseTimer = null;
@@ -616,9 +630,9 @@ function showTurn(text, html) {
   $('noticeText').value = '';
   $('noticeText').style.height = '';
   $('noticeDate').value = '';
-  if ($('noticeSection').getBoundingClientRect().bottom > window.innerHeight) {
-    $('noticeForm').scrollIntoView?.({ block: 'end', behavior: scrollBehavior() });
-  }
+  // Like a chat: the composer stays put at the bottom, and the thread scrolls so this turn starts at the top.
+  const turn = $('importSummary').previousElementSibling;
+  (window.requestAnimationFrame || window.setTimeout)(() => turn?.scrollIntoView?.({ block: 'start', behavior: scrollBehavior() }));
 }
 function replyMarkup(reply) {
   const links = { calendar: '<a href="#/calendar" data-agenda-calendar>看画卷</a>',
@@ -787,6 +801,42 @@ function pushUserTurn(text) {
   turn.textContent = text;
   $('importSummary').before(turn);
 }
+// ---- 研磨的左栏：导入过的通知与说过的状态（清单里的东西，不是另一套会话） ----------------
+function renderInkRail() {
+  if (!$('railSources')) return;
+  const sources = snapshot.sources.filter(source => source.kind !== 'timetable').slice().reverse().slice(0, 40);
+  $('railSources').innerHTML = sources.length ? sources.map(source => {
+    const count = [...snapshot.events, ...snapshot.tasks].filter(item => item.source_id === source.id).length;
+    const first = source.text.split('\n').map(line => line.trim()).find(Boolean) || '（空白通知）';
+    return `<li><details><summary><span>${escapeHTML(first.slice(0, 36))}</span><em>${count} 项${source.kind === 'synthetic' ? ' · 示例' : ''}</em></summary><pre>${escapeHTML(source.text)}</pre></details></li>`;
+  }).join('') : '<li class="rail-empty">导入的通知会列在这里，随时回来核对原文。</li>';
+  const now = Date.now();
+  const states = focusSettings.states.filter(state => Date.parse(state.end_at) > now).map(state => ({ at: Date.parse(state.start_at), html: `<li><b>${state.level === 'low' ? '精力偏低' : '临时专注'} ${escapeHTML(dayLabel(Date.parse(state.start_at)))} ${spanText(Date.parse(state.start_at), Date.parse(state.end_at))}</b><span>“${escapeHTML(state.text)}”</span><button type="button" class="text-button" data-focus-state="${escapeHTML(state.id)}">删去</button></li>` }));
+  const rests = lockedRests(snapshot).filter(rest => rest.end > now).map(rest => ({ at: rest.start, html: `<li><b>休息 ${escapeHTML(dayLabel(rest.start))} ${spanText(rest.start, rest.end)}</b><span>“${escapeHTML(rest.label)}” · 已写进留白</span></li>` }));
+  const rows = [...states, ...rests].sort((a, b) => a.at - b.at).map(row => row.html).join('');
+  $('railStates').innerHTML = rows || '<li class="rail-empty">说一句“下午四点半到五点半想歇会儿”或“有点累”，会记在这里。</li>';
+}
+$('railStates')?.addEventListener('click', event => {
+  const button = event.target.closest('[data-focus-state]');
+  if (button) saveFocus(removeState(focusSettings, button.dataset.focusState));
+});
+$('newThread')?.addEventListener('click', () => {
+  for (const node of [...$('inkThread').children]) if (node.id !== 'importSummary') node.remove();
+  const box = $('importSummary');
+  box.hidden = true; box.innerHTML = ''; delete box.dataset.turn;
+  chatHistory.splice(0); lastTaskId = null; pendingDiff = null;
+  setRail(false);
+  window.scrollTo({ top: 0, behavior: scrollBehavior() });
+  $('noticeText').focus({ preventScroll: true });
+  tell('已开始新对话。清单不变，之前导入的通知仍在左边。');
+});
+function setRail(open) {
+  $('noticeSection').closest('.page-import')?.classList.toggle('is-rail-open', open);
+  $('railOpen')?.setAttribute('aria-expanded', String(open));
+}
+$('railOpen')?.addEventListener('click', () => setRail(true));
+$('railClose')?.addEventListener('click', () => setRail(false));
+
 const growNotice = () => { const box = $('noticeText'); box.style.height = 'auto'; box.style.height = `${Math.min(box.scrollHeight + 2, window.innerHeight * 0.45)}px`; };
 $('noticeText').addEventListener('input', growNotice);
 $('noticeText').addEventListener('keydown', event => {
@@ -1418,6 +1468,7 @@ function saveFocus(next, { render = true } = {}) {
   focusSettings = next;
   writeFocus(storage, next);
   renderFocusSetup();
+  renderInkRail();
   if (render) renderCalendar();
 }
 function liveSnapshot() {

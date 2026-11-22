@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="description" content="把校园通知整理成可核对的事项，用真实空闲生成经过校验的个人安排。">
-  <meta name="sixu-ui-version" content="2026.11.22.52">
+  <meta name="sixu-ui-version" content="2026.11.22.53">
   <title>司序 Marshal · 知所先后</title>
   <link rel="icon" href="./assets/sixu-mark.svg" type="image/svg+xml">
   <link rel="manifest" href="./manifest.webmanifest">
@@ -12,7 +12,7 @@
   <link rel="apple-touch-icon" href="./assets/icon-192.png">
   <script>{ const h = location.hash; document.documentElement.dataset.current = h.startsWith('#/') && ['import', 'items', 'time', 'calendar', 'review', 'plan'].includes(h.slice(2).split('?')[0]) ? ({ review: 'items', plan: 'calendar' }[h.slice(2).split('?')[0]] || h.slice(2).split('?')[0]) : 'home'; if (document.documentElement.dataset.current === 'home' && !matchMedia('(prefers-reduced-motion: reduce)').matches) document.documentElement.classList.add('intro'); }</script>
   <link rel="preload" as="image" href="./assets/hero-ribbon-plate.jpg">
-  <link rel="stylesheet" href="./agent.css?v=2026.11.22.52">
+  <link rel="stylesheet" href="./agent.css?v=2026.11.22.53">
 </head>
 <body>
   <div class="intro" id="intro" aria-hidden="true">
@@ -63,13 +63,41 @@
     <div class="page-status"><p class="save-state" id="saveState" role="status">清单保存在当前浏览器</p><div class="list-actions" aria-label="清单"><button type="button" id="exportSnapshot" title="导出清单"><svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true"><path d="M12 4v11M7 10l5 5 5-5M5 20h14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg><span class="btn-text">导出清单</span></button><button class="danger-text" type="button" id="clearSnapshot" title="清空清单"><svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true"><path d="M5 7h14M10 7V4h4v3M7 7l1 13h8l1-13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg><span class="btn-text">清空清单</span></button></div></div>
     <nav class="aux-nav" aria-label="辅助入口"><a href="#/">项目介绍</a><a href="./algorithm.html">计算说明</a></nav>
   </header>
+  <button type="button" class="hdr-handle" id="hdrHandle" aria-label="显示导航" hidden><span aria-hidden="true">司序</span><svg viewBox="0 0 24 24" width="14" height="14" aria-hidden="true"><path d="M6 9l6 6 6-6" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
   <main class="workspace">
     <h1 class="sr-only" id="workbenchHeading" tabindex="-1">司序工作台</h1>
     <div id="appMessage" class="message toast" role="status" aria-live="polite" hidden></div>
     <div id="backupNudge" class="message backup-nudge" role="status" hidden><p>清单只保存在这个浏览器里，换手机或清理浏览器数据就会丢。导出一份备份，需要时在“服务与备份”里载入。</p><div class="inline-actions"><button type="button" class="primary-button" id="backupNow">导出备份</button><button type="button" class="text-button" id="backupLater">今天先不</button></div></div>
     <div id="storageConflict" class="message warning" hidden><p>清单在另一个标签页发生了变化。为避免覆盖，请先导出当前内容，再载入最新清单。</p><button type="button" id="reloadLatest">载入最新清单</button></div>
     <div class="page page-import" data-page="import">
+        <aside class="ink-rail" id="inkRail" aria-label="砚池记录与工具">
+          <div class="rail-head"><button type="button" class="rail-new" id="newThread"><svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true"><path d="M12 5v14M5 12h14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>新对话</button><button type="button" class="rail-close" id="railClose" aria-label="收起记录">收起</button></div>
+          <section class="rail-block" aria-labelledby="railSourcesHeading"><h3 id="railSourcesHeading">导入过的通知</h3><ul class="rail-list" id="railSources"></ul></section>
+          <section class="rail-block" aria-labelledby="railStatesHeading"><h3 id="railStatesHeading">说过的状态</h3><ul class="rail-list" id="railStates"></ul></section>
+          <section class="rail-block rail-tools" aria-label="更多工具">
+            <div class="ink-extras">
+              <div class="share-link-row extra-card"><i class="extra-glyph is-link" aria-hidden="true"></i><div><button type="button" class="text-button" id="makeShareLink">做成司序链接，发到群里</button><span class="field-help">班委或任何人做一次，同学点开链接，通知就已经在砚池里。</span></div></div>
+              <details class="share-help extra-card" id="shareHelp"><summary><i class="extra-glyph is-phone" aria-hidden="true"></i>在手机上少复制几次</summary><ol>
+              <li><b>安卓</b>：用 Chrome 打开司序，菜单里选“添加到主屏幕”。之后在相册里选中几张通知截图 → 分享 → 司序，会直接在本机识别成文字。</li>
+              <li><b>iPhone</b>：在“快捷指令”里新建一条：<em>获取剪贴板</em> → <em>URL 编码</em> → <em>打开 URL</em>，网址填 <code id="shortcutUrl"></code>（末尾接上“URL 编码后的文本”）。在微信里复制通知后运行它（可以放在负一屏或设成轻点背面），通知会直接出现在下面的砚池里。</li>
+              <li>文字只经过你的手机和浏览器，填进砚池后仍要你点“导入”。</li></ol></details>
+              <details class="share-help extra-card group-card" id="groupCard"><summary><i class="extra-glyph is-group" aria-hidden="true"></i>多人约时：只交换匿名空闲码</summary>
+                <div class="group-body">
+                  <p class="field-help">每人生成一串只有 0 和 1 的本周空闲码，里面没有课名、地点和事项。把大家的码贴在一起，司序找出撞课最少的时段。</p>
+                  <div class="group-row"><button type="button" id="groupExport">生成我本周的空闲码</button><input id="groupMine" readonly aria-label="我的空闲码" placeholder="点左边按钮生成"><button type="button" class="text-button" id="groupCopy">复制</button></div>
+                  <label>同学的空闲码 <span class="optional">每行一个</span><textarea id="groupOthers" rows="3" spellcheck="false"></textarea></label>
+                  <div class="group-row"><label class="group-duration">要约多久<select id="groupDuration"><option value="30">30 分钟</option><option value="60" selected>1 小时</option><option value="90">1.5 小时</option><option value="120">2 小时</option></select></label><button type="button" class="primary-button" id="groupFind">找共同空档</button></div>
+                  <div id="groupResult" role="status"></div>
+                </div>
+              </details>
+              <p class="privacy-note">导入会把通知原文发给计算服务；模型提取还会交给 Dify 与所选模型。试算发送清单给计算服务。选模型聊天时，最近几轮模型对话会发送给 DeepSeek。清单保存在此浏览器，换设备不会同步。</p>
+            </div>
+            <a class="next-step" href="#/time">下一步：铺纸 · 底色与留白<svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><path d="M5 12h14M13 6l6 6-6 6" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></a>
+          </section>
+        </aside>
         <section class="surface ink-chat" id="noticeSection" aria-labelledby="noticeHeading">
+          <button type="button" class="rail-open" id="railOpen" aria-controls="inkRail" aria-expanded="false">记录与工具</button>
+          <div class="ink-scroll" id="inkScroll">
           <header class="ink-hello"><svg class="inkstone" viewBox="0 0 120 84" aria-hidden="true"><defs><radialGradient id="inkPool" cx="50%" cy="45%" r="60%"><stop offset="0" stop-color="#1d4f94"/><stop offset=".7" stop-color="#2563b8"/><stop offset="1" stop-color="#3f86d6"/></radialGradient><linearGradient id="inkStone" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#e3eaf3"/><stop offset="1" stop-color="#b9c7d8"/></linearGradient></defs><ellipse cx="60" cy="52" rx="56" ry="28" fill="url(#inkStone)"/><ellipse cx="60" cy="48" rx="47" ry="21" fill="#f6f9fc"/><ellipse class="inkstone-pool" cx="60" cy="50" rx="38" ry="15" fill="url(#inkPool)"/><path class="inkstone-swirl" d="M44 50c4-7 18-9 26-4s4 12-6 11-10-7-3-9" fill="none" stroke="#9fcdf5" stroke-width="1.6" stroke-linecap="round" opacity=".8"/><g class="inkstone-stick"><rect x="74" y="6" width="13" height="40" rx="3" transform="rotate(24 80 26)" fill="#1f2d3d"/><rect x="74" y="10" width="13" height="7" transform="rotate(24 80 26)" fill="#e09a35" opacity=".9"/></g></svg>
             <div class="ink-hello-text">
               <p class="ink-eyebrow">研磨 · 通知与提醒</p>
@@ -83,7 +111,16 @@
               </ol>
             </div>
           </header>
+          <div class="ink-suggest" role="group" aria-labelledby="inkSuggestLabel">
+            <p class="ink-suggest-label" id="inkSuggestLabel">试一试</p>
+            <button type="button" class="suggest is-personal" data-suggest="提醒我今天晚上9点前交实验报告"><i aria-hidden="true"></i><b>记一件事</b><span>提醒我今晚 9 点前交实验报告</span></button>
+            <button type="button" class="suggest is-capacity" data-suggest="这周再接4小时的社团工作，留6小时休息，时间够吗？"><i aria-hidden="true"></i><b>承诺前试算</b><span>再接 4 小时社团工作，留 6 小时休息</span></button>
+            <button type="button" class="suggest is-notice" id="fillExample"><i aria-hidden="true"></i><b>粘贴一条通知</b><span>填入一份虚构的讲座通知</span></button>
+            <button type="button" class="suggest is-week" id="loadDemoWeek"><i aria-hidden="true"></i><b>看示例一周</b><span>带叠墨、待书与约定的下周</span></button>
+            <button type="button" class="suggest is-case" id="loadPhotoCase"><i aria-hidden="true"></i><b>路演案例</b><span>摄影社招新：说明会撞上专业课</span></button>
+          </div>
           <div class="ink-thread" id="inkThread" aria-label="研磨记录"><div class="import-summary" id="importSummary" role="status" hidden></div></div>
+          </div>
           <form id="noticeForm" class="ink-composer" novalidate>
             <div class="inkwell" id="inkwell"><label for="noticeText" class="sr-only">发给司序</label>
               <textarea id="noticeText" rows="2" maxlength="100000" placeholder="提醒我今天写实验报告，预计 30 分钟"></textarea><span class="inkwell-ripple" aria-hidden="true"></span>
@@ -103,32 +140,6 @@
             <figure class="ocr-preview" id="ocrPreview" hidden><img id="ocrPreviewImage" alt="正在识别或刚识别的通知截图"><figcaption>对照这张截图检查上面的文字。</figcaption></figure>
             <div class="parse-progress" id="parseProgress" hidden><span class="ink-swirl" aria-hidden="true"></span><div><p id="parseStep" role="status">正在提取</p><p class="field-help"><span id="parseElapsed" aria-hidden="true"></span><span id="parseHint"></span></p></div></div>
           </form>
-          <div class="ink-suggest" role="group" aria-labelledby="inkSuggestLabel">
-            <p class="ink-suggest-label" id="inkSuggestLabel">试一试</p>
-            <button type="button" class="suggest is-personal" data-suggest="提醒我今天晚上9点前交实验报告"><i aria-hidden="true"></i><b>记一件事</b><span>提醒我今晚 9 点前交实验报告</span></button>
-            <button type="button" class="suggest is-capacity" data-suggest="这周再接4小时的社团工作，留6小时休息，时间够吗？"><i aria-hidden="true"></i><b>承诺前试算</b><span>再接 4 小时社团工作，留 6 小时休息</span></button>
-            <button type="button" class="suggest is-notice" id="fillExample"><i aria-hidden="true"></i><b>粘贴一条通知</b><span>填入一份虚构的讲座通知</span></button>
-            <button type="button" class="suggest is-week" id="loadDemoWeek"><i aria-hidden="true"></i><b>看示例一周</b><span>带叠墨、待书与约定的下周</span></button>
-            <button type="button" class="suggest is-case" id="loadPhotoCase"><i aria-hidden="true"></i><b>路演案例</b><span>摄影社招新：说明会撞上专业课</span></button>
-          </div>
-          <div class="ink-extras">
-            <div class="share-link-row extra-card"><i class="extra-glyph is-link" aria-hidden="true"></i><div><button type="button" class="text-button" id="makeShareLink">做成司序链接，发到群里</button><span class="field-help">班委或任何人做一次，同学点开链接，通知就已经在砚池里。</span></div></div>
-            <details class="share-help extra-card" id="shareHelp"><summary><i class="extra-glyph is-phone" aria-hidden="true"></i>在手机上少复制几次</summary><ol>
-            <li><b>安卓</b>：用 Chrome 打开司序，菜单里选“添加到主屏幕”。之后在相册里选中几张通知截图 → 分享 → 司序，会直接在本机识别成文字。</li>
-            <li><b>iPhone</b>：在“快捷指令”里新建一条：<em>获取剪贴板</em> → <em>URL 编码</em> → <em>打开 URL</em>，网址填 <code id="shortcutUrl"></code>（末尾接上“URL 编码后的文本”）。在微信里复制通知后运行它（可以放在负一屏或设成轻点背面），通知会直接出现在下面的砚池里。</li>
-            <li>文字只经过你的手机和浏览器，填进砚池后仍要你点“导入”。</li></ol></details>
-            <details class="share-help extra-card group-card" id="groupCard"><summary><i class="extra-glyph is-group" aria-hidden="true"></i>多人约时：只交换匿名空闲码</summary>
-              <div class="group-body">
-                <p class="field-help">每人生成一串只有 0 和 1 的本周空闲码，里面没有课名、地点和事项。把大家的码贴在一起，司序找出撞课最少的时段。</p>
-                <div class="group-row"><button type="button" id="groupExport">生成我本周的空闲码</button><input id="groupMine" readonly aria-label="我的空闲码" placeholder="点左边按钮生成"><button type="button" class="text-button" id="groupCopy">复制</button></div>
-                <label>同学的空闲码 <span class="optional">每行一个</span><textarea id="groupOthers" rows="3" spellcheck="false"></textarea></label>
-                <div class="group-row"><label class="group-duration">要约多久<select id="groupDuration"><option value="30">30 分钟</option><option value="60" selected>1 小时</option><option value="90">1.5 小时</option><option value="120">2 小时</option></select></label><button type="button" class="primary-button" id="groupFind">找共同空档</button></div>
-                <div id="groupResult" role="status"></div>
-              </div>
-            </details>
-            <p class="privacy-note">导入会把通知原文发给计算服务；模型提取还会交给 Dify 与所选模型。试算发送清单给计算服务。选模型聊天时，最近几轮模型对话会发送给 DeepSeek。清单保存在此浏览器，换设备不会同步。</p>
-          </div>
-          <a class="next-step" href="#/time">下一步：铺纸 · 底色与留白<svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><path d="M5 12h14M13 6l6 6-6 6" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></a>
         </section>
       <aside class="import-side" aria-label="原文">
         <section class="source-section" aria-labelledby="sourceHeading"><div class="section-top"><h2 id="sourceHeading">原文记录</h2><span id="sourceCount">0 份</span></div><div id="sourceList"><p class="empty-note">导入后可随时回来核对。</p></div></section>
@@ -265,7 +276,7 @@
       <form id="apiForm"><label for="apiBase">解析与计算服务地址</label><input id="apiBase" type="url" inputmode="url" required><button type="submit">保存地址并检查连接</button><p class="field-help" id="connectionStatus" role="status">尚未检查连接</p></form>
       <div class="backup-actions"><button type="button" id="importSnapshot">导入清单</button><input type="file" id="importFile" accept="application/json,.json" hidden></div>
       <p class="field-help">导出文件包含原文与个人安排，请妥善保存。</p>
-      <p class="field-help" id="uiVersion">界面版本 2026.11.22.52</p>
+      <p class="field-help" id="uiVersion">界面版本 2026.11.22.53</p>
     </details>
     <footer class="page-footer"><span>以确认后的信息计算，把取舍留给你。</span></footer>
   </main>
@@ -274,7 +285,7 @@
   <div class="access-ask" id="accessAsk" role="dialog" aria-modal="true" aria-labelledby="accessTitle" hidden><form class="access-card" id="accessForm"><h2 id="accessTitle">访问口令</h2><p class="field-help" id="accessHint"></p><label for="accessCode">口令</label><input id="accessCode" type="password" autocomplete="off" maxlength="200" required><div class="inline-actions"><button type="submit" class="primary-button">确定</button><button type="button" class="text-button" id="accessCancel">取消</button></div></form></div>
   <div class="route-veil" id="routeVeil" aria-hidden="true"><i class="ink ink-1"></i><i class="ink ink-2"></i><i class="ink ink-3"></i><svg class="veil-mark" viewBox="0 0 100 100"><path class="mark-ring" d="M22 86V28H30.56L50 63.64L69.44 28H78V86H70V43.69L54.56 72H45.44L30 43.69V86Z" fill="currentColor"/><g class="veil-needle"><path d="M50 14L53.2 40.4H46.8Z" fill="currentColor"/><path d="M46.8 40.4L50 62L53.2 40.4" fill="none" stroke="currentColor" stroke-width="1.8"/></g></svg><p class="veil-word"><span>司序</span><span>知所先后</span></p></div>
   <noscript>此页面需要启用JavaScript才能编辑和计算任务。</noscript>
-  <script type="importmap">{"imports":{"./task-state.js":"./task-state.js?v=2026.11.22.52","./snapshot-store.js":"./snapshot-store.js?v=2026.11.22.52","./model-candidates.js":"./model-candidates.js?v=2026.11.22.52","./time-review.js":"./time-review.js?v=2026.11.22.52","./planning-result.js":"./planning-result.js?v=2026.11.22.52","./agenda.js":"./agenda.js?v=2026.11.22.52","./calendar.js":"./calendar.js?v=2026.11.22.52","./shanshui.js":"./shanshui.js?v=2026.11.22.52","./reminders.js":"./reminders.js?v=2026.11.22.52","./bell-toggle.js":"./bell-toggle.js?v=2026.11.22.52","./estimate-memory.js":"./estimate-memory.js?v=2026.11.22.52","./time-state.js":"./time-state.js?v=2026.11.22.52","./scenario.js":"./scenario.js?v=2026.11.22.52","./screenshot-ocr.js":"./screenshot-ocr.js?v=2026.11.22.52","./jw-timetable.js":"./jw-timetable.js?v=2026.11.22.52","./focus.js":"./focus.js?v=2026.11.22.52"}}</script>
-  <script src="./router.js?v=2026.11.22.52"></script><script src="./about-sky.js?v=2026.11.22.52"></script><script src="./landing.js?v=2026.11.22.52"></script><script src="./api-config.js?v=2026.11.22.52"></script><script type="module" src="./agent.js?v=2026.11.22.52"></script>
+  <script type="importmap">{"imports":{"./task-state.js":"./task-state.js?v=2026.11.22.53","./snapshot-store.js":"./snapshot-store.js?v=2026.11.22.53","./model-candidates.js":"./model-candidates.js?v=2026.11.22.53","./time-review.js":"./time-review.js?v=2026.11.22.53","./planning-result.js":"./planning-result.js?v=2026.11.22.53","./agenda.js":"./agenda.js?v=2026.11.22.53","./calendar.js":"./calendar.js?v=2026.11.22.53","./shanshui.js":"./shanshui.js?v=2026.11.22.53","./reminders.js":"./reminders.js?v=2026.11.22.53","./bell-toggle.js":"./bell-toggle.js?v=2026.11.22.53","./estimate-memory.js":"./estimate-memory.js?v=2026.11.22.53","./time-state.js":"./time-state.js?v=2026.11.22.53","./scenario.js":"./scenario.js?v=2026.11.22.53","./screenshot-ocr.js":"./screenshot-ocr.js?v=2026.11.22.53","./jw-timetable.js":"./jw-timetable.js?v=2026.11.22.53","./focus.js":"./focus.js?v=2026.11.22.53"}}</script>
+  <script src="./router.js?v=2026.11.22.53"></script><script src="./about-sky.js?v=2026.11.22.53"></script><script src="./landing.js?v=2026.11.22.53"></script><script src="./api-config.js?v=2026.11.22.53"></script><script type="module" src="./agent.js?v=2026.11.22.53"></script>
 </body>
 </html>

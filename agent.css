@@ -1,6 +1,8 @@
-/* Self-hosted title faces, subset to the characters in h1/h2 and the name (OFL; see fonts/OFL-*.txt).
-   Other characters fall back per glyph to the local serif and kai stacks. */
-@font-face { font-family: "Sixu Serif"; src: url("./fonts/NotoSerifSC-sixu.woff2") format("woff2"); font-weight: 200 900; font-display: swap; }
+/* Self-hosted title faces (OFL; see fonts/OFL-*.txt).
+   Sixu Serif is a renamed subset of Source Han Serif SC, weights 400–900, holding every character the
+   pages draw in serif (collected in a real browser) plus all characters of the HTML, 画卷 and 重排卡 text,
+   so no serif line mixes in a fallback glyph. User content is never drawn in serif. */
+@font-face { font-family: "Sixu Serif"; src: url("./fonts/SixuSerif-sixu.woff2") format("woff2"); font-weight: 400 900; font-display: swap; }
 @font-face { font-family: "Sixu Kai"; src: url("./fonts/LXGWWenKai-sixu.woff2") format("woff2"); font-weight: 400; font-display: swap; }
 /* Landing display faces (OFL): Grandstander 900 for Marshal and the Latin lines, Zen Maru Gothic Black for
    the 司序 / 知所先后 headline only; both subset to what the landing shows. */
@@ -800,17 +802,17 @@ html:not([data-current="home"]) body::after { content: ""; position: fixed; righ
 .workspace {
   --workspace-gutter: 24px;
 }
-.workspace:has(> .page:not([hidden]) > .rolls:not([data-open])) {
+:is(html[data-current="time"] .workspace:has(> [data-page="time"] > .rolls:not([data-open])), html[data-current="items"] .workspace:has(> [data-page="items"] > .rolls:not([data-open]))) {
   max-width: none;
   padding: 0 0 20px;
 }
 .page:has(> .rolls:not([data-open])) { max-width: none; }
-.workspace:has(> .page:not([hidden]) > .rolls:not([data-open])) > :is(.backup-nudge, #storageConflict, .settings, .page-footer),
+:is(html[data-current="time"] .workspace:has(> [data-page="time"] > .rolls:not([data-open])), html[data-current="items"] .workspace:has(> [data-page="items"] > .rolls:not([data-open]))) > :is(.backup-nudge, #storageConflict, .settings, .page-footer),
 .page:has(> .rolls:not([data-open])) > .next-step {
   width: calc(100% - 2 * var(--workspace-gutter));
   margin-inline: auto;
 }
-.workspace:has(> .page:not([hidden]) > .rolls:not([data-open])) > :is(.backup-nudge, #storageConflict, .page-footer) {
+:is(html[data-current="time"] .workspace:has(> [data-page="time"] > .rolls:not([data-open])), html[data-current="items"] .workspace:has(> [data-page="items"] > .rolls:not([data-open]))) > :is(.backup-nudge, #storageConflict, .page-footer) {
   max-width: 1320px;
 }
 .page:has(> .rolls:not([data-open])) > .next-step { max-width: 960px; }
@@ -925,7 +927,7 @@ html:not([data-current="home"]) body::after { content: ""; position: fixed; righ
 .roll-body > .surface { margin: 0; background: rgba(255, 255, 255, .82); border-color: rgba(176, 134, 58, .3); backdrop-filter: blur(2px); }
 @media (max-width: 760px) {
   .workspace { --workspace-gutter: 16px; }
-  .workspace:has(> .page:not([hidden]) > .rolls:not([data-open])) { padding-bottom: 76px; }
+  :is(html[data-current="time"] .workspace:has(> [data-page="time"] > .rolls:not([data-open])), html[data-current="items"] .workspace:has(> [data-page="items"] > .rolls:not([data-open]))) { padding-bottom: 76px; }
   .page:has(> .rolls:not([data-open])) > .next-step { padding-inline-end: 44px; }
   .rolls { grid-template-columns: minmax(0, 1fr); }
   .roll-face {
@@ -2075,3 +2077,197 @@ html[data-current="calendar"] .cal-head-day.has-band { padding-bottom: 13px; }
 .focus-state-list { display: grid; gap: 6px; margin: 4px 0 0; padding: 0; list-style: none; }
 .focus-state-list li { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 10px; font-size: .8125rem; }
 .focus-state-list em { color: var(--muted); font-style: normal; font-size: .75rem; }
+
+/* ==== UI .53 — 浮动顶栏 & 研磨对话布局 ==========================================================
+   The header floats over every page as a translucent bar and tucks away while scrolling down.
+   研磨 reads like Claude / Codex: records on the left, the thread scrolls, the composer stays put. */
+:root { --layer-header-height: 0px; }
+[data-app] .site-header {
+  position: fixed; top: 10px; left: 50%; z-index: 40;
+  width: min(1360px, calc(100% - 24px));
+  padding: 8px 14px 8px 18px; border: 1px solid rgba(255, 255, 255, .7); border-radius: 22px;
+  background: rgba(255, 255, 255, .58); color: var(--text);
+  box-shadow: 0 10px 30px -14px rgba(29, 42, 56, .35);
+  backdrop-filter: saturate(1.5) blur(16px); -webkit-backdrop-filter: saturate(1.5) blur(16px);
+  transform: translateX(-50%); transition: transform .38s cubic-bezier(.2, .7, .2, 1), background .2s ease, box-shadow .2s ease;
+}
+[data-app] .site-header:hover, [data-app] .site-header:focus-within { background: rgba(255, 255, 255, .82); }
+[data-app] .site-header.is-tucked { transform: translate(-50%, calc(-100% - 18px)); box-shadow: none; }
+[data-app] .site-header .page-tabs { background: rgba(255, 255, 255, .45); }
+.hdr-handle {
+  position: fixed; top: 0; left: 50%; z-index: 39; display: inline-flex; align-items: center; gap: 4px;
+  min-height: 0; padding: 3px 12px 5px; border: 1px solid rgba(255, 255, 255, .7); border-top: 0; border-radius: 0 0 12px 12px;
+  background: rgba(255, 255, 255, .7); color: var(--muted); font-size: .6875rem; letter-spacing: .2em;
+  backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px); transform: translateX(-50%); cursor: pointer;
+}
+.hdr-handle[hidden] { display: none; }
+[data-app] .workspace { padding-top: calc(var(--hdr-h, 70px) + 26px); }
+/* 铺纸 / 笔墨 entrances run under the header, full height. */
+[data-app] :is(html[data-current="time"] .workspace:has(> [data-page="time"] > .rolls:not([data-open])), html[data-current="items"] .workspace:has(> [data-page="items"] > .rolls:not([data-open]))) { padding-top: 0; }
+@media (max-width: 760px) {
+  [data-app] .site-header { top: 0; width: 100%; padding: 8px 12px; border-width: 0 0 1px; border-radius: 0 0 18px 18px; }
+  [data-app] .workspace { padding-top: calc(var(--hdr-h, 110px) + 14px); }
+}
+
+/* ---- 研磨: page background in the 画卷 palette (paper, pale blue ink, far mountains). */
+html[data-current="import"] [data-app] {
+  background:
+    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 1600 360' preserveAspectRatio='none'%3E%3Cpath d='M0 250 C120 200 210 150 330 190 S520 120 640 170 S850 230 980 160 S1220 110 1340 175 S1520 210 1600 180 V360 H0Z' fill='%23c9d6e6' opacity='.45'/%3E%3Cpath d='M0 300 C160 250 260 230 400 262 S640 220 780 250 S1010 290 1160 240 S1420 230 1600 268 V360 H0Z' fill='%23a9bcd3' opacity='.4'/%3E%3Cpath d='M0 340 C200 310 380 300 560 322 S900 330 1100 312 S1420 318 1600 330 V360 H0Z' fill='%238ea6c2' opacity='.32'/%3E%3C/svg%3E") left bottom / 100% 32vh no-repeat fixed,
+    radial-gradient(120% 70% at 85% 0%, rgba(205, 222, 240, .7), rgba(205, 222, 240, 0) 60%),
+    linear-gradient(180deg, #f4f7fb 0%, #fbf8f1 55%, #f6f1e6 100%);
+}
+html[data-current="import"] [data-page="import"] {
+  display: grid; grid-template-columns: 284px minmax(0, 1fr); gap: 28px; align-items: start;
+  max-width: 1360px; margin: 0 auto;
+}
+.page-import .ink-chat {
+  display: flex; flex-direction: column; min-height: calc(100dvh - var(--hdr-h, 70px) - 46px);
+  max-width: none; margin: 0; padding: 0; border: 0; border-radius: 0; background: none; box-shadow: none; overflow: visible;
+}
+.page-import .ink-scroll { flex: 1; width: 100%; max-width: 800px; margin: 0 auto; padding-bottom: 18px; }
+.page-import .ink-chat > .ink-scroll > .ink-hello {
+  display: grid; grid-template-columns: 1fr; justify-items: center; gap: 10px; margin: clamp(16px, 9vh, 96px) 0 26px; padding: 0;
+  overflow: visible; border-radius: 0; background: none; color: var(--text); text-align: center;
+}
+.page-import .ink-chat > .ink-scroll > .ink-hello::before, .page-import .ink-chat > .ink-scroll > .ink-hello::after { display: none; }
+.page-import .ink-hello .inkstone { width: 84px; filter: drop-shadow(0 8px 14px rgba(19, 40, 74, .18)); }
+.page-import .ink-hello .ink-eyebrow { color: var(--accent-deep); }
+.page-import .ink-hello h2 { margin: 0; color: var(--text); font-family: var(--font-serif); font-size: clamp(1.75rem, 1.2rem + 1.5vw, 2.5rem); font-weight: 700; text-shadow: none; }
+.page-import .ink-hello .section-note { max-width: 36rem; margin: 2px auto 0; color: var(--muted); }
+.page-import .ink-hello .ink-steps { justify-content: center; }
+.page-import .ink-hello .ink-steps li { border-color: rgba(43, 38, 32, .12); background: rgba(255, 255, 255, .6); color: var(--muted); }
+.page-import .ink-suggest { grid-template-columns: repeat(auto-fill, minmax(190px, 1fr)); margin: 6px 0 0; }
+.page-import .ink-suggest .suggest { background: rgba(255, 255, 255, .72); backdrop-filter: blur(6px); }
+/* Once the conversation starts, the greeting and suggestions give the room to the thread. */
+.page-import .ink-chat:has(.turn-user) > .ink-scroll > .ink-hello, .page-import .ink-chat:has(.turn-user) .ink-suggest { display: none; }
+.page-import .ink-chat:has(.turn-user) .ink-thread { padding-top: 8px; }
+.page-import .ink-thread { margin: 0; }
+.page-import .ink-thread .turn-user { scroll-margin-top: calc(var(--hdr-h, 70px) + 26px); }
+/* The composer stays at the bottom of the window while the thread scrolls behind it. */
+.page-import .ink-composer {
+  position: sticky; bottom: 0; z-index: 6; width: 100%; max-width: 800px; margin: 0 auto; padding: 14px 0 16px;
+  background: linear-gradient(180deg, rgba(250, 247, 240, 0), rgba(250, 247, 240, .92) 30%, rgba(250, 247, 240, .98));
+}
+.page-import .ink-chat:not(:has(.turn-user)) .ink-composer { margin-top: 0; }
+.page-import .ink-composer .inkwell { background: rgba(255, 255, 255, .94); }
+.page-import .ink-composer .parse-progress { margin-top: 8px; }
+/* The rail: what has come into the 砚池, and the tools that used to sit under it. */
+.ink-rail {
+  position: sticky; top: calc(var(--hdr-h, 70px) + 26px); display: grid; align-content: start; gap: 16px;
+  max-height: calc(100dvh - var(--hdr-h, 70px) - 46px); overflow: auto; padding: 14px 14px 16px;
+  border: 1px solid rgba(255, 255, 255, .75); border-radius: 18px; background: rgba(255, 255, 255, .55);
+  backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px); box-shadow: 0 10px 30px -20px rgba(29, 42, 56, .4);
+  scrollbar-width: thin;
+}
+.rail-head { display: flex; align-items: center; gap: 8px; }
+.rail-new { display: inline-flex; flex: 1; align-items: center; justify-content: center; gap: 6px; min-height: 38px; border: 1px solid var(--line); border-radius: 12px; background: #fff; color: var(--text); font-size: .875rem; }
+.rail-new:hover { border-color: var(--accent); color: var(--accent); }
+.rail-close, .rail-open { display: none; }
+.rail-block h3 { margin: 0 0 6px; color: var(--muted); font-size: .6875rem; font-weight: 600; letter-spacing: .16em; }
+.rail-list { display: grid; gap: 2px; margin: 0; padding: 0; list-style: none; }
+.rail-list li { font-size: .8125rem; }
+.rail-list details summary { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 6px; padding: 7px 8px; border-radius: 10px; cursor: pointer; list-style: none; }
+.rail-list details summary::-webkit-details-marker { display: none; }
+.rail-list details summary:hover, .rail-list details[open] summary { background: rgba(37, 99, 184, .07); }
+.rail-list summary span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.rail-list summary em { color: var(--muted); font-size: .6875rem; font-style: normal; white-space: nowrap; }
+.rail-list pre { max-height: 220px; margin: 2px 4px 8px; padding: 8px 10px; overflow: auto; border-radius: 8px; background: rgba(255, 255, 255, .8); font-family: inherit; font-size: .75rem; line-height: 1.6; white-space: pre-wrap; }
+#railStates li { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 0 6px; padding: 6px 8px; }
+#railStates li b { font-size: .75rem; }
+#railStates li span { grid-column: 1; color: var(--muted); font-size: .6875rem; }
+#railStates li button { grid-column: 2; grid-row: 1 / span 2; align-self: center; min-height: 28px; font-size: .75rem; }
+.rail-list .rail-empty { padding: 6px 8px; color: var(--muted); font-size: .75rem; line-height: 1.6; }
+.rail-tools { padding-top: 12px; border-top: 1px dashed rgba(43, 38, 32, .15); }
+.rail-tools .ink-extras { margin: 0; padding: 0; border: 0; }
+.rail-tools .extra-card { margin: 0 0 8px; padding: 10px 12px; font-size: .8125rem; }
+.rail-tools .extra-card summary { font-size: .8125rem; }
+.rail-tools .group-row { flex-wrap: wrap; }
+.rail-tools .group-row input { min-width: 0; flex: 1 1 100%; }
+.rail-tools .privacy-note { margin: 6px 2px 0; font-size: .6875rem; line-height: 1.6; }
+.rail-tools .next-step { display: flex; margin: 10px 0 0; font-size: .8125rem; }
+@media (max-width: 900px) {
+  html[data-current="import"] [data-page="import"] { grid-template-columns: minmax(0, 1fr); gap: 0; }
+  .rail-open { display: inline-flex; align-self: flex-start; align-items: center; min-height: 32px; margin: 0 0 4px; padding: 0 12px; border: 1px solid var(--line); border-radius: 999px; background: rgba(255, 255, 255, .7); color: var(--muted); font-size: .75rem; }
+  .rail-close { display: inline-flex; min-height: 34px; }
+  .ink-rail {
+    position: fixed; top: 0; bottom: 0; left: 0; z-index: 45; width: min(86vw, 340px); max-height: none; border-radius: 0 18px 18px 0;
+    background: rgba(255, 255, 255, .94); transform: translateX(-105%); transition: transform .3s ease; visibility: hidden;
+  }
+  .page-import.is-rail-open .ink-rail { transform: none; visibility: visible; box-shadow: 0 0 0 100vmax rgba(19, 28, 40, .28); }
+  .page-import .ink-chat > .ink-scroll > .ink-hello { margin-top: 12px; }
+  .page-import .ink-hello .ink-steps { display: none; }
+  .page-import .ink-suggest { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .page-import .ink-composer { padding-bottom: max(12px, env(safe-area-inset-bottom)); }
+}
+/* The rail replaces the old 原文记录 list; settings and the footer stay on the other pages, so the
+   研磨 column ends at the composer and the composer can stay at the bottom of the window. */
+.page-import > .import-side { display: none; }
+html[data-current="import"] .workspace > :is(.settings, .page-footer) { display: none; }
+html[data-current="import"] [data-app] .workspace { padding-bottom: 0; }
+.page-import .ink-chat { min-height: calc(100dvh - var(--hdr-h, 70px) - 26px); }
+.rail-tools .ink-extras { grid-template-columns: minmax(0, 1fr); gap: 0; }
+/* The background covers the whole window, not only the app box. */
+html[data-current="import"] body { background: #f6f1e6; }
+html[data-current="import"] [data-app] { min-height: 100dvh; }
+/* Nothing opaque behind the composer: a short fade above it, then the page shows through. */
+.page-import .ink-composer { background: none; }
+.page-import .ink-composer::before { content: ""; position: absolute; left: 0; right: 0; top: -28px; height: 44px; z-index: -1; pointer-events: none; background: linear-gradient(180deg, rgba(248, 245, 238, 0), rgba(248, 245, 238, .95)); }
+.page-import .ink-suggest { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+@media (max-width: 900px) { .page-import .ink-suggest { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+/* Notes that used to sit at the top of the page float under the header instead of pushing pages down. */
+[data-app] :is(.backup-nudge, #storageConflict):not([hidden]) {
+  position: fixed; top: calc(var(--hdr-h, 70px) + 22px); left: 50%; z-index: 38; width: min(720px, calc(100% - 24px)); margin: 0;
+  transform: translateX(-50%); box-shadow: 0 14px 34px -16px rgba(29, 42, 56, .45);
+}
+/* On wide screens the note sits at the top right, clear of 返回 buttons and the middle of the page. */
+@media (min-width: 761px) {
+  [data-app] :is(.backup-nudge, #storageConflict):not([hidden]) { left: auto; right: 24px; width: min(400px, calc(100% - 48px)); transform: none; }
+}
+/* Anything scrolled into view (focus, 定位到这一项, links) stops below the floating header, not under it. */
+html { scroll-padding-top: calc(var(--hdr-h, 70px) + 16px); }
+/* Room for the floating header on every page; only the 铺纸 / 笔墨 entrances run underneath it.
+   (Pages are hidden by CSS, not the hidden attribute, so the entrance rule must name the current page.) */
+html[data-current] [data-app] .workspace { padding-top: calc(var(--hdr-h, 70px) + 26px); }
+html[data-current="time"] [data-app] .workspace:has(> [data-page="time"] > .rolls:not([data-open])),
+html[data-current="items"] [data-app] .workspace:has(> [data-page="items"] > .rolls:not([data-open])) { padding-top: 0; }
+@media (max-width: 760px) {
+  html[data-current] [data-app] .workspace { padding-top: calc(var(--hdr-h, 110px) + 12px); }
+  html[data-current="time"] [data-app] .workspace:has(> [data-page="time"] > .rolls:not([data-open])),
+  html[data-current="items"] [data-app] .workspace:has(> [data-page="items"] > .rolls:not([data-open])) { padding-top: 0; }
+}
+/* Where the floating note goes: bottom right on most pages (their controls sit at the top),
+   top right on 研磨 (its composer sits at the bottom). */
+[data-app] :is(.backup-nudge, #storageConflict):not([hidden]) {
+  top: auto; bottom: max(18px, env(safe-area-inset-bottom)); left: auto; right: 18px; width: min(400px, calc(100% - 36px)); transform: none;
+}
+html[data-current="import"] [data-app] :is(.backup-nudge, #storageConflict):not([hidden]) { top: calc(var(--hdr-h, 70px) + 18px); bottom: auto; }
+/* The empty state had the composer "relative" (to overlap the old blue banner); it stays sticky in every state. */
+.page-import .ink-chat .ink-composer { position: sticky; bottom: 0; }
+@media (max-width: 760px) {
+  .page-import .ink-chat { min-height: calc(100dvh - var(--hdr-h, 110px) - 12px); }
+  /* On a phone's 研磨 the note sits just above the composer, clear of 记录与工具 at the top. */
+  html[data-current="import"] [data-app] :is(.backup-nudge, #storageConflict):not([hidden]) { top: auto; bottom: 200px; }
+}
+/* The phone drawer opens below the floating header, so its 收起 button is never under the header. */
+@media (max-width: 900px) {
+  .ink-rail { top: var(--hdr-h, 110px); border-radius: 0 18px 0 0; }
+}
+/* Narrow screens put the page arrows at the bottom; on 研磨 that is the composer, so they sit above it. */
+@media (max-width: 1240px) {
+  html[data-current="import"] .page-arrow { bottom: 214px; }
+}
+@media (max-width: 760px) {
+  /* Two rows on a phone, as 画卷 already had: 项目介绍 / 计算说明 stay reachable from the brand (home). */
+  [data-app] .site-header .aux-nav { display: none; }
+}
+@media (max-width: 900px) {
+  .ink-rail { background: #fffdf8; backdrop-filter: none; -webkit-backdrop-filter: none; }
+  .page-import.is-rail-open ~ * .page-arrow, html:has(.page-import.is-rail-open) .page-arrow { visibility: hidden; }
+}
+@media (max-width: 760px) {
+  /* Stacked entrances are short on a phone; their titles must not sit under the header. */
+  html[data-current="time"] [data-app] .workspace:has(> [data-page="time"] > .rolls:not([data-open])),
+  html[data-current="items"] [data-app] .workspace:has(> [data-page="items"] > .rolls:not([data-open])) { padding-top: var(--hdr-h, 110px); }
+  /* The note clears the page arrows at the bottom. */
+  [data-app] :is(.backup-nudge, #storageConflict):not([hidden]) { bottom: 68px; }
+}
