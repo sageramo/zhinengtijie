@@ -70,9 +70,50 @@
     });
   }
 
-  window.addEventListener('scroll', updateReveal, { passive: true });
-  window.addEventListener('resize', updateReveal);
-  document.addEventListener('sixu:route', event => { if (event.detail === 'home') { startSky(); updateReveal(); } else { pauseFilm(); chart?.stop(); night?.stop(); } });
+  // 泡泡展开 (after DeepMind's Genie page): the painting opens as a clear lens in the middle of a blurred
+  // copy of itself; scrolling through the tall hero widens the lens to the whole screen, sharpens what is
+  // around it, then brings in the words under the title. Reduced motion shows the opened state.
+  const stage = document.querySelector('.hero.is-genie');
+  const frame = stage?.querySelector('.hero-frame');
+  const title = stage?.querySelector('.hero-title');
+  const lensStart = (vw, vh) => Math.min(vw, vh) * (vw < 760 ? 0.38 : 0.28);
+  function measureTitle() {
+    if (!title) return;
+    // Where the title sits once the words are in; at the start it is moved to the middle of the lens and
+    // sized to fit inside it, and it travels back to that place as the words come in.
+    title.style.transform = 'none';
+    const box = title.getBoundingClientRect();
+    const view = frame.getBoundingClientRect();
+    title.style.transform = '';
+    const fit = Math.min(1.1, (2 * lensStart(window.innerWidth, window.innerHeight) * 0.84) / Math.max(1, box.width));
+    frame.style.setProperty('--title-x', `${(view.left + view.width / 2 - (box.left + box.width / 2)).toFixed(1)}px`);
+    frame.style.setProperty('--title-shift', `${(view.top + view.height / 2 - (box.top + box.height / 2)).toFixed(1)}px`);
+    frame.style.setProperty('--title-scale', fit.toFixed(3));
+  }
+  function updateLens() {
+    if (!stage || root.dataset.current !== 'home') return;
+    const vw = window.innerWidth;
+    const vh = window.innerHeight;
+    const travel = Math.max(1, stage.offsetHeight - vh);
+    const p = calm.matches ? 1 : Math.min(1, Math.max(0, -stage.getBoundingClientRect().top / travel));
+    const ease = p < 0.5 ? 2 * p * p : 1 - Math.pow(-2 * p + 2, 2) / 2;
+    const lens = Math.min(1, ease / 0.78);
+    const r0 = lensStart(vw, vh);
+    const r1 = Math.hypot(vw, vh) / 2 + 40;
+    frame.style.setProperty('--r', `${(r0 + (r1 - r0) * lens).toFixed(1)}px`);
+    frame.style.setProperty('--blur', `${(18 * (1 - lens)).toFixed(2)}px`);
+    frame.style.setProperty('--lens', lens.toFixed(3));
+    const words = Math.min(1, Math.max(0, (p - 0.5) / 0.38));
+    frame.style.setProperty('--words', words.toFixed(3));
+    frame.classList.toggle('is-words', words > 0.6);
+    frame.classList.toggle('is-open', lens > 0.72);
+  }
+  measureTitle();
+  window.addEventListener('scroll', () => { updateReveal(); updateLens(); }, { passive: true });
+  window.addEventListener('resize', () => { updateReveal(); measureTitle(); updateLens(); });
+  window.addEventListener('load', () => { measureTitle(); updateLens(); });
+  document.addEventListener('sixu:route', event => { if (event.detail === 'home') { startSky(); updateReveal(); measureTitle(); updateLens(); } else { pauseFilm(); chart?.stop(); night?.stop(); } });
   startSky();
   updateReveal();
+  updateLens();
 })();

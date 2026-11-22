@@ -1,0 +1,123 @@
+/**
+ * 研磨里一句话就能做的事（不必去笔墨、铺纸里找）：
+ * - 起步卡："帮我开个头：交实验报告"（另起一行可贴材料原文）
+ * - 常用专注时段："我工作日晚上7点到9点最专注" / "周末上午9到11点效率最高"
+ * - 任务标记："实验报告需要专注" / "报名表碎片时间做就行"
+ * - 点名完成与估时："实验报告做完了" / "报名表要20分钟"
+ * Pure parsing and markup; agent.js runs the action and writes the list.
+ */
+const escape = value => String(value ?? '').replace(/[&<>"']/g, character => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[character]);
+const DAY = 86400000;
+const CN = { 零: 0, 一: 1, 二: 2, 两: 2, 三: 3, 四: 4, 五: 5, 六: 6, 七: 7, 八: 8, 九: 9, 十: 10, 十一: 11, 十二: 12 };
+const num = text => (/^\d+$/.test(text) ? Number(text) : CN[text] ?? NaN);
+const pad = value => String(value).padStart(2, '0');
+
+/**
+ * The active task a sentence names: a title inside it, or a title it is inside (soonest deadline wins),
+ * else the one task sharing two characters with it. { task, byName } — byName false means it fell back to
+ * the task just talked about.
+ */
+export function findTask(snapshot, phrase, lastTaskId = null) {
+  const active = snapshot.tasks.filter(task => task.status === 'active');
+  const clean = String(phrase || '').replace(/[「」“”"'\s，。！？,.!?]/g, '').replace(/^(?:给|帮|把|我的?|那个|这个)/, '');
+  const byDeadline = list => list.slice().sort((a, b) => Date.parse(a.deadline_at || '9999') - Date.parse(b.deadline_at || '9999'));
+  if (clean.length >= 2) {
+    const hits = active.filter(task => { const title = task.title.replace(/\s/g, ''); return clean.includes(title) || title.includes(clean); });
+    if (hits.length) return { task: byDeadline(hits)[0], byName: true };
+    const loose = active.filter(task => [...new Set(clean)].filter(c => task.title.includes(c)).length >= 2);
+    if (loose.length === 1) return { task: loose[0], byName: true };
+  }
+  const last = active.find(task => task.id === lastTaskId);
+  return { task: last || null, byName: false };
+}
+// Reminders, notices and questions are never sentence actions.
+const NOT_ACTION = /^(?:提醒我|帮我记|记得|别忘了|待办)|【|通知|各位同学|[？?]$|吗$/;
+
+const STARTER = /^(?:请|帮我|给我|替我)?(?:给)?(?:(.{1,30}?)(?:的)?)?(?:开个头|起个头|开头|五分钟起步|起步卡|起步|怎么开始|从哪(?:里|儿)?(?:开始|下手)|不知道(?:怎么|从哪)(?:开始|下手))(?:吧|呢|吗)?[：:，,]?\s*(.*)$/s;
+/** "帮我开个头：交实验报告\n<材料>" → { kind: 'starter', phrase, material } */
+export function parseStarter(text) {
+  const raw = String(text || '').trim();
+  const [first, ...rest] = raw.split('\n');
+  const line = first.replace(/[。！!？?]+$/, '');
+  if (line.length > 40 || /^(?:提醒我|帮我记|记得|别忘了|待办)|【|通知/.test(line)) return null;
+  const match = line.match(STARTER);
+  if (!match) return null;
+  const phrase = [match[1], match[2]].filter(Boolean).join(' ').replace(/^(?:给|帮)?/, '').replace(/^(?:五分钟|5\s*分钟)$/, '').trim();
+  const material = rest.join('\n').replace(/^(?:材料|要求|原文)[：:]\s*/, '').trim();
+  return { kind: 'starter', phrase, material: material.slice(0, 6000) };
+}
+
+const HOUR = String.raw`(\d{1,2}|[一二两三四五六七八九十]{1,3})(?:点|:00)?(半)?`;
+const RECURRING = /(平时|每天|工作日|周一到周五|周末|一般|通常|往往|每周)/;
+const FOCUS_WORD = /(最专注|专注|效率最高|效率高|最清醒|脑子最好使|状态最好|最能静下心)/;
+/** "我工作日晚上7点到9点最专注" → { kind: 'focus-window', weekday?: {start,end}, weekend?: {...} } */
+export function parseFocusWindow(text) {
+  const line = String(text || '').trim();
+  if (!RECURRING.test(line) || !FOCUS_WORD.test(line) || /累|困|休息|歇/.test(line)) return null;
+  const range = line.match(new RegExp(`${HOUR}\\s*(?:到|至|-|—|~)\\s*${HOUR}`));
+  if (!range) return { kind: 'focus-window', missing: true };
+  const period = (line.match(/上午|早上|下午|晚上|傍晚/) || [''])[0];
+  const toHour = (h, half) => { let hour = num(h); if (Number.isNaN(hour)) return null; if (/下午|晚上|傍晚/.test(period) && hour < 12) hour += 12; else if (!period && hour <= 6) hour += 12; return `${pad(hour)}:${half ? '30' : '00'}`; };
+  const start = toHour(range[1], range[2]);
+  let end = toHour(range[3], range[4]);
+  if (!start || !end) return { kind: 'focus-window', missing: true };
+  if (end <= start && Number(end.slice(0, 2)) < 12) end = `${pad(Number(end.slice(0, 2)) + 12)}:${end.slice(3)}`;
+  if (end <= start) return { kind: 'focus-window', missing: true };
+  const weekend = /周末/.test(line) && !/工作日|平时|每天/.test(line);
+  const both = /每天|每周/.test(line);
+  const span = { start, end };
+  return { kind: 'focus-window', weekday: weekend ? null : span, weekend: weekend || both ? span : null };
+}
+
+/** "实验报告需要专注" / "报名表碎片时间做就行" → { kind: 'mark', phrase, mark } */
+export function parseMark(text) {
+  const line = String(text || '').trim().replace(/[。！!]+$/, '');
+  if (NOT_ACTION.test(line)) return null;
+  const focus = line.match(/^(.{2,30}?)(?:需要|得|要)(?:专注|专心|整块时间|静下心)(?:做|写|来做)?(?:吧|才行)?$/);
+  if (focus) return { kind: 'mark', phrase: focus[1], mark: 'focus' };
+  const fragment = line.match(/^(.{2,30}?)(?:适合)?(?:用)?(?:碎片(?:时间)?|零碎时间)(?:做|弄|写)?(?:就行|就好|即可|就可以)?$/);
+  if (fragment) return { kind: 'mark', phrase: fragment[1], mark: 'fragment' };
+  return null;
+}
+
+const DURATION = String.raw`(\d+(?:\.\d+)?|[半一二两三四五六七八九十]+)\s*(?:个)?\s*(小时|钟头|分钟|min|h)(半)?`;
+/** "实验报告做完了" / "报名表要20分钟" → named complete / estimate (agenda.js handles the unnamed "做完了"). */
+export function parseNamedUpdate(text) {
+  const line = String(text || '').trim().replace(/[。！!]+$/, '');
+  if (NOT_ACTION.test(line) || /[，,]/.test(line)) return null;
+  const done = line.match(/^(?:我)?(?:把)?(.{2,30}?)(?:已经|刚刚)?(?:做完了|完成了|搞定了|交了|交上去了|写完了)$/);
+  if (done && !/^(?:我|刚刚|已经|都)$/.test(done[1])) return { kind: 'complete', phrase: done[1] };
+  const est = line.match(new RegExp(`^(.{2,30}?)(?:大概|大约|预计|要|需要|得)\\s*${DURATION}(?:左右|吧)?$`, 'i'));
+  if (est) {
+    const n = num(est[2]) || (est[2] === '半' ? 0.5 : Number(est[2]));
+    const minutes = Math.round((/小时|钟头|h/i.test(est[3]) ? n * 60 : n) + (est[4] ? 30 : 0));
+    if (minutes > 0 && minutes <= 20160) return { kind: 'estimate', phrase: est[1], minutes };
+  }
+  return null;
+}
+
+/** First match of all the sentence actions above, in a fixed order. */
+export function parseChatAction(text) {
+  return parseStarter(text) || parseFocusWindow(text) || parseMark(text) || parseNamedUpdate(text);
+}
+
+// ---- Markup in the 研磨 thread ------------------------------------------------------
+/** The 起步卡 as a reply: one first step, the material lines it came from, start and copy. */
+export function starterReply(task, card, { degraded = false } = {}) {
+  const excerpts = card.material_brief?.excerpts || [];
+  const head = card.resting ? '现在正休息' : '先做这一步';
+  const draft = [task.title, ...(excerpts.length ? ['', '材料原文', ...excerpts.map(line => `- ${line}`)] : []), '', card.resting ? '休息结束后' : '第一步', card.action].join('\n');
+  return `<div class="turn-card starter-card${card.resting ? ' is-resting' : ''}">
+    <p class="turn-card-eyebrow">五分钟起步 · 「${escape(task.title)}」</p>
+    <p class="starter-step"><strong>${head}</strong><span>${escape(card.action)}</span></p>
+    ${excerpts.length ? `<div class="starter-source"><p>从你给的材料里摘出</p><ul>${excerpts.map(line => `<li>${escape(line)}</li>`).join('')}</ul></div>` : ''}
+    ${degraded ? '<p class="field-help">当前计算服务还不能读材料，先按任务名给出第一步。</p>' : ''}
+    <div class="turn-card-actions"><button type="button" class="primary-button" data-turn-timer>开始 5 分钟</button><button type="button" class="text-button" data-turn-copy>复制草稿</button><textarea class="sr-only" data-turn-draft readonly>${escape(draft)}</textarea></div>
+  </div>`;
+}
+/** "下一步可以说" chips: each sends its sentence as if typed. */
+export function nextChips(says) {
+  const list = says.filter(Boolean);
+  if (!list.length) return '';
+  return `<div class="turn-next" role="group" aria-label="下一步可以直接说"><span>下一步可以说</span>${list.map(say => `<button type="button" class="turn-chip" data-say="${escape(say)}">${escape(say)}</button>`).join('')}</div>`;
+}

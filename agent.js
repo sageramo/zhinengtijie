@@ -11,6 +11,7 @@ import { LEADS, dueReminders, icsCalendar, reminderText, upcomingCount } from '.
 import { createBellToggle } from './bell-toggle.js';
 import { readMemory, writeMemory, recordActual, suggestEstimate, readCalibration, writeCalibration, recordCalibration, calibrationFor } from './estimate-memory.js';
 import { createRecognizer, imageProblem } from './screenshot-ocr.js';
+import { parseChatAction, findTask, starterReply, nextChips } from './chat-actions.js';
 import { readFocus, writeFocus, pruneStates, setMark, setCommonWindows, addStates, removeState, parseStateSentence, draftLabel, previewRequest, confirmRequest, replanRange, lockedRests, bandMarkup, bandUsed, bandLegend, todayStateMarkup, replanMarkup, spanText, dayLabel } from './focus.js';
 import { parseJwTimetable, termStartFrom } from './jw-timetable.js';
 
@@ -485,6 +486,15 @@ function taskMarkup(task) {
       <div class="field-wide chips mark-chips" role="group" aria-label="这件事适合什么时候做（选填，计划被打断时用来重排）"><span class="chips-label">这件事<span class="optional">选填</span></span><button type="button" class="chip" data-mark="focus" aria-pressed="${focusSettings.marks[task.id] === 'focus'}">需要专注</button><button type="button" class="chip" data-mark="fragment" aria-pressed="${focusSettings.marks[task.id] === 'fragment'}">适合碎片时间</button></div>
     </div></details>
     ${evidenceMarkup(task)}
+    ${active ? `<details class="item-edit task-starter"><summary>五分钟起步</summary>
+      <form data-task-starter>
+        <label>材料摘录 <span class="optional">选填</span><textarea name="material" rows="3" maxlength="6000" placeholder="粘贴作业要求、论文摘要或讨论记录"></textarea></label>
+        <p class="field-help">材料仅随这次请求发给计算服务。</p>
+        <button type="submit">生成起步卡</button>
+        <p class="field-help" data-starter-feedback role="status"></p>
+        <div data-starter-result hidden></div>
+      </form>
+    </details>` : ''}
     <div class="item-actions"><button type="button" data-action="complete">${task.status === 'completed' ? '恢复' : '完成了'}</button><button type="button" data-action="cancel">${task.status === 'cancelled' ? '恢复' : '不做了'}</button><button type="button" class="danger-text" data-action="delete">删除</button></div>
     <p class="field-error" data-item-error role="status"></p>
   </article>`;
@@ -684,6 +694,9 @@ $('noticeForm').addEventListener('submit', async event => {
   tell('');
   try {
     const inputSnapshot = snapshot;
+    // One sentence does what the detail pages do: 起步卡, 专注时段, 任务标记, 点名完成与估时.
+    const action = mode === 'chat' ? null : parseChatAction(text);
+    if (action && await runChatAction(text, action)) return;
     // "下午四点半到五点半想歇会儿" / "三点到四点临时要帮辅导员搬东西" / "有点累": a change to the plan, not an item.
     const draft = mode === 'chat' ? null : parseStateSentence(text, Date.now());
     if (draft) {
@@ -775,7 +788,9 @@ $('noticeForm').addEventListener('submit', async event => {
     agendaWeek = null;
     const follow = lastTaskId && personal[0].estimate_minutes === null
       ? '<p>这件事大约要多久？可以直接回“30分钟”，做完也可以告诉我。</p>' : '';
-    showTurn(text, importSummary(imported) + follow + (defaulted ? '<p class="field-help">先用默认作息（工作日 08:00–23:00，周末 09:00–23:00）。课表和作息可以在铺纸里补齐。</p>' : '') + endAskMarkup(imported));
+    const first = imported.tasks.find(task => task.status === 'active');
+    const nextSay = nextChips(first ? [`帮我开个头：${first.title}`, `${first.title}需要专注`, '这周还剩多少时间？'] : ['这周还剩多少时间？']);
+    showTurn(text, importSummary(imported) + follow + (defaulted ? '<p class="field-help">先用默认作息（工作日 08:00–23:00，周末 09:00–23:00）。课表和作息可以在铺纸里补齐。</p>' : '') + endAskMarkup(imported) + nextSay);
     estimateEnds('rules', imported.source.text);
   } catch (error) {
     if (ticket === parseSequence) tell(`处理未完成：${error.message} 输入内容仍在。`, 'error');
@@ -791,7 +806,7 @@ function archiveTurn() {
   const past = document.createElement('div');
   past.className = 'import-summary turn-agent is-past';
   past.innerHTML = current.innerHTML;
-  past.querySelectorAll('.end-ask, .inline-links, .turn-estimate:not(.is-set)').forEach(node => node.remove());
+  past.querySelectorAll('.end-ask, .inline-links, .turn-estimate:not(.is-set), .turn-next, .turn-card-actions').forEach(node => node.remove());
   past.querySelector('[data-turn-result]')?.removeAttribute('data-turn-result');
   current.before(past);
 }
@@ -1048,9 +1063,76 @@ function onItemChange(event) {
     // Changing 点墨/约定 moves the card to the other list.
     commit(next, { render: input.dataset.field === 'kind' ? 'all' : 'none' });
     if (card.dataset.kind === 'task' && ['title', 'estimate_minutes'].includes(input.dataset.field)) refreshLearned(card);
+    if (input.dataset.field === 'title') clearStarterResult(card.querySelector('[data-task-starter]'));
   } catch (error) {
     input.setAttribute('aria-invalid', 'true');
     itemError(card, `没有保存：${error.message}。`);
+  }
+}
+function clearStarterResult(form) {
+  if (!form) return;
+  const result = form.querySelector('[data-starter-result]');
+  result.hidden = true;
+  result.replaceChildren();
+  form.querySelector('[data-starter-feedback]').textContent = '';
+}
+async function prepareTaskStarter(event) {
+  const form = event.target.closest('[data-task-starter]');
+  if (!form) return;
+  event.preventDefault();
+  const task = snapshot.tasks.find(item => item.id === form.closest('[data-item-id]').dataset.itemId);
+  const textarea = form.elements.namedItem('material');
+  const submit = form.querySelector('button[type="submit"]');
+  if (!task || task.status !== 'active' || submit.disabled) return;
+  const result = form.querySelector('[data-starter-result]');
+  const feedback = form.querySelector('[data-starter-feedback]');
+  const base = apiBase;
+  const material = textarea.value.trim();
+  const now = Date.now();
+  const rest = lockedRests(snapshot).find(item => item.start <= now && now < item.end);
+  const current = () => form.isConnected && base === apiBase &&
+    snapshot.tasks.some(item => item.id === task.id && item.title === task.title && item.status === 'active');
+  clearStarterResult(form);
+  feedback.textContent = '正在整理…';
+  textarea.readOnly = true;
+  busy(submit, true, '生成起步卡', '正在整理…');
+  try {
+    const service = await ensureHealth(base);
+    // 1.30 reads the material; 1.29.1 still gives a first step from the title alone.
+    const rich = service.capabilities?.includes('starter_material_v1');
+    if (!rich && !service.capabilities?.includes('replan_loop_v1')) throw new Error('起步卡需要 1.29 或更新的计算服务。');
+    if (!current()) throw new Error('任务或服务地址已变化。');
+    const body = { task_id: task.id, title: task.title, mode: 'rules' };
+    if (rich) Object.assign(body, { material_text: material, resting: Boolean(rest), resting_label: rest?.label || '', ...(rest ? { resting_until: new Date(rest.end).toISOString() } : {}) });
+    const card = await request('/api/v3/starter', body, base);
+    if (!current()) throw new Error('任务或服务地址已变化。');
+    const excerpts = card.material_brief?.excerpts || [];
+    const draft = [task.title, ...(excerpts.length ? ['', '材料原文', ...excerpts.map(text => `- ${text}`)] : []), '', '第一步', card.action].join('\n');
+    result.innerHTML = `<p class="starter-action"><strong>${card.resting ? '现在正休息' : '先做这一步'}</strong><span>${escapeHTML(card.action)}</span></p>
+      ${material && !rich ? '<p class="field-help">当前计算服务还不能读材料，先按任务名给出第一步。</p>' : ''}
+      ${excerpts.length ? `<h4>材料原文</h4><ul>${excerpts.map(text => `<li>${escapeHTML(text)}</li>`).join('')}</ul>` : ''}
+      <button type="button" data-starter-copy>复制草稿</button>
+      <label data-starter-copy-fallback hidden>草稿<textarea readonly rows="5">${escapeHTML(draft)}</textarea></label>`;
+    result.hidden = false;
+    feedback.textContent = '起步卡已生成。';
+  } catch (error) {
+    feedback.textContent = `没能生成起步卡：${error.message}`;
+  } finally {
+    textarea.readOnly = false;
+    busy(submit, false, '生成起步卡', '正在整理…');
+  }
+}
+async function copyStarterDraft(button) {
+  const fallback = button.parentElement.querySelector('[data-starter-copy-fallback]');
+  const draft = fallback.querySelector('textarea');
+  try {
+    await navigator.clipboard.writeText(draft.value);
+    tell('起步草稿已复制。');
+  } catch {
+    fallback.hidden = false;
+    draft.focus();
+    draft.select();
+    tell('草稿已选中，可以用复制快捷键。');
   }
 }
 function onItemClick(event) {
@@ -1059,6 +1141,8 @@ function onItemClick(event) {
   const id = card.dataset.itemId;
   const isTask = card.dataset.kind === 'task';
   const item = isTask ? snapshot.tasks.find(entry => entry.id === id) : snapshot.events.find(entry => entry.id === id);
+  const copyStarter = event.target.closest('[data-starter-copy]');
+  if (copyStarter) { copyStarterDraft(copyStarter); return; }
   try {
     const actual = event.target.closest('[data-actual]');
     if (actual) { saveActual(id, actual.dataset.actual); return; }
@@ -1126,12 +1210,16 @@ for (const list of ['eventList', 'appointmentList', 'personalList', 'taskList'])
   // Only a click on the summary counts as the user's choice: a card rendered open (because something is
   // missing) also fires 'toggle', and recording that would keep it open after the gap is filled.
   $(list).addEventListener('click', event => {
-    const summary = event.target.closest('.item-edit > summary');
+    const summary = event.target.closest('.item-edit:not(.task-starter) > summary');
     const id = summary?.closest('[data-item-id]')?.dataset.itemId;
     if (!id) return;
     if (summary.parentElement.open) openCards.delete(id); else openCards.add(id); // the click flips it right after
   });
 }
+$('taskSection').addEventListener('submit', prepareTaskStarter);
+$('taskSection').addEventListener('input', event => {
+  if (event.target.name === 'material') clearStarterResult(event.target.closest('[data-task-starter]'));
+});
 $('taskSection').addEventListener('click', event => {
   const strip = event.target.closest('[data-group-open]');
   if (!strip) return;
@@ -1584,6 +1672,85 @@ $('focusForm')?.addEventListener('submit', event => {
 $('focusStates')?.addEventListener('click', event => {
   const button = event.target.closest('[data-focus-state]');
   if (button) saveFocus(removeState(focusSettings, button.dataset.focusState));
+});
+
+// ---- 研磨里一句话完成的操作（chat-actions.js 解析，这里执行并回复） -----------------------
+const activeTitles = () => snapshot.tasks.filter(task => task.status === 'active').slice(0, 3).map(task => task.title);
+/** Runs one sentence action and answers in the thread; false hands the sentence on to the usual flow. */
+async function runChatAction(text, action) {
+  const reply = (body, says = []) => { showTurn(text, body + nextChips(says)); return true; };
+  if (action.kind === 'focus-window') {
+    if (action.missing) return reply(replyMarkup({ text: '你常在几点到几点最能专注？比如「我工作日晚上7点到9点最专注」。' }));
+    const span = id => { const w = focusSettings.windows.find(item => item.id === id); return w ? { start: w.start, end: w.end } : null; };
+    const next = setCommonWindows(focusSettings, { weekday: action.weekday || span('w-weekday'), weekend: action.weekend || span('w-weekend') });
+    saveFocus(next);
+    const said = [action.weekday && `工作日 ${action.weekday.start}–${action.weekday.end}`, action.weekend && `周末 ${action.weekend.start}–${action.weekend.end}`].filter(Boolean).join('、');
+    const titles = activeTitles();
+    return reply(replyMarkup({ text: `记下了：${said} 是你的常用专注时段。计划被打断时，标了“需要专注”的事会优先排进这里；平时不打扰你。` }), titles.length ? [`${titles[0]}需要专注`] : []);
+  }
+  const { task, byName } = findTask(snapshot, action.phrase, lastTaskId);
+  if (action.kind === 'complete' || action.kind === 'estimate') {
+    if (!byName) return false; // "做完了" without a name: agenda.js answers for the task just talked about
+    if (action.kind === 'complete') {
+      commit(updateTask(snapshot, task.id, { status: 'completed' }));
+      lastTaskId = task.id;
+      return reply(replyMarkup({ text: `已把「${task.title}」标记完成。` }), ['这周还剩多少时间？']);
+    }
+    commit(updateTask(snapshot, task.id, { estimate_minutes: action.minutes }));
+    lastTaskId = task.id;
+    return reply(replyMarkup({ text: `「${task.title}」的预计用时改成 ${minutesLabel(action.minutes)}，画卷会在截止前为它找留白。` }), [`帮我开个头：${task.title}`]);
+  }
+  if (!task) {
+    const titles = activeTitles();
+    return reply(replyMarkup({ text: titles.length ? '你说的是哪件事？点一下下面的说法就行。' : '清单里还没有要做的事。先说一件，比如「提醒我周五前交实验报告」。' }),
+      titles.map(title => (action.kind === 'starter' ? `帮我开个头：${title}` : `${title}${action.mark === 'fragment' ? '碎片时间做就行' : '需要专注'}`)));
+  }
+  lastTaskId = task.id;
+  if (action.kind === 'mark') {
+    if (focusSettings.marks[task.id] !== action.mark) saveFocus(setMark(focusSettings, task.id, action.mark));
+    const hasWindow = focusSettings.windows.length > 0;
+    return reply(replyMarkup({ text: action.mark === 'focus'
+      ? `记下了：「${task.title}」需要专注。${hasWindow ? '计划被打断时，它会优先排进你的专注时段。' : '再说一句你平时几点最专注，重排时它就会优先排进那段时间。'}`
+      : `记下了：「${task.title}」适合碎片时间，重排时会用零碎空档来做它。` }),
+      action.mark === 'focus' && !hasWindow ? ['我工作日晚上7点到9点最专注'] : [`帮我开个头：${task.title}`]);
+  }
+  // 起步卡: the backend picks one concrete first step, and quotes the material if the user gave any.
+  $('parseStep').textContent = '正在想第一步';
+  const service = await ensureHealth(apiBase);
+  const rich = service.capabilities?.includes('starter_material_v1');
+  if (!rich && !service.capabilities?.includes('replan_loop_v1')) return reply(replyMarkup({ text: '当前计算服务还不能生成起步卡，请更新到后端 1.29 以上。' }));
+  const now = Date.now();
+  const rest = lockedRests(snapshot).find(item => item.start <= now && now < item.end);
+  const body = { task_id: task.id, title: task.title, mode: 'rules' };
+  if (task.estimate_minutes) body.estimate_minutes = task.estimate_minutes;
+  if (task.deadline_at) body.deadline_at = task.deadline_at;
+  // Fields are left out rather than sent as null: the backend reads them with .get(key, "").
+  if (rich && action.material) body.material_text = action.material;
+  if (rich && rest) Object.assign(body, { resting: true, resting_label: rest.label, resting_until: new Date(rest.end).toISOString() });
+  const card = await request('/api/v3/starter', body, apiBase);
+  return reply(starterReply(task, card, { degraded: Boolean(action.material) && !rich }), ['这周还剩多少时间？', `${task.title}需要专注`]);
+}
+// The chips send their sentence; a 起步卡 has its own 5-minute timer and copy button.
+$('inkThread').addEventListener('click', event => {
+  const chip = event.target.closest('[data-say]');
+  if (chip && !$('parseNotice').disabled) { $('noticeText').value = chip.dataset.say; $('noticeForm').requestSubmit(); return; }
+  const timer = event.target.closest('[data-turn-timer]');
+  if (timer) {
+    if (timer.dataset.running) { window.clearInterval(Number(timer.dataset.running)); delete timer.dataset.running; timer.textContent = '开始 5 分钟'; return; }
+    let left = 300;
+    const tick = () => { timer.textContent = `还剩 ${Math.floor(left / 60)}:${String(left % 60).padStart(2, '0')} · 停下`; };
+    tick();
+    timer.dataset.running = String(window.setInterval(() => {
+      left -= 1; tick();
+      if (left <= 0) { window.clearInterval(Number(timer.dataset.running)); delete timer.dataset.running; timer.textContent = '再来 5 分钟'; tell('五分钟到了。想接着做就继续，停在这里也算开了头。'); }
+    }, 1000));
+    return;
+  }
+  const copy = event.target.closest('[data-turn-copy]');
+  if (copy) {
+    const draft = copy.parentElement.querySelector('[data-turn-draft]');
+    navigator.clipboard?.writeText(draft.value).then(() => tell('起步草稿已复制。'), () => { draft.classList.remove('sr-only'); draft.select(); tell('草稿已选中，可以用复制快捷键。'); });
+  }
 });
 
 /** What 研磨 answers after a sentence about one's state or an interruption. */

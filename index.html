@@ -4,15 +4,15 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="description" content="把校园通知整理成可核对的事项，用真实空闲生成经过校验的个人安排。">
-  <meta name="sixu-ui-version" content="2026.11.22.54">
+  <meta name="sixu-ui-version" content="2026.11.22.55">
   <title>司序 Marshal · 知所先后</title>
   <link rel="icon" href="./assets/sixu-mark.svg" type="image/svg+xml">
   <link rel="manifest" href="./manifest.webmanifest">
   <meta name="theme-color" content="#2563b8">
   <link rel="apple-touch-icon" href="./assets/icon-192.png">
   <script>{ const h = location.hash; document.documentElement.dataset.current = h.startsWith('#/') && ['import', 'items', 'time', 'calendar', 'review', 'plan'].includes(h.slice(2).split('?')[0]) ? ({ review: 'items', plan: 'calendar' }[h.slice(2).split('?')[0]] || h.slice(2).split('?')[0]) : 'home'; if (document.documentElement.dataset.current === 'home' && !matchMedia('(prefers-reduced-motion: reduce)').matches) document.documentElement.classList.add('intro'); }</script>
-  <link rel="preload" as="image" href="./assets/hero-ribbon-plate.jpg">
-  <link rel="stylesheet" href="./agent.css?v=2026.11.22.54">
+  <link rel="preload" as="image" href="./assets/hero-scroll.webp">
+  <link rel="stylesheet" href="./agent.css?v=2026.11.22.55">
 </head>
 <body>
   <div class="intro" id="intro" aria-hidden="true">
@@ -23,9 +23,9 @@
   </div>
   <a class="skip-link" href="#/items">跳到笔墨</a>
   <div class="landing" id="home" data-page="home">
-    <section class="hero" aria-labelledby="heroTitle">
+    <section class="hero is-genie" aria-labelledby="heroTitle">
       <div class="hero-frame">
-        <div class="hero-scene" aria-hidden="true"><img class="hero-plate" src="./assets/hero-ribbon-plate.jpg" alt=""><video class="hero-video" id="heroVideo" muted loop playsinline preload="auto" aria-hidden="true"><source src="./assets/hero-ribbon-loop.mp4" type="video/mp4"></video></div>
+        <div class="hero-scene" aria-hidden="true"><img class="hg-blur" src="./assets/hero-scroll.webp" alt="" decoding="async"><div class="hg-lens"><img class="hg-sharp" src="./assets/hero-scroll.webp" alt="" decoding="async"></div><i class="hg-rim"></i></div>
         <div class="hero-shade" aria-hidden="true"></div>
         <header class="hero-bar" data-drop>
           <a class="hero-logo mk-lockup" href="#home" aria-label="司序 Marshal · 知所先后"><svg class="mk-mark" viewBox="14 10 72 80" aria-hidden="true"><path d="M22 86V28H30.56L50 63.64L69.44 28H78V86H70V43.69L54.56 72H45.44L30 43.69V86Z" fill="currentColor"/><g class="mark-needle"><path d="M50 14L53.2 40.4H46.8Z" fill="currentColor"/><path d="M46.8 40.4L50 62L53.2 40.4" fill="none" stroke="currentColor" stroke-width="2.6"/></g></svg><span class="mk-rule" aria-hidden="true"></span><span class="mk-words" aria-hidden="true"><span class="mk-en">MARSHAL</span><span class="mk-cn">司序 · 知所先后</span></span></a>
@@ -34,7 +34,7 @@
         </header>
         <div class="hero-copy">
           <p class="hero-kicker" data-rise style="--d:.1s">Marshal · Know What Comes First</p>
-          <div class="hero-brand"><h1 class="hero-title hero-title-brush" id="heroTitle" data-pull><span class="sr-only">司序·知所先后 Marshal · Know What Comes First</span><img class="hero-brush" src="./assets/brand-title-ink.png" alt="" width="1542" height="789" decoding="async"></h1><p class="hero-tagline" data-rise style="--d:.6s"><span class="sr-only">知先后，留空白，见本周山水。</span><img src="./assets/brand-tagline-ink.png" alt="" width="1802" height="137" decoding="async"></p></div>
+          <div class="hero-brand"><h1 class="hero-title hero-title-brush" id="heroTitle" data-pull><span class="sr-only">司序·知所先后 Marshal · Know What Comes First</span><img class="hero-brush" src="./assets/brand-title-white.png" alt="" width="1542" height="789" decoding="async"><svg class="hero-seal" viewBox="0 0 64 100" aria-hidden="true"><path d="M5 4C20 2 44 3 59 5C61 30 61 70 59 95C42 98 22 97 5 95C3 70 3 30 5 4Z" fill="#b3302a"/><path d="M9 9C24 7 41 8 55 9C57 33 57 67 55 90C40 93 24 92 9 90C7 67 7 33 9 9Z" fill="none" stroke="#f6e9dc" stroke-width="1.4" opacity=".55"/><text x="32" y="45" text-anchor="middle">司</text><text x="32" y="83" text-anchor="middle">序</text></svg></h1><p class="hero-tagline" data-rise style="--d:.6s"><i class="hero-glow" aria-hidden="true"></i><span class="hero-motto"><span aria-hidden="true">——</span> 知先后，留空白，见本周山水 <span aria-hidden="true">——</span></span></p></div>
           <p class="hero-desc" data-rise style="--d:.75s">把群通知、课程要求和自己的安排，整理成一件件可以核对的事；再按你真正能用的时间，排出一份做得到的安排。</p>
           <div class="hero-actions" data-rise style="--d:.9s"><a class="cta" href="#/import">开始安排<svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><path d="M9 6l6 6-6 6" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></svg></a><a class="cta-ghost" href="#features"><svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><path d="M8.5 6.2v11.6a1 1 0 0 0 1.5.86l9.2-5.8a1 1 0 0 0 0-1.72L10 5.34a1 1 0 0 0-1.5.86z" fill="currentColor"/></svg>看看四步</a></div>
         </div>
@@ -123,7 +123,7 @@
           </div>
           <form id="noticeForm" class="ink-composer" novalidate>
             <div class="inkwell" id="inkwell"><label for="noticeText" class="sr-only">发给司序</label>
-              <textarea id="noticeText" rows="2" maxlength="100000" placeholder="提醒我今天写实验报告，预计 30 分钟"></textarea><span class="inkwell-ripple" aria-hidden="true"></span>
+              <textarea id="noticeText" rows="2" maxlength="100000" placeholder="说一件事、贴一条通知，或者问问这周还有多少空"></textarea><span class="inkwell-ripple" aria-hidden="true"></span>
               <div class="composer-bar">
                 <div class="composer-tools">
                   <button type="button" class="tool" id="chooseNoticeImage" title="从截图识别文字（可多选）" aria-label="从截图识别文字（可多选）"><svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><path d="M4 7h3l2-2.5h6L17 7h3v12H4zM12 16.5a3.5 3.5 0 1 0 0-7 3.5 3.5 0 0 0 0 7z" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
@@ -276,7 +276,7 @@
       <form id="apiForm"><label for="apiBase">解析与计算服务地址</label><input id="apiBase" type="url" inputmode="url" required><button type="submit">保存地址并检查连接</button><p class="field-help" id="connectionStatus" role="status">尚未检查连接</p></form>
       <div class="backup-actions"><button type="button" id="importSnapshot">导入清单</button><input type="file" id="importFile" accept="application/json,.json" hidden></div>
       <p class="field-help">导出文件包含原文与个人安排，请妥善保存。</p>
-      <p class="field-help" id="uiVersion">界面版本 2026.11.22.54</p>
+      <p class="field-help" id="uiVersion">界面版本 2026.11.22.55</p>
     </details>
     <footer class="page-footer"><span>以确认后的信息计算，把取舍留给你。</span></footer>
   </main>
@@ -285,7 +285,7 @@
   <div class="access-ask" id="accessAsk" role="dialog" aria-modal="true" aria-labelledby="accessTitle" hidden><form class="access-card" id="accessForm"><h2 id="accessTitle">访问口令</h2><p class="field-help" id="accessHint"></p><label for="accessCode">口令</label><input id="accessCode" type="password" autocomplete="off" maxlength="200" required><div class="inline-actions"><button type="submit" class="primary-button">确定</button><button type="button" class="text-button" id="accessCancel">取消</button></div></form></div>
   <div class="route-veil" id="routeVeil" aria-hidden="true"><i class="ink ink-1"></i><i class="ink ink-2"></i><i class="ink ink-3"></i><svg class="veil-mark" viewBox="0 0 100 100"><path class="mark-ring" d="M22 86V28H30.56L50 63.64L69.44 28H78V86H70V43.69L54.56 72H45.44L30 43.69V86Z" fill="currentColor"/><g class="veil-needle"><path d="M50 14L53.2 40.4H46.8Z" fill="currentColor"/><path d="M46.8 40.4L50 62L53.2 40.4" fill="none" stroke="currentColor" stroke-width="1.8"/></g></svg><p class="veil-word"><span>司序</span><span>知所先后</span></p></div>
   <noscript>此页面需要启用JavaScript才能编辑和计算任务。</noscript>
-  <script type="importmap">{"imports":{"./task-state.js":"./task-state.js?v=2026.11.22.54","./snapshot-store.js":"./snapshot-store.js?v=2026.11.22.54","./model-candidates.js":"./model-candidates.js?v=2026.11.22.54","./time-review.js":"./time-review.js?v=2026.11.22.54","./planning-result.js":"./planning-result.js?v=2026.11.22.54","./agenda.js":"./agenda.js?v=2026.11.22.54","./calendar.js":"./calendar.js?v=2026.11.22.54","./shanshui.js":"./shanshui.js?v=2026.11.22.54","./reminders.js":"./reminders.js?v=2026.11.22.54","./bell-toggle.js":"./bell-toggle.js?v=2026.11.22.54","./estimate-memory.js":"./estimate-memory.js?v=2026.11.22.54","./time-state.js":"./time-state.js?v=2026.11.22.54","./scenario.js":"./scenario.js?v=2026.11.22.54","./screenshot-ocr.js":"./screenshot-ocr.js?v=2026.11.22.54","./jw-timetable.js":"./jw-timetable.js?v=2026.11.22.54","./focus.js":"./focus.js?v=2026.11.22.54"}}</script>
-  <script src="./router.js?v=2026.11.22.54"></script><script src="./about-sky.js?v=2026.11.22.54"></script><script src="./landing.js?v=2026.11.22.54"></script><script src="./api-config.js?v=2026.11.22.54"></script><script type="module" src="./agent.js?v=2026.11.22.54"></script>
+  <script type="importmap">{"imports":{"./task-state.js":"./task-state.js?v=2026.11.22.55","./snapshot-store.js":"./snapshot-store.js?v=2026.11.22.55","./model-candidates.js":"./model-candidates.js?v=2026.11.22.55","./time-review.js":"./time-review.js?v=2026.11.22.55","./planning-result.js":"./planning-result.js?v=2026.11.22.55","./agenda.js":"./agenda.js?v=2026.11.22.55","./calendar.js":"./calendar.js?v=2026.11.22.55","./shanshui.js":"./shanshui.js?v=2026.11.22.55","./reminders.js":"./reminders.js?v=2026.11.22.55","./bell-toggle.js":"./bell-toggle.js?v=2026.11.22.55","./estimate-memory.js":"./estimate-memory.js?v=2026.11.22.55","./time-state.js":"./time-state.js?v=2026.11.22.55","./scenario.js":"./scenario.js?v=2026.11.22.55","./screenshot-ocr.js":"./screenshot-ocr.js?v=2026.11.22.55","./jw-timetable.js":"./jw-timetable.js?v=2026.11.22.55","./focus.js":"./focus.js?v=2026.11.22.55","./chat-actions.js":"./chat-actions.js?v=2026.11.22.55"}}</script>
+  <script src="./koi.js?v=2026.11.22.55"></script><script src="./router.js?v=2026.11.22.55"></script><script src="./about-sky.js?v=2026.11.22.55"></script><script src="./landing.js?v=2026.11.22.55"></script><script src="./api-config.js?v=2026.11.22.55"></script><script type="module" src="./agent.js?v=2026.11.22.55"></script>
 </body>
 </html>

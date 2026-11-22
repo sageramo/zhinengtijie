@@ -1607,6 +1607,28 @@ html[data-dir="prev"]::view-transition-new(sixu-page) { animation-name: page-in-
 .item-edit > summary::before { content: ""; width: 7px; height: 7px; border-right: 1.6px solid currentColor; border-bottom: 1.6px solid currentColor; transform: rotate(-45deg); transition: transform .2s ease; }
 .item-edit[open] > summary::before { transform: rotate(45deg) translate(-2px, -1px); }
 .item-edit[open] > .field-grid { margin-top: 8px; padding-top: 12px; border-top: 1px dashed var(--line); }
+.task-starter form {
+  margin-top: 8px;
+  padding-top: 12px;
+  border-top: 1px solid var(--line);
+}
+.task-starter label { margin-top: 0; }
+.task-starter textarea { min-height: 88px; margin-top: 6px; }
+.task-starter form > button { margin-top: 10px; }
+.task-starter [data-starter-feedback]:empty { display: none; }
+.task-starter [data-starter-result] {
+  margin-top: 14px;
+  padding: 12px 0 2px;
+  border-top: 1px solid var(--line);
+  font-size: .875rem;
+  overflow-wrap: anywhere;
+}
+.starter-action { display: grid; gap: 4px; }
+.task-starter h4 { margin: 12px 0 0; font-size: .8125rem; }
+.task-starter ul { margin: 4px 0 12px; padding-inline-start: 1.3em; color: var(--muted); }
+.task-starter li + li { margin-top: 4px; }
+.task-starter [data-starter-copy] { margin-top: 10px; }
+.task-starter [data-starter-copy-fallback] { margin-top: 10px; }
 .item-list > .item-card > .evidence, .item-list > .item-card > .item-actions, .item-list > .item-card > .field-error { margin-left: 29px; }
 .item-list > .item-card .item-actions { margin-top: 10px; }
 .item-list > .item-card .item-actions button { min-height: 34px; padding: 4px 14px; font-size: .8125rem; }
@@ -2246,3 +2268,244 @@ html[data-current="import"] [data-app] :is(.backup-nudge, #storageConflict):not(
 }
 /* The .50 entrance rule sizes the note to the page width through an id selector; the floating note keeps its own size. */
 [data-app] .workspace > :is(.backup-nudge, #storageConflict):not([hidden]) { width: min(400px, calc(100% - 36px)) !important; max-width: none !important; margin: 0 !important; }
+
+/* ==== UI .55 — 研磨 as calm as a chat harness =====================================================
+   Only the conversation and the composer carry weight: flat paper, one-line greeting, plain-text
+   suggestions above the composer, a list-like rail, small muted chrome. */
+html[data-current="import"] [data-app] { background: linear-gradient(180deg, #faf8f3 0%, #f7f4ec 100%); }
+html[data-current="import"] body { background: #f7f4ec; }
+.page-import .ink-chat > .ink-scroll > .ink-hello { gap: 6px; margin: clamp(24px, 14vh, 150px) 0 22px; }
+.page-import .ink-hello .inkstone { width: 46px; filter: none; opacity: .9; }
+.page-import .ink-hello .ink-eyebrow, .page-import .ink-hello .ink-steps { display: none; }
+.page-import .ink-hello h2 { font-size: clamp(1.6rem, 1.2rem + 1.1vw, 2.15rem); font-weight: 600; letter-spacing: .01em; }
+.page-import .ink-hello .section-note { font-size: .9375rem; color: var(--muted); }
+/* Suggestions: a few quiet lines, like the prompts above a Codex / Antigravity composer. */
+.page-import .ink-suggest { display: grid; grid-template-columns: minmax(0, 1fr); gap: 2px; max-width: 560px; margin: 6px auto 0; }
+.page-import .ink-suggest-label { display: none; }
+.page-import .ink-suggest .suggest {
+  grid-template-columns: auto auto minmax(0, 1fr); grid-template-areas: "dot head text"; align-items: center; gap: 10px;
+  padding: 9px 12px; border: 0; border-radius: 10px; background: transparent; box-shadow: none; backdrop-filter: none;
+  color: var(--text); text-align: left; transform: none;
+}
+.page-import .ink-suggest .suggest:hover, .page-import .ink-suggest .suggest:focus-visible { background: rgba(43, 38, 32, .05); transform: none; box-shadow: none; border-color: transparent; }
+.page-import .ink-suggest .suggest i { width: 8px; height: 8px; border-radius: 50%; }
+.page-import .ink-suggest .suggest b { font-size: .875rem; font-weight: 600; white-space: nowrap; }
+.page-import .ink-suggest .suggest span { overflow: hidden; color: var(--muted); font-size: .8125rem; white-space: nowrap; text-overflow: ellipsis; }
+.page-import .ink-suggest .suggest.is-case { background: transparent; }
+.page-import .ink-suggest .suggest.is-case b { color: inherit; }
+/* Composer: no badge, lower, a hairline border instead of a heavy shadow. */
+.page-import .ink-composer .inkwell::before { display: none; }
+.page-import .ink-chat .ink-composer .inkwell, .page-import .ink-chat:not(:has(.turn-user)) .ink-composer .inkwell {
+  padding: 8px 10px 6px 16px; border-radius: 20px; background: #fff;
+  box-shadow: 0 0 0 1px rgba(43, 38, 32, .12), 0 6px 20px -12px rgba(29, 42, 56, .28);
+}
+.page-import .ink-chat .ink-composer .inkwell:focus-within { box-shadow: 0 0 0 1.5px rgba(37, 99, 184, .55), 0 8px 24px -12px rgba(37, 99, 184, .3); }
+.page-import .ink-composer .inkwell textarea { min-height: 52px; font-size: .9375rem; }
+.page-import .ink-composer .composer-hint { opacity: .6; }
+/* Thread: plain assistant text, a soft grey bubble for the user. */
+.page-import .ink-thread .turn-user { background: rgba(43, 38, 32, .06); color: var(--text); box-shadow: none; }
+.page-import .ink-thread .import-summary::before { width: 24px; height: 24px; box-shadow: none; }
+.page-import .ink-thread .import-summary { padding-left: 36px; }
+/* Rail: a list, not a stack of cards. */
+.ink-rail { background: rgba(255, 255, 255, .5); border-color: rgba(43, 38, 32, .07); box-shadow: none; }
+.rail-new { border-color: rgba(43, 38, 32, .12); background: rgba(255, 255, 255, .8); }
+.rail-tools .extra-card { margin: 0; padding: 7px 8px; border: 0; border-radius: 10px; background: transparent; box-shadow: none; }
+.rail-tools .extra-card:hover { background: rgba(43, 38, 32, .05); }
+.rail-tools .extra-glyph { display: none; }
+.rail-tools .share-link-row .field-help { display: none; }
+.rail-tools .share-link-row > div { display: block; }
+.rail-tools .share-link-row button, .rail-tools .extra-card summary { color: var(--text); font-size: .8125rem; font-weight: 500; text-decoration: none; }
+.rail-tools .privacy-note { color: rgba(107, 95, 82, .8); }
+/* Sentence actions in the thread: a 起步卡 and the "下一步可以说" chips. */
+.turn-card { margin: 10px 0 4px; padding: 14px 16px; border-radius: 14px; background: #fff; box-shadow: 0 0 0 1px rgba(43, 38, 32, .1); }
+.turn-card-eyebrow { margin: 0 0 6px; color: var(--muted); font-size: .75rem; letter-spacing: .06em; }
+.starter-step { display: grid; gap: 4px; margin: 0; }
+.starter-step strong { font-size: .8125rem; color: var(--accent-deep); }
+.starter-step span { font-size: .9375rem; line-height: 1.65; }
+.starter-card.is-resting .starter-step strong { color: var(--sage-deep); }
+.starter-source { margin-top: 10px; padding-top: 8px; border-top: 1px dashed rgba(43, 38, 32, .14); }
+.starter-source p { margin: 0 0 4px; color: var(--muted); font-size: .75rem; }
+.starter-source ul { margin: 0; padding-left: 18px; font-size: .8125rem; line-height: 1.6; }
+.turn-card-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 14px; margin-top: 12px; }
+.turn-card-actions .primary-button { min-height: 34px; padding: 0 14px; border-radius: 999px; font-size: .8125rem; font-variant-numeric: tabular-nums; }
+.turn-next { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin: 12px 0 2px; }
+.turn-next > span { margin-right: 2px; color: var(--muted); font-size: .75rem; }
+.turn-chip { min-height: 30px; padding: 0 12px; border: 1px solid rgba(43, 38, 32, .14); border-radius: 999px; background: #fff; color: var(--text); font-size: .8125rem; cursor: pointer; }
+.turn-chip:hover { border-color: var(--accent); color: var(--accent); }
+@media (max-width: 760px) {
+  .page-import .ink-suggest .suggest { grid-template-columns: auto minmax(0, 1fr); grid-template-areas: "dot head" ". text"; gap: 2px 10px; }
+  .page-import .ink-suggest .suggest span { white-space: normal; }
+}
+
+/* ==== UI .55 — 进入页：泡泡展开 ===================================================================
+   A tall hero with a sticky frame. The scroll painting lies twice: blurred underneath, sharp inside a
+   circle (--r) with a glass rim. landing.js drives --r, --blur, --lens (0→1 as the lens opens) and
+   --words (0→1 as the words come in); --title-shift brings the title to the middle at the start. */
+.hero.is-genie { height: 280vh; height: 280svh; min-height: 0; color: var(--ink); }
+.hero.is-genie .hero-frame {
+  --r: 28vmin; --blur: 18px; --lens: 0; --words: 0; --title-shift: 0px;
+  position: sticky; top: 0; height: 100vh; height: 100svh; min-height: 560px; background: #ece5d6;
+}
+.hero.is-genie .hero-scene { inset: 0; left: 0; top: 0; width: 100%; height: 100%; aspect-ratio: auto; transform: none; }
+.hg-blur, .hg-sharp { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
+.hg-blur { filter: blur(var(--blur)) saturate(.8) brightness(calc(.86 + .14 * var(--lens))); transform: scale(1.08); }
+.hg-lens { position: absolute; inset: 0; clip-path: circle(var(--r) at 50% 50%); }
+/* A lens magnifies a little while it is small; the magnification fades as it opens. */
+.hg-sharp { transform: scale(calc(1.12 - .12 * var(--lens))); }
+.hg-rim {
+  position: absolute; left: 50%; top: 50%; width: calc(var(--r) * 2); height: calc(var(--r) * 2); border-radius: 50%;
+  transform: translate(-50%, -50%); pointer-events: none; opacity: calc(1 - var(--lens) * 1.6);
+  background:
+    radial-gradient(circle at 31% 24%, rgba(255, 255, 255, .62), rgba(255, 255, 255, 0) 20%),
+    radial-gradient(circle at 72% 82%, rgba(255, 255, 255, .22), rgba(255, 255, 255, 0) 26%),
+    radial-gradient(circle at 50% 50%, rgba(255, 255, 255, 0) 62%, rgba(29, 53, 80, .14) 100%);
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, .6), inset 0 -22px 46px rgba(29, 53, 80, .16), 0 24px 70px -18px rgba(29, 42, 56, .45);
+}
+.hero.is-genie .hero-shade { display: none; }
+/* The title starts in the middle of the lens and rises as the words come in. */
+.hero.is-genie .hero-copy { top: clamp(110px, 18cqh, 210px); }
+.hero.is-genie .hero-brand { transform: translateY(calc(var(--title-shift) * (1 - var(--words)))) scale(calc(1 + .12 * (1 - var(--words)))); transform-origin: 50% 36%; }
+.hero.is-genie .hero-kicker { display: none; }
+.hero.is-genie [data-rise] { opacity: var(--words) !important; transform: translateY(calc((1 - var(--words)) * 22px)) !important; transition: none !important; }
+.hero.is-genie .hero-desc { color: var(--ink); text-shadow: 0 1px 12px rgba(246, 241, 230, .9); font-weight: 500; }
+/* Header over a light painting: ink text on a pale glass pill. */
+.hero.is-genie .hero-logo { color: var(--ink); text-shadow: none; }
+.hero.is-genie .hero-logo svg { filter: none; }
+.hero.is-genie .hero-nav { border-color: rgba(29, 53, 80, .12); background: rgba(255, 253, 248, .55); }
+.hero.is-genie .hero-nav a, .hero.is-genie .hero-nav a:hover { color: var(--ink); }
+.hero.is-genie .hero-join { background: var(--ink); color: #fff; }
+.hero.is-genie .hero-join:hover { color: #fff; }
+/* A quiet hint while the lens is closed. */
+.hero.is-genie .hero-frame::after {
+  content: "向下滑动，展开画卷"; position: absolute; left: 50%; bottom: 28px; z-index: 2; transform: translateX(-50%);
+  color: rgba(29, 53, 80, .7); font-size: .8125rem; letter-spacing: .3em; opacity: calc(1 - var(--lens) * 3); pointer-events: none;
+}
+@media (prefers-reduced-motion: reduce) {
+  .hero.is-genie { height: 100vh; height: 100svh; }
+  .hero.is-genie .hero-frame::after { display: none; }
+}
+/* Buttons that are not yet visible cannot be clicked. */
+.hero.is-genie .hero-frame:not(.is-words) .hero-actions { pointer-events: none; }
+
+/* ==== 墨鱼入砚 (koi.js) ============================================================================= */
+.koi-layer { position: fixed; inset: 0; z-index: 9000; pointer-events: none; }
+.koi-trail { position: absolute; inset: 0; overflow: visible; }
+.koi-trail path { fill: none; stroke: rgba(29, 43, 58, .32); stroke-width: 3; stroke-linecap: round; filter: blur(1.2px); }
+.koi-ring { position: absolute; width: 140px; height: 44px; border: 1.5px solid rgba(29, 53, 80, .45); border-radius: 50%; transform: translate(-50%, -50%) scale(.2); opacity: 0; }
+.koi-fish { position: absolute; left: 0; top: 0; offset-rotate: auto; offset-distance: 0%; opacity: 0; filter: drop-shadow(0 6px 10px rgba(22, 34, 47, .25)); }
+.koi-fish svg { display: block; overflow: visible; }
+.koi-tail { transform-box: fill-box; transform-origin: 100% 50%; }
+/* The whole title (not the brand block) travels from the middle of the lens back to its place. */
+.hero.is-genie .hero-brand { transform: none; }
+.hero.is-genie .hero-title {
+  --title-x: 0px; --title-scale: 1;
+  transform: translate(calc(var(--title-x) * (1 - var(--words))), calc(var(--title-shift) * (1 - var(--words)))) scale(calc(1 + (var(--title-scale) - 1) * (1 - var(--words))));
+  transform-origin: 50% 50%;
+}
+.hero.is-genie .hero-frame { --title-x: 0px; --title-scale: 1; }
+.hero.is-genie .hero-title { --title-x: inherit; --title-scale: inherit; }
+/* The brush lettering is drawn on near-white; multiply lets the paper and the blur show through it. */
+.hero.is-genie .hero-brush, .hero.is-genie .hero-tagline img { mix-blend-mode: multiply; }
+/* 墨韵 in the ink-and-paper palette of the pages (the sky blues came from the old blue theme):
+   thick ink, then pale ink, then the 研磨 paper, which is what the workbench opens onto. */
+.route-veil { color: #2a3a4c; }
+.route-veil .ink-1 { background: radial-gradient(circle, #121c27 0%, #1f2d3c 55%, #34465a 100%); }
+.route-veil .ink-2 { background: radial-gradient(circle, #6f8296 0%, #b9c4cf 100%); }
+.route-veil .ink-3 { background: radial-gradient(circle, #fbf9f4 0%, #f7f4ec 70%); }
+.route-veil .veil-mark .mark-ring { color: #2a3a4c; }
+html.intro .route-veil { background: #f7f4ec; }
+/* Under the 墨韵 washes (z 50), so the washes cover the fish and its trail as they bloom. */
+.koi-layer { z-index: 45; }
+
+/* ==== 进入页：暮色 ================================================================================
+   Outside the lens the painting sinks into dusk (dark, vignetted); the lens glows like a lamp. As it
+   opens the dusk lifts. Header and hint are light while it is dark, and turn to ink once it is open. */
+.hero.is-genie .hero-frame { background: #0c131c; }
+.hg-blur { filter: blur(var(--blur)) brightness(calc(.42 + .58 * var(--lens))) saturate(calc(.7 + .3 * var(--lens))) contrast(1.05); }
+.hero.is-genie .hero-frame::before {
+  content: ""; position: absolute; inset: 0; z-index: 1; pointer-events: none;
+  background: radial-gradient(ellipse at 50% 50%, rgba(8, 14, 22, 0) 30%, rgba(8, 14, 22, calc(.55 * (1 - var(--lens)))) 100%);
+}
+.hg-lens, .hg-rim { z-index: 1; }
+.hg-rim { box-shadow: inset 0 0 0 1px rgba(255, 255, 255, .7), inset 0 0 60px rgba(255, 255, 255, .25), 0 0 90px rgba(160, 190, 220, .28), 0 30px 90px -20px rgba(0, 0, 0, .6); }
+.hero.is-genie .hero-logo, .hero.is-genie .hero-nav a, .hero.is-genie .hero-nav a:hover { color: #f3efe6; transition: color .4s ease; }
+.hero.is-genie .hero-nav { background: rgba(255, 255, 255, .1); border-color: rgba(255, 255, 255, .2); transition: background .4s ease, border-color .4s ease; }
+.hero.is-genie .hero-join { background: #f3efe6; color: #13202d; transition: background .4s ease, color .4s ease; }
+.hero.is-genie .hero-join:hover { color: #13202d; }
+.hero.is-genie .hero-frame::after { color: rgba(243, 239, 230, .75); }
+.hero.is-genie .hero-frame.is-open .hero-logo, .hero.is-genie .hero-frame.is-open .hero-nav a { color: var(--ink); }
+.hero.is-genie .hero-frame.is-open .hero-nav { background: rgba(255, 253, 248, .6); border-color: rgba(29, 53, 80, .12); }
+.hero.is-genie .hero-frame.is-open .hero-join { background: var(--ink); color: #fff; }
+
+/* ==== 墨鱼入砚 v2 ================================================================================== */
+.koi-layer { position: fixed; inset: 0; z-index: 9000; pointer-events: none; overflow: hidden; }
+.kv-paint { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; object-position: 50% 60%; opacity: 0; }
+.koi-trail path { stroke: rgba(15, 24, 34, .38); stroke-width: 4; filter: blur(1.4px); }
+.koi-ring { width: 180px; height: 56px; border: 2px solid rgba(15, 24, 34, .5); }
+.koi-fish { filter: drop-shadow(0 10px 14px rgba(15, 24, 34, .28)); }
+.koi-fin { transform-box: fill-box; transform-origin: 100% 50%; }
+.koi-splash { position: absolute; width: 150px; height: 150px; border: 2.5px solid rgba(15, 24, 34, .55); border-radius: 50%; transform: translate(-50%, -50%) scale(.15); opacity: 0; }
+.koi-bloom { position: absolute; width: 320px; height: 320px; border-radius: 50%; transform: translate(-50%, -50%) scale(.1); opacity: 0;
+  background: radial-gradient(circle, rgba(15, 24, 34, .7) 0%, rgba(34, 52, 74, .4) 38%, rgba(76, 99, 128, 0) 70%); filter: blur(6px); }
+
+/* 研磨 keeps the scroll painting as a faint background: what the crossing fades into. */
+html[data-current="import"] [data-app] { position: relative; isolation: isolate; }
+html[data-current="import"] [data-app]::before {
+  content: ""; position: fixed; inset: 0; z-index: -1; pointer-events: none;
+  background: url("./assets/hero-scroll.webp") 50% 60% / cover no-repeat; opacity: .17; filter: saturate(.55);
+  -webkit-mask-image: linear-gradient(180deg, rgba(0, 0, 0, .95) 0%, rgba(0, 0, 0, .3) 38%, rgba(0, 0, 0, .3) 62%, rgba(0, 0, 0, .85) 100%);
+  mask-image: linear-gradient(180deg, rgba(0, 0, 0, .95) 0%, rgba(0, 0, 0, .3) 38%, rgba(0, 0, 0, .3) 62%, rgba(0, 0, 0, .85) 100%);
+}
+
+/* Arrival: 研磨's parts wait while the fish swims, then come up in turn as it dives in. */
+html.koi-arriving:not(.koi-landed) :is(.site-header, .ink-rail, .page-import .ink-hello > *, .page-import .ink-hello .inkstone, .page-import .ink-suggest, .page-import .ink-thread, .page-import .ink-composer, .page-arrow) { opacity: 0; }
+html.koi-landed .page-import .ink-hello .inkstone { animation: koi-stone 760ms cubic-bezier(.3, 1.4, .5, 1) both; }
+html.koi-landed .page-import .ink-hello > :not(svg) { animation: koi-rise 620ms ease 260ms both; }
+html.koi-landed .page-import .ink-suggest, html.koi-landed .page-import .ink-thread { animation: koi-rise 620ms ease 380ms both; }
+html.koi-landed .page-import .ink-composer { animation: koi-up 700ms cubic-bezier(.2, .8, .2, 1) 460ms both; }
+html.koi-landed .ink-rail { animation: koi-slide 700ms cubic-bezier(.2, .8, .2, 1) 560ms both; }
+html.koi-landed .site-header, html.koi-landed .page-arrow { animation: koi-fade 600ms ease 640ms both; }
+@keyframes koi-stone { 0% { opacity: 0; transform: scale(.55); } 60% { opacity: 1; transform: scale(1.12); } 100% { opacity: 1; transform: scale(1); } }
+@keyframes koi-rise { from { opacity: 0; translate: 0 14px; } to { opacity: 1; translate: 0 0; } }
+@keyframes koi-up { from { opacity: 0; translate: 0 48px; } to { opacity: 1; translate: 0 0; } }
+@keyframes koi-slide { from { opacity: 0; translate: -36px 0; } to { opacity: 1; translate: 0 0; } }
+@keyframes koi-fade { from { opacity: 0; } to { opacity: 1; } }
+@keyframes koi-stone { 0% { opacity: 0; transform: scale(.6); } 55% { opacity: 1; transform: scale(1.4); } 100% { opacity: 1; transform: scale(1); } }
+
+/* ==== 进入页标题：白色飞白 + 朱印 + 金线 + 疏朗标语 ===================================================
+   The brush lettering is warm white with dry-brush streaks (no multiply: it would vanish), lifted off
+   the painting by a soft dark shadow; a vermilion seal sits at its top right and travels with it;
+   under 司序·知所 (beside the sweep of 后) a gold glow line and the motto in spaced serif. */
+/* The shadow goes on the h1: on the img the clip-path of its brush-in would cut it into a box. */
+.hero.is-genie .hero-brush, .hero-brush { mix-blend-mode: normal; filter: none; }
+.hero-title.hero-title-brush { filter: drop-shadow(0 1px 1px rgba(8, 14, 22, .45)) drop-shadow(0 6px 26px rgba(8, 14, 22, .5)); }
+.hero-seal { position: absolute; right: -5.5%; top: -3%; width: 6.2%; height: auto; overflow: visible; filter: drop-shadow(0 3px 8px rgba(60, 10, 6, .35)); transform: rotate(2deg); }
+.hero-seal text { font-family: "Sixu Kai", var(--font-serif); font-size: 34px; font-weight: 700; fill: #f8efe4; }
+.hero-tagline { left: 1%; bottom: 5%; width: 58%; line-height: 1; text-align: center; }
+.hero-glow {
+  display: block; height: 2px; width: 86%; margin: 0 auto 1.05em; border-radius: 2px;
+  background: linear-gradient(90deg, rgba(231, 194, 122, 0), #d9b066 22%, #fff0c8 50%, #d9b066 78%, rgba(231, 194, 122, 0));
+  box-shadow: 0 0 10px 1px rgba(236, 196, 120, .65), 0 0 28px 6px rgba(236, 196, 120, .28);
+}
+.hero-motto {
+  display: block; white-space: nowrap; color: #f6f1e7; font-family: var(--font-serif); font-weight: 500;
+  font-size: clamp(11px, 1.28vw, 20px); letter-spacing: .42em; text-indent: .42em;
+  text-shadow: 0 1px 2px rgba(8, 14, 22, .55), 0 2px 16px rgba(8, 14, 22, .55);
+}
+.hero-motto > span { color: rgba(236, 206, 150, .9); letter-spacing: 0; }
+/* Once the lens is open the lettering sits on pale paper: a soft dusk mist behind the block keeps the
+   white readable without touching the painting itself. It comes in with the words. */
+.hero.is-genie .hero-brand { isolation: isolate; }
+.hero.is-genie .hero-brand::before {
+  content: ""; position: absolute; inset: -16% -12% -14% -14%; z-index: -1; pointer-events: none;
+  background: radial-gradient(ellipse 60% 62% at 40% 60%, rgba(14, 22, 32, .46) 0%, rgba(14, 22, 32, .26) 50%, rgba(12, 20, 30, 0) 100%);
+  filter: blur(14px); opacity: var(--words, 1);
+}
+.hero.is-genie .hero-motto { font-weight: 600; }
+@media (max-width: 760px) {
+  .hero-seal { width: 7.5%; right: -3%; }
+  .hero-tagline { width: 64%; bottom: 3%; }
+  .hero-glow { margin-bottom: .8em; }
+  .hero-motto { font-size: 10px; letter-spacing: .16em; text-indent: .16em; }
+  .hero-motto > span { display: none; }
+}

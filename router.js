@@ -75,8 +75,8 @@
     return ++run;
   }
   const later = (ticket, ms, step) => window.setTimeout(() => { if (ticket === run) step(); }, ms);
-  function playVeil(done) {
-    const ticket = prepare(pointer);
+  function playVeil(done, at = null) {
+    const ticket = prepare(at || pointer);
     veil.className = 'route-veil is-on';
     later(ticket, 700, done);
     later(ticket, 1250, () => { veil.className = 'route-veil is-on is-out'; });
@@ -117,7 +117,10 @@
     const from = root.dataset.current;
     if (ready && veil && !calm.matches && from === 'home' && route !== 'home') {
       pending = route;
-      playVeil(() => { pending = null; show(route, options); });
+      const enter = () => { pending = null; show(route, options); };
+      // 墨鱼入砚 (koi.js): the painting fades into 研磨's background as the fish dives into its inkstone.
+      if (window.SixuKoi?.supported()) window.SixuKoi.cross(enter);
+      else playVeil(enter);
     } else if (ready && veil && !calm.matches && ORDER.includes(from) && route === 'home') {
       pending = route;
       playRecede(() => { pending = null; show(route, options); });

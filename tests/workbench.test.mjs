@@ -10,7 +10,7 @@ import { readFileSync } from 'node:fs';
 import { setTimeout as sleep } from 'node:timers/promises';
 import { JSDOM } from 'jsdom';
 import { STORAGE_KEY as V2_KEY } from '../task-state.js';
-import { TIME_STORAGE_KEY, createTimeSnapshot, addImported, serializeTimeSnapshot } from '../time-state.js';
+import { TIME_STORAGE_KEY, createTimeSnapshot, addImported, addTask, serializeTimeSnapshot } from '../time-state.js';
 import { weekRange, weekStart } from '../calendar.js';
 
 const HTML = readFileSync(new URL('../index.html', import.meta.url), 'utf8');
@@ -111,6 +111,37 @@ test('a fresh list shows free time as undefined and asks the v3 calendar for the
   assert.equal(request.body.snapshot.schema_version, 3);
   assert.match(request.body.range.from, /^\d{4}-\d{2}-\d{2}$/);
   assert.match(app.find('#calendarView').textContent, /叠墨/);
+});
+
+test('the task starter uses only the supplied excerpt, never writes back, and clears when the text changes', async t => {
+  const snapshot = addTask(createTimeSnapshot({ referenceTime: '2026-11-22T09:00:00+08:00' }), { title: '写摄影分析报告' });
+  const material = '至少选两张照片。<em>提交 PDF</em>';
+  const app = await boot(t, {
+    health: { capabilities: [...CAPABILITIES, 'starter_material_v1'] },
+    initial: { [TIME_STORAGE_KEY]: serializeTimeSnapshot(snapshot) },
+    routes: { '/api/v3/starter': async () => [200, { action: '选一条原文作为小节标题。', material_brief: { excerpts: [material] } }] },
+  });
+  const input = '[data-task-starter] textarea[name="material"]';
+  app.set(input, material, 'input');
+  app.submit('[data-task-starter]');
+  await settle();
+  const request = app.calls.find(call => call.path === '/api/v3/starter');
+  assert.ok(request);
+  assert.equal(request.body.material_text, material);
+  assert.equal(request.body.mode, 'rules');
+  assert.equal(request.body.snapshot, undefined);
+  assert.equal(app.find('[data-starter-result]').hidden, false);
+  assert.equal(app.find('[data-starter-result] li').textContent, material);
+  assert.equal(app.find('[data-starter-result] li em'), null);
+  assert.deepEqual(app.stored(), snapshot);
+  assert.deepEqual(app.writes, []);
+  app.click('[data-starter-copy]');
+  await settle();
+  const fallback = app.find('[data-starter-copy-fallback]');
+  assert.equal(fallback.hidden, false);
+  assert.ok(fallback.querySelector('textarea').value.includes(material));
+  app.set(input, '修改后的材料', 'input');
+  assert.equal(app.find('[data-starter-result]').hidden, true);
 });
 
 test('tabs start at 研磨, the agent entry, with plain glosses, and the workbench links back home', async t => {
