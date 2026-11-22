@@ -108,12 +108,25 @@
     frame.classList.toggle('is-words', words > 0.6);
     frame.classList.toggle('is-open', lens > 0.72);
   }
+  // The living painting in the lens: plays only on the landing, never for reduced motion (the poster,
+  // its first frame, stays), and pauses while the tab is hidden.
+  const loop = stage?.querySelector('.hg-video');
+  function runLoop() {
+    if (!loop) return;
+    const play = !calm.matches && root.dataset.current === 'home' && !document.hidden;
+    if (play) loop.play()?.catch(() => { /* autoplay refused: the poster stays */ });
+    else loop.pause();
+  }
+  if (loop && calm.matches) loop.removeAttribute('autoplay');
+  document.addEventListener('visibilitychange', runLoop);
+  calm.addEventListener?.('change', runLoop);
   measureTitle();
   window.addEventListener('scroll', () => { updateReveal(); updateLens(); }, { passive: true });
   window.addEventListener('resize', () => { updateReveal(); measureTitle(); updateLens(); });
   window.addEventListener('load', () => { measureTitle(); updateLens(); });
-  document.addEventListener('sixu:route', event => { if (event.detail === 'home') { startSky(); updateReveal(); measureTitle(); updateLens(); } else { pauseFilm(); chart?.stop(); night?.stop(); } });
+  document.addEventListener('sixu:route', event => { runLoop(); if (event.detail === 'home') { startSky(); updateReveal(); measureTitle(); updateLens(); } else { pauseFilm(); chart?.stop(); night?.stop(); } });
   startSky();
   updateReveal();
   updateLens();
+  runLoop();
 })();

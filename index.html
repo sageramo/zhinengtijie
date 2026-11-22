@@ -4,15 +4,15 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="description" content="把校园通知整理成可核对的事项，用真实空闲生成经过校验的个人安排。">
-  <meta name="sixu-ui-version" content="2026.11.22.58">
+  <meta name="sixu-ui-version" content="2026.11.22.60">
   <title>司序 Marshal · 知所先后</title>
   <link rel="icon" href="./assets/sixu-mark.svg" type="image/svg+xml">
   <link rel="manifest" href="./manifest.webmanifest">
   <meta name="theme-color" content="#1e2a35">
   <link rel="apple-touch-icon" href="./assets/icon-192.png">
   <script>{ const h = location.hash; document.documentElement.dataset.current = h.startsWith('#/') && ['import', 'items', 'time', 'calendar', 'review', 'plan'].includes(h.slice(2).split('?')[0]) ? ({ review: 'items', plan: 'calendar' }[h.slice(2).split('?')[0]] || h.slice(2).split('?')[0]) : 'home'; if (document.documentElement.dataset.current === 'home' && !matchMedia('(prefers-reduced-motion: reduce)').matches) document.documentElement.classList.add('intro'); }</script>
-  <link rel="preload" as="image" href="./assets/hero-scroll.webp">
-  <link rel="stylesheet" href="./agent.css?v=2026.11.22.58">
+  <link rel="preload" as="image" href="./assets/hero-poster.webp">
+  <link rel="stylesheet" href="./agent.css?v=2026.11.22.60">
 </head>
 <body>
   <div class="intro" id="intro" aria-hidden="true">
@@ -25,7 +25,7 @@
   <div class="landing" id="home" data-page="home">
     <section class="hero is-genie" aria-labelledby="heroTitle">
       <div class="hero-frame">
-        <div class="hero-scene" aria-hidden="true"><img class="hg-blur" src="./assets/hero-scroll.webp" alt="" decoding="async"><div class="hg-lens"><img class="hg-sharp" src="./assets/hero-scroll.webp" alt="" decoding="async"><img class="hg-sharp hg-water" src="./assets/hero-scroll.webp" alt="" decoding="async"><i class="hg-mist hg-mist-a"></i><i class="hg-mist hg-mist-b"></i></div><svg class="hg-defs" width="0" height="0" aria-hidden="true" focusable="false"><filter id="hgRipple" x="0" y="0" width="100%" height="100%"><feTurbulence type="fractalNoise" baseFrequency="0.004 0.045" numOctaves="2" seed="3"><animate attributeName="baseFrequency" dur="14s" values="0.004 0.045;0.0048 0.052;0.004 0.045" repeatCount="indefinite"/></feTurbulence><feDisplacementMap in="SourceGraphic" scale="7" xChannelSelector="R" yChannelSelector="G"/></filter></svg><i class="hg-rim"></i></div>
+        <div class="hero-scene" aria-hidden="true"><img class="hg-blur" src="./assets/hero-poster.webp" alt="" decoding="async"><div class="hg-lens"><video class="hg-sharp hg-video" autoplay muted loop playsinline preload="auto" poster="./assets/hero-poster.webp" disablepictureinpicture tabindex="-1"><source src="./assets/hero-loop.webm" type="video/webm"><source src="./assets/hero-loop.mp4" type="video/mp4"></video></div><i class="hg-rim"></i></div>
         <div class="hero-shade" aria-hidden="true"></div>
         <header class="hero-bar" data-drop>
           <a class="hero-logo mk-lockup" href="#home" aria-label="司序 Marshal · 知所先后"><svg class="mk-mark" viewBox="14 10 72 80" aria-hidden="true"><path d="M22 86V28H30.56L50 63.64L69.44 28H78V86H70V43.69L54.56 72H45.44L30 43.69V86Z" fill="currentColor"/><g class="mark-needle"><path d="M50 14L53.2 40.4H46.8Z" fill="currentColor"/><path d="M46.8 40.4L50 62L53.2 40.4" fill="none" stroke="currentColor" stroke-width="2.6"/></g></svg><span class="mk-rule" aria-hidden="true"></span><span class="mk-words" aria-hidden="true"><span class="mk-en">MARSHAL</span><span class="mk-cn">司序 · 知所先后</span></span></a>
@@ -276,7 +276,7 @@
       <form id="apiForm"><label for="apiBase">解析与计算服务地址</label><input id="apiBase" type="url" inputmode="url" required><button type="submit">保存地址并检查连接</button><p class="field-help" id="connectionStatus" role="status">尚未检查连接</p></form>
       <div class="backup-actions"><button type="button" id="importSnapshot">导入清单</button><input type="file" id="importFile" accept="application/json,.json" hidden></div>
       <p class="field-help">导出文件包含原文与个人安排，请妥善保存。</p>
-      <p class="field-help" id="uiVersion">界面版本 2026.11.22.58</p>
+      <p class="field-help" id="uiVersion">界面版本 2026.11.22.60</p>
     </details>
     <footer class="page-footer"><span>以确认后的信息计算，把取舍留给你。</span></footer>
   </main>
@@ -285,7 +285,7 @@
   <div class="access-ask" id="accessAsk" role="dialog" aria-modal="true" aria-labelledby="accessTitle" hidden><form class="access-card" id="accessForm"><h2 id="accessTitle">访问口令</h2><p class="field-help" id="accessHint"></p><label for="accessCode">口令</label><input id="accessCode" type="password" autocomplete="off" maxlength="200" required><div class="inline-actions"><button type="submit" class="primary-button">确定</button><button type="button" class="text-button" id="accessCancel">取消</button></div></form></div>
   <div class="route-veil" id="routeVeil" aria-hidden="true"><i class="ink ink-1"></i><i class="ink ink-2"></i><i class="ink ink-3"></i><svg class="veil-mark" viewBox="0 0 100 100"><path class="mark-ring" d="M22 86V28H30.56L50 63.64L69.44 28H78V86H70V43.69L54.56 72H45.44L30 43.69V86Z" fill="currentColor"/><g class="veil-needle"><path d="M50 14L53.2 40.4H46.8Z" fill="currentColor"/><path d="M46.8 40.4L50 62L53.2 40.4" fill="none" stroke="currentColor" stroke-width="1.8"/></g></svg><p class="veil-word"><span>司序</span><span>知所先后</span></p></div>
   <noscript>此页面需要启用JavaScript才能编辑和计算任务。</noscript>
-  <script type="importmap">{"imports":{"./task-state.js":"./task-state.js?v=2026.11.22.58","./snapshot-store.js":"./snapshot-store.js?v=2026.11.22.58","./model-candidates.js":"./model-candidates.js?v=2026.11.22.58","./time-review.js":"./time-review.js?v=2026.11.22.58","./planning-result.js":"./planning-result.js?v=2026.11.22.58","./agenda.js":"./agenda.js?v=2026.11.22.58","./calendar.js":"./calendar.js?v=2026.11.22.58","./shanshui.js":"./shanshui.js?v=2026.11.22.58","./reminders.js":"./reminders.js?v=2026.11.22.58","./bell-toggle.js":"./bell-toggle.js?v=2026.11.22.58","./estimate-memory.js":"./estimate-memory.js?v=2026.11.22.58","./time-state.js":"./time-state.js?v=2026.11.22.58","./scenario.js":"./scenario.js?v=2026.11.22.58","./screenshot-ocr.js":"./screenshot-ocr.js?v=2026.11.22.58","./jw-timetable.js":"./jw-timetable.js?v=2026.11.22.58","./focus.js":"./focus.js?v=2026.11.22.58","./chat-actions.js":"./chat-actions.js?v=2026.11.22.58"}}</script>
-  <script src="./koi.js?v=2026.11.22.58"></script><script src="./router.js?v=2026.11.22.58"></script><script src="./about-sky.js?v=2026.11.22.58"></script><script src="./landing.js?v=2026.11.22.58"></script><script src="./api-config.js?v=2026.11.22.58"></script><script type="module" src="./agent.js?v=2026.11.22.58"></script>
+  <script type="importmap">{"imports":{"./task-state.js":"./task-state.js?v=2026.11.22.60","./snapshot-store.js":"./snapshot-store.js?v=2026.11.22.60","./model-candidates.js":"./model-candidates.js?v=2026.11.22.60","./time-review.js":"./time-review.js?v=2026.11.22.60","./planning-result.js":"./planning-result.js?v=2026.11.22.60","./agenda.js":"./agenda.js?v=2026.11.22.60","./calendar.js":"./calendar.js?v=2026.11.22.60","./shanshui.js":"./shanshui.js?v=2026.11.22.60","./reminders.js":"./reminders.js?v=2026.11.22.60","./bell-toggle.js":"./bell-toggle.js?v=2026.11.22.60","./estimate-memory.js":"./estimate-memory.js?v=2026.11.22.60","./time-state.js":"./time-state.js?v=2026.11.22.60","./scenario.js":"./scenario.js?v=2026.11.22.60","./screenshot-ocr.js":"./screenshot-ocr.js?v=2026.11.22.60","./jw-timetable.js":"./jw-timetable.js?v=2026.11.22.60","./focus.js":"./focus.js?v=2026.11.22.60","./chat-actions.js":"./chat-actions.js?v=2026.11.22.60"}}</script>
+  <script src="./koi.js?v=2026.11.22.60"></script><script src="./router.js?v=2026.11.22.60"></script><script src="./about-sky.js?v=2026.11.22.60"></script><script src="./landing.js?v=2026.11.22.60"></script><script src="./api-config.js?v=2026.11.22.60"></script><script type="module" src="./agent.js?v=2026.11.22.60"></script>
 </body>
 </html>
