@@ -822,39 +822,17 @@ html:not([data-current="home"]) body::after { content: ""; position: fixed; righ
 .rolls[data-open] .roll:not(.is-open), .roll.is-open .roll-face, .roll-body { display: none; }
 .roll.is-open .roll-body { display: grid; gap: 20px; }
 .roll { position: relative; min-width: 0; }
-.roll[data-roll="routine"] {
-  --layer-art: url("./assets/layer-entrances/routine.webp");
-  --layer-base: #102333;
-  --layer-ink: #f3f7fa;
-  --layer-shade: #0a1827;
-  --layer-position: 46%;
-}
-.roll[data-roll="free"] {
-  --layer-art: url("./assets/layer-entrances/free.webp");
-  --layer-base: #f0f2ee;
-  --layer-ink: #172d3c;
-  --layer-shade: #f1f3ee;
-  --layer-position: 38%;
-}
-.roll[data-roll="work"] {
-  --layer-art: url("./assets/layer-entrances/work.webp");
-  --layer-base: #ecd5b2;
-  --layer-ink: #392214;
-  --layer-shade: #f4dfbf;
-  --layer-position: 39%;
-}
-.roll[data-roll="event"] {
-  --layer-art: url("./assets/layer-entrances/event.webp");
-  --layer-base: #1a1615;
-  --layer-ink: #fff3ea;
-  --layer-shade: #191414;
-  --layer-position: 38%;
-}
+.roll[data-roll="routine"] { --layer-art: url("./assets/layer-entrances/routine.webp?v=2026.11.22.54"); }
+.roll[data-roll="free"] { --layer-art: url("./assets/layer-entrances/free.webp?v=2026.11.22.54"); }
+.roll[data-roll="work"] { --layer-art: url("./assets/layer-entrances/work.webp?v=2026.11.22.54"); }
+.roll[data-roll="event"] { --layer-art: url("./assets/layer-entrances/event.webp?v=2026.11.22.54"); }
 .roll-face, .roll-face:hover, .roll-face:active {
   background: var(--layer-base);
   color: var(--layer-ink);
 }
 .roll-face {
+  --layer-base: #f6f3eb;
+  --layer-ink: #223543;
   position: relative;
   display: flex;
   align-items: flex-end;
@@ -872,18 +850,13 @@ html:not([data-current="home"]) body::after { content: ""; position: fixed; righ
   outline: 3px solid var(--layer-ink);
   outline-offset: -8px;
 }
-.roll-face::before, .roll-face::after {
+.roll-face::before {
   content: "";
   position: absolute;
   inset: 0;
   z-index: -1;
-}
-.roll-face::before {
-  background: var(--layer-art) center var(--layer-position) / cover no-repeat;
+  background: var(--layer-art) right 28% / cover no-repeat;
   transition: transform .65s cubic-bezier(.2, .65, .25, 1);
-}
-.roll-face::after {
-  background: linear-gradient(to bottom, transparent 27%, color-mix(in srgb, var(--layer-shade) 70%, transparent) 65%, var(--layer-shade));
 }
 .roll-intro { display: grid; gap: 10px; justify-items: start; min-width: 0; }
 .roll-name {
@@ -2271,3 +2244,5 @@ html[data-current="import"] [data-app] :is(.backup-nudge, #storageConflict):not(
   /* The note clears the page arrows at the bottom. */
   [data-app] :is(.backup-nudge, #storageConflict):not([hidden]) { bottom: 68px; }
 }
+/* The .50 entrance rule sizes the note to the page width through an id selector; the floating note keeps its own size. */
+[data-app] .workspace > :is(.backup-nudge, #storageConflict):not([hidden]) { width: min(400px, calc(100% - 36px)) !important; max-width: none !important; margin: 0 !important; }
