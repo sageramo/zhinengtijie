@@ -2971,3 +2971,91 @@ html[data-current="calendar"] [data-app]::after {
 .plan-card .pc-actions .primary-button { min-height: 36px; padding: 6px 16px; border-radius: 4px; }
 .plan-card .pc-actions .primary-button:disabled { background: #8d9aa7; border-color: #8d9aa7; }
 @media (max-width: 760px) { .plan-card .pc-row { grid-template-columns: 1fr; gap: 2px; } }
+
+/* ==== 画卷置顶（.64）=================================================================================
+   画卷: the week docks at the top of the board with a one-line bar; the painting behind is stronger. */
+/* ---- 画卷：周格置顶，周次收成卡片首行 ---- */
+.cal-bar.is-docked {
+  position: relative; z-index: 3; flex-wrap: nowrap; gap: 10px 16px; margin: 0 0 10px; padding: 0 0 10px;
+  border-bottom: 1px solid rgba(30, 42, 53, .1);
+}
+.cal-bar.is-docked .cal-bar-left { flex-wrap: nowrap; align-items: center; gap: 10px; }
+.cal-bar.is-docked .cal-bar-title { flex-direction: row; align-items: baseline; gap: 10px; white-space: nowrap; }
+.cal-bar.is-docked .cal-eyebrow { order: 2; margin: 0; font-size: .6875rem; letter-spacing: .16em; color: #8a7a62; }
+.cal-bar.is-docked .cal-range { font-size: 1.25rem; letter-spacing: .02em; }
+.cal-bar.is-docked .cal-nav { padding: 2px; }
+.cal-bar.is-docked .cal-nav button { min-height: 30px; min-width: 30px; padding: 2px 10px; font-size: .8125rem; }
+.cal-bar.is-docked .cal-remain {
+  grid-template-columns: auto auto auto; align-items: center; column-gap: 12px; min-width: 0; margin-left: auto; padding: 6px 14px;
+  -webkit-backdrop-filter: none; backdrop-filter: none;
+}
+.cal-bar.is-docked .cal-remain .cr-label { grid-column: auto; font-size: .75rem; letter-spacing: .2em; }
+.cal-bar.is-docked .cal-remain .cr-value { font-size: 1.5rem; }
+.cal-bar.is-docked .cal-remain .cr-bar { grid-column: 1 / -1; margin-top: 2px; height: 3px; }
+.cal-bar.is-docked .cal-bar-actions { flex-wrap: nowrap; gap: 8px; }
+.cal-bar.is-docked .cal-bar-actions :is(button, .text-button) { min-height: 32px; padding: 4px 12px; font-size: .8125rem; white-space: nowrap; }
+.page-calendar .scroll:has(.cal-bar.is-docked) .scroll-body { margin-top: 0; }
+@media (max-width: 1180px) {
+  .cal-bar.is-docked { flex-wrap: wrap; }
+  .cal-bar.is-docked .cal-remain { order: 3; width: 100%; margin-left: 0; grid-template-columns: auto auto 1fr; }
+  .cal-bar.is-docked .cal-remain .cr-meta { justify-self: end; }
+}
+@media (max-width: 760px) {
+  .cal-bar.is-docked { gap: 6px; margin-bottom: 6px; padding-bottom: 6px; }
+  .cal-bar.is-docked .cal-bar-left { width: 100%; justify-content: space-between; }
+  .cal-bar.is-docked .cal-eyebrow { display: none; }
+  .cal-bar.is-docked .cal-range { font-size: 1.05rem; }
+  .cal-bar.is-docked .cal-bar-actions { width: 100%; justify-content: flex-end; }
+  .cal-bar.is-docked .cal-remain { padding: 6px 10px; }
+  .cal-bar.is-docked .cal-remain .cr-meta { display: none; }
+  .cal-bar.is-docked .cal-remain .cr-value { font-size: 1.25rem; }
+}
+
+/* 画卷 page painting: the whole lake, not a faint strip at the bottom. */
+html[data-current="calendar"] [data-app]::before {
+  top: 0; height: auto; opacity: .5; filter: saturate(.75) contrast(.95);
+  background-position: 50% 62%;
+  -webkit-mask-image: linear-gradient(180deg, rgba(0, 0, 0, .55) 0%, rgba(0, 0, 0, .8) 30%, #000 100%);
+  mask-image: linear-gradient(180deg, rgba(0, 0, 0, .55) 0%, rgba(0, 0, 0, .8) 30%, #000 100%);
+}
+.page-calendar .scroll-mount .cal-board, [data-app] .page-calendar .scroll-mount .cal-board {
+  background: rgba(255, 254, 250, .72); -webkit-backdrop-filter: blur(3px); backdrop-filter: blur(3px);
+}
+.cal-bar.is-docked .cal-nav { flex: none; flex-wrap: nowrap; }
+.cal-bar.is-docked .cal-nav button { white-space: nowrap; }
+.cal-bar.is-docked .cal-remain .cr-meta { white-space: nowrap; }
+@media (max-width: 1560px) { .cal-bar.is-docked .cal-remain { grid-template-columns: auto auto; } .cal-bar.is-docked .cal-remain .cr-meta { display: none; } }
+@media (max-width: 760px) {
+  .cal-bar.is-docked .cal-bar-actions { flex-wrap: wrap; }
+  .cal-bar.is-docked .cal-clock-pill { flex: 1 1 100%; justify-content: center; text-align: center; white-space: normal; }
+}
+
+/* ==== 一幅长卷（.64）=================================================================================
+   进入页 as one painting: the hero's lake ends at the near bank; landing-below.webp (toned to the same
+   paper) carries that bank down through mist to a stone path, under 《大学》 and 四步 together. It is
+   sized like the hero's cover-fitted plate (width max(100%, 16/9 of the screen height), centred) so the
+   bank lines up, and a thin band of cloud over the join hides what the brush could not match. */
+.landing-below { position: relative; z-index: 1; background: #dfd4c2 url("./assets/landing-below.webp") 50% 0 / max(100%, 177.78vh) auto no-repeat; }
+@supports (height: 1svh) { .landing-below { background-size: max(100%, 177.78svh) auto; } }
+.landing-below::before {
+  content: ""; position: absolute; left: 0; right: 0; top: -54px; z-index: 1; height: 120px; pointer-events: none;
+  background: linear-gradient(180deg, rgba(223, 212, 196, 0) 0%, rgba(223, 212, 196, .72) 44%, rgba(223, 212, 196, .72) 56%, rgba(223, 212, 196, 0) 100%);
+}
+.landing .landing-below :is(.about, .features) { background: transparent; }
+.landing .landing-below .about::before, .landing .landing-below .features .bg-noise { display: none; }
+.landing .landing-below .about-card { position: relative; z-index: 2; }
+.landing .landing-below .feature-grid { background: rgba(236, 228, 214, .42); }
+.landing .landing-below .landing-foot { border-top-color: rgba(30, 42, 53, .14); }
+/* the near bank fills the top ~16% of the plate's width: 《大学》 starts below it. */
+.landing .landing-below .about { padding-top: calc(max(100vw, 177.78vh) * .175); }
+.landing-below::before {
+  top: -80px; height: 170px;
+  background: linear-gradient(180deg, rgba(223, 212, 196, 0) 0%, rgba(223, 212, 196, .55) 30%, rgba(223, 212, 196, .88) 47%, rgba(223, 212, 196, .88) 53%, rgba(223, 212, 196, .55) 70%, rgba(223, 212, 196, 0) 100%);
+}
+.landing-below::before {
+  top: -110px; height: 220px;
+  background:
+    radial-gradient(ellipse 34% 42% at 74% 50%, rgba(223, 212, 196, .9), rgba(223, 212, 196, 0) 72%),
+    radial-gradient(ellipse 30% 34% at 42% 54%, rgba(223, 212, 196, .7), rgba(223, 212, 196, 0) 72%),
+    linear-gradient(180deg, rgba(223, 212, 196, 0) 0%, rgba(223, 212, 196, .5) 36%, rgba(223, 212, 196, .82) 50%, rgba(223, 212, 196, .5) 64%, rgba(223, 212, 196, 0) 100%);
+}

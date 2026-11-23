@@ -455,8 +455,9 @@ export function calendarMarkup({ result, start, now, loading = false, error = ''
       </div>
     </section>`;
   const backdrop = painting ? `<div class="ss-backdrop" aria-hidden="true">${painting.replace('role="img"', 'focusable="false"')}</div><i class="unroll-ink" aria-hidden="true"></i>` : '';
-  return `<div class="scroll${rolled ? ' is-rolled' : ''}${rolled && fresh ? ' is-fresh' : ''}${unrolling ? ' is-unrolling' : ''}${analyzed ? ' is-analyzed' : ' is-solo'}${listView ? ' is-list' : ''}">
-    <header class="cal-bar" aria-label="画卷周次与解析">
+  // 画卷 open on the week: the bar docks inside the board as its first row, so the week starts at the top.
+  const docked = !rolled && !analyzed;
+  const bar = `<header class="cal-bar${docked ? ' is-docked' : ''}" aria-label="画卷周次与解析">
       <div class="cal-bar-left">
         <div class="cal-bar-title"><p class="cal-eyebrow">${local(start).getUTCFullYear()} · 第 ${weekNumber(start)} 周</p><h2 class="cal-range" id="calendarHeading">${range}</h2></div>
         <div class="cal-nav"><button type="button" data-cal-week="-1" aria-label="上一周"><svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><path d="M15 5l-7 7 7 7" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></button><button type="button" data-cal-week="0">本周</button><button type="button" data-cal-week="1" aria-label="下一周"><svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><path d="M9 5l7 7-7 7" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></button></div>
@@ -468,7 +469,9 @@ export function calendarMarkup({ result, start, now, loading = false, error = ''
         ${result && !rolled ? '<button type="button" class="text-button cal-roll-up" data-scroll-roll>卷起画卷</button>' : ''}
         ${analyzeBtn}
       </div>
-    </header>
+    </header>`;
+  return `<div class="scroll${rolled ? ' is-rolled' : ''}${rolled && fresh ? ' is-fresh' : ''}${unrolling ? ' is-unrolling' : ''}${analyzed ? ' is-analyzed' : ' is-solo'}${listView ? ' is-list' : ''}">
+    ${docked ? '' : bar}
     <div class="scroll-body">
       <aside class="scroll-side" aria-label="本周解析"${analyzed ? '' : ' hidden'}>
         <div class="side-head"><span>本周解析</span><button type="button" class="text-button side-close" data-cal-analyze aria-label="回到画卷">回到画卷</button></div>
@@ -480,7 +483,7 @@ export function calendarMarkup({ result, start, now, loading = false, error = ''
         ${brief.length ? `<ul class="cal-brief" aria-label="本周提要">${brief.map(line => `<li>${line}</li>`).join('')}</ul>` : ''}
         <ul class="cal-stats" aria-label="本周统计">${stat(count('routine'), '底色')}${stat(count('work') + count('appointment'), '落笔')}${stat(count('temporary'), '点墨')}${stat(count('deadline'), '截止')}</ul>
       </aside>
-      ${rolled ? cover : `    <div class="scroll-mount"><div class="cal-board">${backdrop}${banner}${layerStrip}${bandLegend}
+      ${rolled ? cover : `    <div class="scroll-mount"><div class="cal-board">${backdrop}${docked ? bar : ''}${banner}${layerStrip}${bandLegend}
         <div class="cal-week${crowded.size ? ' has-crowded' : ''}${band ? ' has-band' : ''}"${focus ? ` data-focus="${escape(focus)}"` : ''} style="--rows:${last - first}${crowded.size ? `;--cols:var(--time-col, 54px) ${days.map((_, index) => crowded.has(index) ? 'minmax(0, 1.5fr)' : 'minmax(0, 1fr)').join(' ')}` : ''}">
           <div class="cal-corner" aria-hidden="true"></div>${heads}
           <div class="cal-hours" aria-hidden="true">${hours}</div>${columns}
