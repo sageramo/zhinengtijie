@@ -179,3 +179,63 @@ export function planCardMarkup(plan, id = '') {
   const adopt = multi && ok && id ? `<div class="pc-actions"><button type="button" class="primary-button" data-plan-adopt="${esc(id)}">照这样记进日历</button><a href="#/calendar" data-agenda-calendar>看画卷</a></div>` : '<p class="inline-links"><a href="#/calendar" data-agenda-calendar>看画卷</a></p>';
   return `<section class="plan-card ${ok ? 'is-ok' : 'is-short'}" aria-label="${esc(verdict)}"><header><i aria-hidden="true"></i><strong>${esc(verdict)}</strong></header><ul>${rows}</ul>${left}${trade}${warn}${adopt}</section>`;
 }
+
+// ---- 语义草案确认卡：/api/v3/chat 的 proposal（agenda_chat_proposals_v1） -----------------------------
+const PROPOSAL_FIELD = { start_at: '开始', end_at: '结束', deadline_at: '截止', earliest_start_at: '最早开始', location: '地点', estimate_minutes: '预计用时', status: '状态', title: '标题' };
+function fmtBeijing(iso) {
+  if (!iso) return '时间待书';
+  const ms = Date.parse(iso);
+  if (!Number.isFinite(ms)) return String(iso);
+  const d = new Date(ms + 8 * 3600000);
+  const pad2 = n => String(n).padStart(2, '0');
+  return `${d.getUTCMonth() + 1}月${d.getUTCDate()}日 ${pad2(d.getUTCHours())}:${pad2(d.getUTCMinutes())}`;
+}
+function fmtFieldVal(field, value) {
+  if (value === null || value === undefined || value === '') return '未填';
+  if (field === 'status') return value === 'cancelled' ? '取消' : value === 'completed' ? '完成' : '照常';
+  if (field === 'estimate_minutes') return span(Number(value));
+  if (field.endsWith('_at')) return fmtBeijing(value);
+  return String(value);
+}
+function impactLine(impact) {
+  if (!impact || typeof impact !== 'object') return '';
+  const parts = [`叠墨 ${impact.conflicts_before ?? 0} → ${impact.conflicts_after ?? 0} 处`];
+  if (impact.free_delta_minutes) parts.push(`本周留白 ${impact.free_delta_minutes > 0 ? '+' : '−'}${span(Math.abs(impact.free_delta_minutes))}`);
+  return `<p class="pc-left">确定性校验预览：${parts.join(' · ')}</p>`;
+}
+export function proposalCardMarkup(proposal, id = '') {
+  if (!proposal || typeof proposal !== 'object' || !id) return '';
+  if (proposal.kind === 'add_items') {
+    const items = proposal.items || [];
+    const title = `待确认记入清单（${items.length} 项）`;
+    const rows = items.map(item => {
+      const badge = item.kind === 'event' ? '约定' : '截止';
+      const when = item.kind === 'event'
+        ? (item.start_at ? `${fmtBeijing(item.start_at)}${item.end_at ? `–${fmtBeijing(item.end_at).split(' ')[1]}` : ''}` : '时间待书')
+        : (item.deadline_at ? `${fmtBeijing(item.deadline_at)} 前` : '时间待书');
+      const extra = [item.estimate_minutes ? `约 ${span(item.estimate_minutes)}` : '', item.location || ''].filter(Boolean).join(' · ');
+      return `<li class="pc-row is-placed"><b>${badge} · ${esc(item.title)}</b><span>${esc(when)}${extra ? `（${esc(extra)}）` : ''}</span></li>`;
+    }).join('');
+    return `<section class="plan-card is-ok" aria-label="${esc(title)}"><header><i aria-hidden="true"></i><strong>${esc(title)}</strong></header><ul>${rows}</ul>${impactLine(proposal.impact)}<div class="pc-actions"><button type="button" class="primary-button" data-proposal-adopt="${esc(id)}">确认记入清单</button><a href="#/calendar" data-agenda-calendar>看画卷</a></div></section>`;
+  }
+  if (proposal.kind === 'update_item') {
+    const verb = proposal.action === 'cancel' ? '取消' : proposal.action === 'complete' ? '标记完成' : '改动';
+    const title = `待确认${verb}「${proposal.target_title || ''}」`;
+    const rows = Object.entries(proposal.changes || {}).map(([field, diff]) => `<li class="pc-row is-placed"><b>${esc(PROPOSAL_FIELD[field] || field)}</b><span>${esc(fmtFieldVal(field, diff.from))} → ${esc(fmtFieldVal(field, diff.to))}</span></li>`).join('');
+    return `<section class="plan-card is-ok" aria-label="${esc(title)}"><header><i aria-hidden="true"></i><strong>${esc(title)}</strong></header><ul>${rows}</ul>${impactLine(proposal.impact)}<div class="pc-actions"><button type="button" class="primary-button" data-proposal-adopt="${esc(id)}">采用这项改动</button><a href="#/calendar" data-agenda-calendar>看画卷</a></div></section>`;
+  }
+  if (proposal.kind === 'focus_window') {
+    const title = '待确认常用专注时段';
+    const rows = [
+      proposal.weekday ? `<li class="pc-row is-placed"><b>工作日</b><span>${esc(proposal.weekday.start)}–${esc(proposal.weekday.end)}</span></li>` : '',
+      proposal.weekend ? `<li class="pc-row is-placed"><b>周末</b><span>${esc(proposal.weekend.start)}–${esc(proposal.weekend.end)}</span></li>` : '',
+    ].filter(Boolean).join('');
+    return `<section class="plan-card is-ok" aria-label="${esc(title)}"><header><i aria-hidden="true"></i><strong>${esc(title)}</strong></header><ul>${rows}</ul><div class="pc-actions"><button type="button" class="primary-button" data-proposal-adopt="${esc(id)}">保存为常用专注时段</button><a href="#/time">去铺纸看</a></div></section>`;
+  }
+  if (proposal.kind === 'replan_draft') {
+    const title = `按「${proposal.label || '当前状态'}」重排本周`;
+    const rows = `<li class="pc-row is-placed"><b>${esc(proposal.label || '状态')}</b><span>${esc(fmtBeijing(proposal.start_at))} – ${esc(fmtBeijing(proposal.end_at))}</span></li>`;
+    return `<section class="plan-card is-ok" aria-label="${esc(title)}"><header><i aria-hidden="true"></i><strong>${esc(title)}</strong></header><ul>${rows}</ul><div class="pc-actions"><button type="button" class="primary-button" data-proposal-adopt="${esc(id)}">按此重算这一周</button><a href="#/calendar" data-agenda-calendar>看画卷</a></div></section>`;
+  }
+  return '';
+}

@@ -11,7 +11,7 @@ import { LEADS, dueReminders, icsCalendar, reminderText, upcomingCount } from '.
 import { createBellToggle } from './bell-toggle.js';
 import { readMemory, writeMemory, recordActual, suggestEstimate, readCalibration, writeCalibration, recordCalibration, calibrationFor } from './estimate-memory.js';
 import { createRecognizer, imageProblem } from './screenshot-ocr.js';
-import { parseChatAction, findTask, starterReply, nextChips, planCardMarkup } from './chat-actions.js';
+import { parseChatAction, findTask, starterReply, nextChips, planCardMarkup, proposalCardMarkup } from './chat-actions.js';
 import { readFocus, writeFocus, pruneStates, setMark, setCommonWindows, addStates, removeState, parseStateSentence, draftLabel, previewRequest, confirmRequest, replanRange, lockedRests, daySegments, bandMarkup, ribbonMarkup, bandUsed, bandLegend, todayStateMarkup, replanMarkup, spanText, dayLabel } from './focus.js';
 import { parseJwTimetable, termStartFrom } from './jw-timetable.js';
 
@@ -752,11 +752,16 @@ $('noticeForm').addEventListener('submit', async event => {
       const result = await modelRequest('/api/v3/chat', { mode: 'model', messages, ...(tools ? { snapshot, now: planNow() } : {}) }, base, 90000);
       if (!stillCurrent()) return;
       chatHistory.splice(0, chatHistory.length, ...messages.slice(-7), { role: 'assistant', text: result.reply });
-      reply = { text: result.reply, ...(result.capacity ? { extraHtml: planCardMarkup(result.capacity, keepPlan(result.capacity)) } : {}) };
+      const extras = [
+        result.capacity ? planCardMarkup(result.capacity, keepPlan(result.capacity)) : '',
+        result.proposal ? proposalCardMarkup(result.proposal, keepProposal(result.proposal)) : '',
+      ].filter(Boolean).join('');
+      reply = { text: result.reply, ...(extras ? { extraHtml: extras } : {}) };
       if (result.capacity?.scope?.from) reply.week = weekStart(Date.parse(result.capacity.scope.from));
+      else if (result.proposal?.week_anchor) reply.week = weekStart(Date.parse(`${result.proposal.week_anchor}T00:00:00+08:00`));
     }
     if (!reply && isConversation(text)) {
-      reply = { text: '这句我还接不住。可以继续问本周空档，或在输入框下选「模型聊天」聊别的。' };
+      reply = { text: '这句我还接不住。可以继续问本周空档，或一键交给模型深度理解。', extraHtml: escalateMarkup(text) };
     }
     if (reply?.capacity) reply.extraHtml = await calibrationNote(reply.capacity, base).catch(() => '');
     if (!stillCurrent()) return;
@@ -791,7 +796,7 @@ $('noticeForm').addEventListener('submit', async event => {
     const imported = await (mode === 'model' ? modelRequest : request)('/api/v3/extract', { text, reference_date: referenceDate, mode }, base, mode === 'model' ? 100000 : 30000);
     if (!stillCurrent()) return;
     if (!imported.tasks.length && !imported.events.length) {
-      showTurn(text, replyMarkup({ text: '这句里暂时没有识别出事项。试试「提醒我今天写实验报告，30分钟」，也可以选「模型聊天」。' }));
+      showTurn(text, replyMarkup({ text: '这句里暂时没有识别出事项。试试「提醒我今天写实验报告，30分钟」，也可以一键交给模型深度理解。', extraHtml: escalateMarkup(text) }));
       return;
     }
     if (matchingSources.size) {
@@ -1813,10 +1818,74 @@ function adoptPlan(id, button) {
   button.textContent = `已记进日历 · ${count} 段约定`;
   tell(`已把 ${count} 段时间记成约定，画卷里能看到；在笔墨 · 约定里可以改或删。`);
 }
+// Action proposals from /api/v3/chat (agenda_chat_proposals_v1): nothing writes until the user clicks confirm.
+const shownProposals = new Map();
+function escalateMarkup(text) {
+  return `<div class="pc-actions"><button type="button" class="text-button" data-escalate-chat="${escapeHTML(text)}">交给司序深度理解（模型）</button></div>`;
+}
+function keepProposal(proposal) {
+  if (!proposal || typeof proposal !== 'object') return '';
+  const id = `prop-${shownProposals.size + 1}`;
+  shownProposals.set(id, { proposal, revision: snapshot.revision });
+  return id;
+}
+async function adoptProposal(id, button) {
+  const entry = shownProposals.get(id);
+  if (!entry) return;
+  const { proposal, revision } = entry;
+  if (proposal.kind === 'add_items' || proposal.kind === 'update_item') {
+    if (revision !== snapshot.revision) { shownProposals.delete(id); return tell('清单刚刚有变化，请再发一次以重新核对冲突。', 'warning'); }
+    let next;
+    try { next = parseTimeSnapshot(JSON.stringify({ ...proposal.preview_snapshot, revision: snapshot.revision + 1 })); }
+    catch (error) { return tell(`草案没能写入：${error.message}`, 'error'); }
+    if (!next.daily_window) next = setDailyWindow(next, DEFAULT_WINDOW);
+    commit(next);
+    shownProposals.delete(id);
+    button.disabled = true;
+    button.textContent = proposal.kind === 'add_items' ? `已记入清单 · ${(proposal.items || []).length} 项` : '已采用这项改动';
+    tell(proposal.kind === 'add_items' ? '已按确认的草案记入清单，画卷已更新。' : '已按确认的改动更新清单，画卷已重算。');
+    return;
+  }
+  if (proposal.kind === 'focus_window') {
+    const existing = {
+      weekday: focusSettings.windows.find(w => w.id === 'w-weekday') || null,
+      weekend: focusSettings.windows.find(w => w.id === 'w-weekend') || null,
+    };
+    try {
+      saveFocus(setCommonWindows(focusSettings, {
+        weekday: proposal.weekday || (existing.weekday ? { start: existing.weekday.start, end: existing.weekday.end } : null),
+        weekend: proposal.weekend || (existing.weekend ? { start: existing.weekend.start, end: existing.weekend.end } : null),
+      }));
+    } catch (error) { return tell(`专注时段没能保存：${error.message}`, 'error'); }
+    shownProposals.delete(id);
+    button.disabled = true;
+    button.textContent = '已保存常用专注时段';
+    tell('已保存常用专注时段，可在铺纸调整，画卷顶部已标出。');
+    return;
+  }
+  if (proposal.kind === 'replan_draft' && proposal.draft) {
+    shownProposals.delete(id);
+    button.disabled = true;
+    button.textContent = '正在重算…';
+    const state = await startReplan(proposal.draft);
+    if (state?.error) { button.disabled = false; button.textContent = '按此重算这一周'; return tell(state.error, 'error'); }
+    button.textContent = state?.applied ? '已记下状态（原安排不用动）' : '已生成重排方案 · 去画卷选';
+    tell(state?.applied ? '已记下当前状态，原来的安排都赶得上。' : '已按你说的重算这一周，请到画卷查看并选择方案。');
+  }
+}
 // The chips send their sentence; a 起步卡 has its own 5-minute timer and copy button.
 $('inkThread').addEventListener('click', event => {
   const adopt = event.target.closest('[data-plan-adopt]');
   if (adopt && !adopt.disabled) { adoptPlan(adopt.dataset.planAdopt, adopt); return; }
+  const propBtn = event.target.closest('[data-proposal-adopt]');
+  if (propBtn && !propBtn.disabled) { adoptProposal(propBtn.dataset.proposalAdopt, propBtn); return; }
+  const escalate = event.target.closest('[data-escalate-chat]');
+  if (escalate && !$('parseNotice').disabled) {
+    $('extractionMode').value = 'chat';
+    $('noticeText').value = escalate.dataset.escalateChat;
+    $('noticeForm').requestSubmit ? $('noticeForm').requestSubmit() : $('noticeForm').dispatchEvent(new Event('submit', { cancelable: true }));
+    return;
+  }
   const chip = event.target.closest('[data-say]');
   if (chip && !$('parseNotice').disabled) { $('noticeText').value = chip.dataset.say; $('noticeForm').requestSubmit(); return; }
   const timer = event.target.closest('[data-turn-timer]');

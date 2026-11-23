@@ -81,3 +81,31 @@ test('专注时段：a part of the day stands for a default span, and a follow-u
   assert.equal(parseChatAction('下午专注'), null);
   assert.equal(parseChatAction('正常下午专注'), null);
 });
+
+test('proposalCardMarkup renders confirmable cards for add_items, update_item, focus_window and replan_draft', async () => {
+  const { proposalCardMarkup } = await import('../chat-actions.js');
+  const addHtml = proposalCardMarkup({
+    kind: 'add_items',
+    items: [
+      { kind: 'task', title: '大创PPT', deadline_at: '2026-11-26T15:00:00+08:00', estimate_minutes: 180 },
+      { kind: 'event', title: '吃火锅', start_at: '2026-11-27T19:00:00+08:00', end_at: '2026-11-27T21:00:00+08:00', location: '北门' },
+    ],
+    impact: { conflicts_before: 0, conflicts_after: 0, free_delta_minutes: -300 },
+  }, 'prop-1');
+  assert.match(addHtml, /待确认记入清单（2 项）/);
+  assert.match(addHtml, /data-proposal-adopt="prop-1"/);
+  assert.match(addHtml, /本周留白 −5 小时/);
+
+  const updHtml = proposalCardMarkup({
+    kind: 'update_item',
+    target_title: '大创PPT',
+    action: 'update',
+    changes: { deadline_at: { from: '2026-11-25T18:00:00+08:00', to: '2026-11-26T18:00:00+08:00' } },
+  }, 'prop-2');
+  assert.match(updHtml, /待确认改动「大创PPT」/);
+  assert.match(updHtml, /采用这项改动/);
+
+  const fwHtml = proposalCardMarkup({ kind: 'focus_window', weekend: { start: '14:00', end: '18:00' } }, 'prop-3');
+  assert.match(fwHtml, /保存为常用专注时段/);
+  assert.match(fwHtml, /14:00–18:00/);
+});

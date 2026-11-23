@@ -1014,3 +1014,44 @@ test('专注时段 follow-up: "常在下午专注" answers the weekend question 
   await say('我需要在周末的全天专注');
   assert.deepEqual(JSON.parse(app.data.get('sixu.focus.v1')).windows.map(w => [w.id, w.start, w.end]), [['w-weekend', '09:00', '22:00']]);
 });
+
+test('chat proposal card and one-click model escalation commit only after user confirmation', async t => {
+  const app = await boot(t, {
+    health: { capabilities: [...CAPABILITIES, 'agenda_chat_v1', 'agenda_chat_tools_v1', 'agenda_chat_proposals_v1'], timetable_model: { configured: true } },
+    routes: {
+      '/api/v3/chat': async body => {
+        const preview = structuredClone(body.snapshot);
+        preview.revision = (preview.revision || 0) + 1;
+        preview.tasks.push({
+          id: 't-prop-1', title: '大创结题PPT', deadline_at: '2099-01-05T15:00:00+08:00',
+          estimate_minutes: 180, splittable: true, min_block_minutes: null, earliest_start_at: null,
+          priority: null, status: 'active', location: null, materials: [], source_id: null, evidence: [], notes: ['草案'],
+        });
+        return [200, {
+          reply: '已整理好草案，点下方按钮确认即可记入清单。',
+          proposal: {
+            tool: 'propose_items', kind: 'add_items',
+            items: [{ kind: 'task', title: '大创结题PPT', deadline_at: '2099-01-05T15:00:00+08:00', estimate_minutes: 180 }],
+            preview_snapshot: preview, impact: { conflicts_before: 0, conflicts_after: 0, free_delta_minutes: -180 },
+          },
+        }];
+      },
+    },
+  });
+  // Step 1: default mode hits dead-end on vague sentence -> offers one-click escalation without calling model
+  app.set('#noticeText', '我最近觉得大创结题PPT压力好大，不知道怎么排呢', 'input');
+  app.submit('#noticeForm');
+  await settle(200);
+  assert.equal(app.calls.filter(c => c.path === '/api/v3/chat').length, 0);
+  assert.ok(app.find('[data-escalate-chat]'), 'one-click model escalation button is shown');
+  // Step 2: clicking escalation sends exact text to /api/v3/chat and shows proposal card WITHOUT mutating snapshot yet
+  app.click('[data-escalate-chat]');
+  await settle(300);
+  assert.equal(app.calls.filter(c => c.path === '/api/v3/chat').length, 1);
+  assert.equal(app.stored()?.tasks?.length ?? 0, 0, 'proposal must not silently mutate snapshot');
+  assert.ok(app.find('[data-proposal-adopt]'), 'proposal confirmation button rendered');
+  // Step 3: clicking confirm commits the validated preview snapshot
+  app.click('[data-proposal-adopt]');
+  await settle(100);
+  assert.equal(app.stored().tasks.some(task => task.title === '大创结题PPT'), true);
+});
