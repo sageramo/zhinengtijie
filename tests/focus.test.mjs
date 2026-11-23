@@ -47,6 +47,9 @@ test('an interruption without times asks for them; reminders, notices and questi
   assert.equal(noonBare.disruption.title, '开会');
   assert.equal(noonBare.disruption.start_at, '2026-11-25T12:00:00+08:00');
   assert.equal(noonBare.disruption.end_at, '2026-11-25T17:00:00+08:00');
+  assert.equal(parseStateSentence('我今天状态不太好', morning)?.state?.level, 'low');
+  assert.equal(parseStateSentence('我今天精力不太好', morning)?.state?.level, 'low');
+  assert.equal(parseStateSentence('我今天精力很充沛', morning)?.state?.level, 'high');
 });
 
 test('settings keep only valid windows, states and marks, and drop stale states', () => {

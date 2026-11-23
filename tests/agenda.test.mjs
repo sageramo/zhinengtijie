@@ -113,6 +113,8 @@ test('plain-spoken availability questions are capacity questions too', async () 
   }
   const week = await agendaReply('这周我还有时间出去玩吗', { snapshot, now, calculate: async () => weekendResult });
   assert.ok(week && /还剩/.test(week.text));
+  const bareEmpty = await agendaReply('这周还有多少空', { snapshot, now, calculate: async () => weekendResult });
+  assert.ok(bareEmpty && /本周还剩/.test(bareEmpty.text));
 });
 
 test('several activities with lengths in one question become a plan request; one activity does not', async () => {
