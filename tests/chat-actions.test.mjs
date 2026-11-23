@@ -87,12 +87,18 @@ test('proposalCardMarkup renders confirmable cards for add_items, update_item, f
   const addHtml = proposalCardMarkup({
     kind: 'add_items',
     items: [
-      { kind: 'task', title: '大创PPT', deadline_at: '2026-11-26T15:00:00+08:00', estimate_minutes: 180 },
-      { kind: 'event', title: '吃火锅', start_at: '2026-11-27T19:00:00+08:00', end_at: '2026-11-27T21:00:00+08:00', location: '北门' },
+      { kind: 'task', layer: 'deadline', title: '大创PPT', deadline_at: '2026-11-26T15:00:00+08:00', estimate_minutes: 180 },
+      { kind: 'task', layer: 'personal', title: '复习高数', deadline_at: '2026-11-28T23:59:00+08:00' },
+      { kind: 'event', layer: 'temporary', title: '主题大课', start_at: '2026-11-24T15:00:00+08:00', location: '中传礼堂' },
+      { kind: 'event', layer: 'appointment', title: '吃火锅', start_at: '2026-11-27T19:00:00+08:00', end_at: '2026-11-27T21:00:00+08:00', location: '北门' },
     ],
     impact: { conflicts_before: 0, conflicts_after: 0, free_delta_minutes: -300 },
   }, 'prop-1');
-  assert.match(addHtml, /待确认记入清单（2 项）/);
+  assert.match(addHtml, /待确认记入清单（4 项）/);
+  assert.match(addHtml, /截止 · 大创PPT/);
+  assert.match(addHtml, /个人任务 · 复习高数/);
+  assert.match(addHtml, /点墨 · 主题大课/);
+  assert.match(addHtml, /约定 · 吃火锅/);
   assert.match(addHtml, /data-proposal-adopt="prop-1"/);
   assert.match(addHtml, /本周留白 −5 小时/);
 

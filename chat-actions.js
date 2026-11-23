@@ -209,7 +209,8 @@ export function proposalCardMarkup(proposal, id = '') {
     const items = proposal.items || [];
     const title = `待确认记入清单（${items.length} 项）`;
     const rows = items.map(item => {
-      const badge = item.kind === 'event' ? '约定' : '截止';
+      const layerBadge = { temporary: '点墨', appointment: '约定', deadline: '截止', personal: '个人任务' };
+      const badge = layerBadge[item.layer] || (item.kind === 'event' ? '约定' : '截止');
       const when = item.kind === 'event'
         ? (item.start_at ? `${fmtBeijing(item.start_at)}${item.end_at ? `–${fmtBeijing(item.end_at).split(' ')[1]}` : ''}` : '时间待书')
         : (item.deadline_at ? `${fmtBeijing(item.deadline_at)} 前` : '时间待书');
