@@ -49,6 +49,8 @@ test('an interruption without times asks for them; reminders, notices and questi
   assert.equal(noonBare.disruption.end_at, '2026-11-25T17:00:00+08:00');
   assert.equal(parseStateSentence('我今天状态不太好', morning)?.state?.level, 'low');
   assert.equal(parseStateSentence('我今天精力不太好', morning)?.state?.level, 'low');
+  assert.equal(parseStateSentence('我今天进行了智能体节的路演，精力有点差', morning)?.state?.level, 'low');
+  assert.equal(parseStateSentence('下午状态有些不在线', morning)?.state?.level, 'low');
   assert.equal(parseStateSentence('我今天精力很充沛', morning)?.state?.level, 'high');
 });
 
