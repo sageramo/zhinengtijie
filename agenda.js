@@ -31,6 +31,30 @@ const clock = ms => new Date(ms + OFFSET).toISOString().slice(11, 16);
 const WEEKDAY_CHARS = '一二三四五六日天';
 const WEEKDAY_LABELS = ['周一', '周二', '周三', '周四', '周五', '周六', '周日'];
 
+/** The day-level scope of a question: 今天/明天/周末/下周末/本周X/下周X/本周/下周 (default: this week). */
+export function questionScope(text) {
+  const weekendMatch = text.match(/(下个?|本|这)?周末/);
+  const weekdayMatch = text.match(/(下个?|本|这)?(?:周|星期|礼拜)([一二三四五六日天])/);
+  let scope = 'week';
+  let weekdayIndex = null;
+  let weekdayNext = false;
+  if (weekendMatch) {
+    scope = weekendMatch[1] && weekendMatch[1].startsWith('下') ? 'next_weekend' : 'weekend';
+  } else if (weekdayMatch) {
+    scope = 'weekday';
+    const rawIdx = WEEKDAY_CHARS.indexOf(weekdayMatch[2]);
+    weekdayIndex = rawIdx === 7 ? 6 : rawIdx;
+    weekdayNext = Boolean(weekdayMatch[1] && weekdayMatch[1].startsWith('下'));
+  } else if (/明天|明早|明晚/.test(text)) {
+    scope = 'tomorrow';
+  } else if (/下周/.test(text)) {
+    scope = 'next';
+  } else if (/今天|今晚|今日/.test(text)) {
+    scope = 'today';
+  }
+  return { scope, weekdayIndex, weekdayNext };
+}
+
 function capacityQuestion(text) {
   const planning = /(?:^试算|剩.*(?:时间|空档|留白)|(?:多少|几个|还有|多长).*(?:空档|空闲|留白)|有没有(?:时间|空|空档|空闲)|有时间(?:吗|没|么|去|参加|做|[？?])|有空(?:吗|没|么|去|参加|做|[？?])|(?:还)?有(?:时间|空)[^，,。；;\n]{0,10}(?:吗|么|没有?|[？?])|(?:排|安排|忙|顾)得(?:开|过来|下)|(?:能|可以)出去|出去玩|能(?:不能)?(?:参加|去|抽空|安排)|可(?:以|不可以)(?:参加|去)|排得下|排不下|时间够|够不够|来得及|(?:再接|能接|还能|想接).*(?:社团|活动|组织|工作))/;
   if (/\n|^【|^.{0,12}通知[:：]|各位同学|请各班/.test(text) || text.length > 250) return null;
@@ -55,25 +79,7 @@ function capacityQuestion(text) {
   // Specific clock times or calendar dates still need visual checking on 画卷;
   // day-level scopes (今天/明天/周末/下周末/本周X/下周X/本周/下周) are computed directly here!
   const fixed = /(?:上午|下午|中午|晚上|早上)|\d{1,2}(?:月|日|号|点|[:：]\d{2})/.test(text);
-  const weekendMatch = text.match(/(下个?|本|这)?周末/);
-  const weekdayMatch = text.match(/(下个?|本|这)?(?:周|星期|礼拜)([一二三四五六日天])/);
-  let scope = 'week';
-  let weekdayIndex = null;
-  let weekdayNext = false;
-  if (weekendMatch) {
-    scope = weekendMatch[1] && weekendMatch[1].startsWith('下') ? 'next_weekend' : 'weekend';
-  } else if (weekdayMatch) {
-    scope = 'weekday';
-    const rawIdx = WEEKDAY_CHARS.indexOf(weekdayMatch[2]);
-    weekdayIndex = rawIdx === 7 ? 6 : rawIdx;
-    weekdayNext = Boolean(weekdayMatch[1] && weekdayMatch[1].startsWith('下'));
-  } else if (/明天|明早|明晚/.test(text)) {
-    scope = 'tomorrow';
-  } else if (/下周/.test(text)) {
-    scope = 'next';
-  } else if (/今天|今晚|今日/.test(text)) {
-    scope = 'today';
-  }
+  const { scope, weekdayIndex, weekdayNext } = questionScope(text);
   return { scope, weekdayIndex, weekdayNext,
     needed: needed[0] ?? null, reserve: reserved[0] ?? 0, ambiguous, fixed,
     split: /(?:可以|能|允许|愿意)拆|分开做|分几次/.test(text) && !/不能拆|不可以拆|一次做完/.test(text) };
@@ -170,6 +176,47 @@ export async function answerCapacity(snapshot, question, now, calculate) {
 }
 
 // Explicit conversational commands can only touch the most recent, still-existing personal task.
+// ---- 排不排得开：一句话里的几项活动 ------------------------------------------------------------------
+// "这周末出去玩半天、写3小时作业、社团2小时，排得开吗" -> two or more activities, each with a length,
+// for /api/v3/capacity/plan (capacity_plan_v1). Rules only: the backend does the placing.
+const SPANS = [[/一整天|一天/, 600], [/半天|一上午|一下午|整个上午|整个下午/, 240], [/一晚上|一个晚上|整晚|半晚/, 180]];
+const CATEGORIES = [
+  [/作业|复习|学习|论文|报告|背单词|背书|刷题|自习|预习|考试|课设|实验|网课|写代码|读书/, 'study'],
+  [/社团|学生会|部门|志愿|例会|排练|训练|比赛|招新|值班|班会/, 'club'],
+  [/休息|睡觉|补觉|放松|躺/, 'rest'],
+  [/玩|逛|电影|唱歌|聚餐|吃饭|约会|旅游|爬山|打球|球|游戏|聚会|出去|追剧|看剧|购物|健身|运动|跑步/, 'leisure'],
+];
+const FILLER = /^(?:我|自己|上午|下午|中午|晚上|早上|白天|夜里|这周末|本周末|下周末|周末|这周|本周|下周|今天|明天|后天|今晚|明晚|(?:下个?|本|这)?(?:周|星期|礼拜)[一二三四五六日天]|还|还要|还得|要|想|想要|打算|准备|得|需要|大概|大约|再|去|花|用|安排|留)+|(?:左右|上下|的时间|时间|吧|呢|吗|么|，|,)+$/g;
+const ASKS = /(?:排得开|排不开|排得下|排不下|够不够|够吗|来得及|来不及|能不能|可不可以|行不行|有没有时间|还有时间|有空|安排得过来|忙得过来|[？?]$|吗$)/;
+export function parseActivities(text) {
+  const line = String(text || '').trim();
+  if (!line || line.length > 200 || /\n|^【|通知|各位同学/.test(line) || !ASKS.test(line)) return null;
+  const parts = line.replace(/[。！!？?]+$/, '').split(/[、，,；;]|还要|还得|另外|以及|然后|加上|并且|和|跟|再/).map(part => part.trim()).filter(Boolean);
+  const activities = [];
+  let reserve = 0;
+  for (const part of parts) {
+    let minutes = null;
+    let rest = part;
+    const match = [...part.matchAll(durationPattern)][0];
+    if (match) { minutes = durationMinutes(match); rest = part.slice(0, match.index) + part.slice(match.index + match[0].length); }
+    else {
+      const span = SPANS.find(([pattern]) => pattern.test(part));
+      if (span) { minutes = span[1]; rest = part.replace(span[0], ''); }
+    }
+    if (!Number.isSafeInteger(minutes) || minutes < 1) continue;
+    if (/(?:预留|保留|留(?:出|下|够)?).*(?:休息|放松|缓冲)|(?:休息|放松|缓冲).*(?:预留|保留)/.test(part)) { reserve += minutes; continue; }
+    const title = rest.replace(ASKS, '').replace(FILLER, '').replace(/^[写做看去打上参加]?$/, '').trim();
+    const category = (CATEGORIES.find(([pattern]) => pattern.test(part)) || [null, 'other'])[1];
+    const name = title || { study: '学习', club: '社团', rest: '休息', leisure: '出去玩', other: '活动' }[category];
+    const preferred = /晚上|今晚|明晚|夜里/.test(part) ? 'evening' : /白天|上午|下午|中午/.test(part) ? 'daytime' : 'any';
+    const splittable = category === 'study';
+    activities.push({ title: name.slice(0, 40), minutes: Math.min(minutes, 10080), category, splittable,
+      ...(splittable ? { min_block_minutes: Math.min(60, minutes) } : {}), preferred });
+  }
+  if (activities.length < 2) return null;
+  return { ...questionScope(line), activities, reserve_rest_minutes: Math.min(reserve, 10080) };
+}
+
 export async function agendaReply(text, { snapshot, lastTaskId, calculate, now = Date.now() }) {
   const line = text.trim().replace(/[。！!？?]+$/, '');
   if (/(?:每天|每晚|每早|每周|每个星期|工作日).*(?:提醒我|问(?:一问|一下)?我|叫我)|(?:提醒我|问我).*(?:每天|每晚|每早|每周)|^到点(?:叫|提醒|问)我/.test(line)) {

@@ -953,3 +953,33 @@ test('submitting a notice clears hidden #noticeDate so subsequent relative remin
   await settle();
   assert.equal(seenDates[1], null, 'next message must not inherit stale future noticeDate');
 });
+
+test('1.31 several activities in one question go to the planner, and a fitting plan can be written in as appointments', async t => {
+  const plan = { tool: 'plan_activities', scope: { type: 'weekend', label: '本周末', from: '2099-01-03T00:00:00+08:00', to: '2099-01-05T00:00:00+08:00' },
+    feasible: true, available_minutes: 900, leftover_minutes: 480, longest_free_minutes: 300, reserve_rest_minutes: 0, warnings: [], tradeoffs: [],
+    placements: [
+      { index: 0, title: '出去玩', status: 'placed', blocks: [{ start: '2099-01-03T09:00:00+08:00', end: '2099-01-03T13:00:00+08:00', minutes: 240, label: '1月3日 周六 09:00–13:00' }] },
+      { index: 1, title: '写作业', status: 'placed', blocks: [{ start: '2099-01-03T14:00:00+08:00', end: '2099-01-03T17:00:00+08:00', minutes: 180, label: '1月3日 周六 14:00–17:00' }] },
+    ], summary: '本周末排得开：2 项活动共需 7 小时，全部可放入。' };
+  const app = await boot(t, {
+    health: { capabilities: [...CAPABILITIES, 'capacity_plan_v1'] },
+    routes: { '/api/v3/capacity/plan': async () => [200, plan] },
+  });
+  app.click('#loadDemoWeek');
+  await settle();
+  app.click('[data-tab="import"]');
+  app.set('#noticeText', '这周末出去玩半天、写3小时作业，排得开吗', 'input');
+  app.submit('#noticeForm');
+  await settle(600);
+  const call = app.calls.find(item => item.path === '/api/v3/capacity/plan');
+  assert.ok(call, 'planner requested');
+  assert.equal(call.body.scope, 'weekend');
+  assert.deepEqual(call.body.activities.map(item => [item.title, item.minutes, item.category]), [['出去玩', 240, 'leisure'], ['写作业', 180, 'study']]);
+  assert.match(app.find('#inkThread').textContent, /本周末排得开/);
+  assert.match(app.find('#inkThread').textContent, /1月3日 周六 09:00–13:00/);
+  const before = app.stored().events.length;
+  app.click('[data-plan-adopt]');
+  await settle();
+  const added = app.stored().events.slice(before);
+  assert.deepEqual(added.map(event => [event.kind, event.title, event.start_at]), [['appointment', '出去玩', '2099-01-03T09:00:00+08:00'], ['appointment', '写作业', '2099-01-03T14:00:00+08:00']]);
+});

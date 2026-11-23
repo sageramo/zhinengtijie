@@ -2941,3 +2941,33 @@ html[data-current="calendar"] [data-app]::after {
 .cover-legend .lg-glow::before { background: radial-gradient(circle, #f3d699, rgba(243, 214, 153, .2)); }
 .cover-legend .lg-haze::before { background: radial-gradient(circle, rgba(142, 150, 156, .8), rgba(142, 150, 156, .15)); }
 .ss-backdrop .ss-energy-light, .ss-backdrop .ss-energy-veil { display: none; }
+
+/* ==== 试算卡（.63）：排不排得开 =====================================================================
+   One card in the 研磨 thread for /api/v3/capacity/plan and the chat's capacity: an ink verdict line
+   (blue-grey when it fits, vermilion when it does not), one row per activity, what is left, the
+   backend's trade-offs, and 照这样记进日历 when it fits. */
+.plan-card { display: grid; gap: 10px; max-width: 560px; margin-top: 10px; padding: 14px 16px 16px; border-radius: 6px; background: rgba(255, 254, 250, .78); box-shadow: inset 0 0 0 1px rgba(74, 96, 118, .16), 0 14px 30px -24px rgba(30, 42, 53, .5); }
+.plan-card header { display: flex; align-items: center; gap: 10px; }
+.plan-card header i { width: 10px; height: 10px; border-radius: 50%; background: #4a6076; box-shadow: 0 0 0 4px rgba(74, 96, 118, .14); }
+.plan-card.is-short header i { background: #a8372c; box-shadow: 0 0 0 4px rgba(168, 55, 44, .14); }
+.plan-card header strong { font-family: var(--font-serif); font-size: 1.125rem; letter-spacing: .08em; color: #1e2a35; }
+.plan-card.is-short header strong { color: #8e2e25; }
+.plan-card ul { display: grid; gap: 6px; margin: 0; padding: 0; list-style: none; }
+.plan-card .pc-row { display: grid; grid-template-columns: 6.5em minmax(0, 1fr); gap: 10px; padding: 6px 10px; border-left: 3px solid rgba(74, 96, 118, .55); background: rgba(74, 96, 118, .05); font-size: .875rem; }
+.plan-card .pc-row b { font-weight: 600; color: #1e2a35; }
+.plan-card .pc-row span { color: #3d4650; }
+.plan-card .pc-row.is-unplaced, .plan-card .pc-row.is-partial { border-left-color: #a8372c; background: rgba(168, 55, 44, .05); }
+.plan-card .pc-row.is-unplaced span, .plan-card .pc-row.is-partial span { color: #8e2e25; }
+.plan-card .pc-row.is-free { border-left-style: dashed; }
+.plan-card .pc-left { margin: 0; color: #5d6873; font-size: .8125rem; }
+.plan-card .pc-left b { color: #2c4660; font-family: var(--font-serif); font-size: 1rem; }
+.plan-card .pc-trades { padding: 10px 12px; border-radius: 4px; background: #fbf6ea; box-shadow: inset 0 0 0 1px rgba(184, 138, 62, .3); }
+.plan-card .pc-trades p { margin: 0 0 6px; color: #6b4a1f; font-size: .8125rem; }
+.plan-card .pc-trades ol { display: grid; gap: 6px; margin: 0; padding-left: 1.3em; font-size: .8125rem; }
+.plan-card .pc-trades li b { display: block; color: #1e2a35; font-weight: 600; }
+.plan-card .pc-trades li span { color: #5d6873; }
+.plan-card .pc-warn { margin: 0; color: #6b4a1f; font-size: .75rem; }
+.plan-card .pc-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 14px; }
+.plan-card .pc-actions .primary-button { min-height: 36px; padding: 6px 16px; border-radius: 4px; }
+.plan-card .pc-actions .primary-button:disabled { background: #8d9aa7; border-color: #8d9aa7; }
+@media (max-width: 760px) { .plan-card .pc-row { grid-template-columns: 1fr; gap: 2px; } }

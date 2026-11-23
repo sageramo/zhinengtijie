@@ -114,3 +114,14 @@ test('plain-spoken availability questions are capacity questions too', async () 
   const week = await agendaReply('这周我还有时间出去玩吗', { snapshot, now, calculate: async () => weekendResult });
   assert.ok(week && /还剩/.test(week.text));
 });
+
+test('several activities with lengths in one question become a plan request; one activity does not', async () => {
+  const { parseActivities } = await import('../agenda.js');
+  const plan = parseActivities('这周末出去玩4小时、写作业3小时、社团2小时，留2小时休息，排得开吗');
+  assert.equal(plan.scope, 'weekend');
+  assert.deepEqual(plan.activities.map(item => [item.title, item.minutes, item.category, item.splittable]), [['出去玩', 240, 'leisure', false], ['写作业', 180, 'study', true], ['社团', 120, 'club', false]]);
+  assert.equal(plan.reserve_rest_minutes, 120);
+  assert.equal(parseActivities('周六想去看电影2小时，还要复习高数3个小时，够吗').weekdayIndex, 5);
+  assert.equal(parseActivities('这周还有时间出去玩吗'), null);
+  assert.equal(parseActivities('【通知】周六上午9点开会2小时、下午打扫1小时'), null);
+});

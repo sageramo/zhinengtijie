@@ -121,3 +121,28 @@ export function nextChips(says) {
   if (!list.length) return '';
   return `<div class="turn-next" role="group" aria-label="下一步可以直接说"><span>下一步可以说</span>${list.map(say => `<button type="button" class="turn-chip" data-say="${escape(say)}">${escape(say)}</button>`).join('')}</div>`;
 }
+
+// ---- 试算卡：/api/v3/capacity/plan 与 /api/v3/chat 的 capacity（capacity_plan_v1） ----------------------
+const esc = value => String(value ?? '').replace(/[&<>"']/g, char => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[char]);
+const span = minutes => { const h = Math.floor(minutes / 60); const m = Math.round(minutes % 60); return h && m ? `${h} 小时 ${m} 分` : h ? `${h} 小时` : `${m} 分钟`; };
+/**
+ * One card for both results: a verdict, where each activity goes (or what it still lacks), what is left,
+ * and, when it does not fit, the backend's 2–3 verified trade-offs. id keys the card's "记进日历".
+ */
+export function planCardMarkup(plan, id = '') {
+  if (!plan || typeof plan !== 'object') return '';
+  const multi = plan.tool === 'plan_activities';
+  const ok = multi ? plan.feasible : plan.available_minutes > 0;
+  const scope = plan.scope?.label || '这段时间';
+  const verdict = multi ? (ok ? `${scope}排得开` : `${scope}排不开`) : `${scope}还剩 ${span(plan.available_minutes || 0)}`;
+  const rows = multi ? (plan.placements || []).map(item => {
+    const blocks = (item.blocks || []).map(block => esc(block.label)).join('、');
+    const state = item.status === 'placed' ? blocks : item.status === 'partial' ? `${blocks}（还差 ${span(item.shortfall_minutes || 0)}）` : `放不下，还差 ${span(item.shortfall_minutes || 0)}`;
+    return `<li class="pc-row is-${esc(item.status)}"><b>${esc(item.title)}</b><span>${state}</span></li>`;
+  }).join('') : (plan.free_slots || []).slice(0, 4).map(slot => `<li class="pc-row is-free"><b>空档</b><span>${esc(slot.label)}</span></li>`).join('');
+  const left = `<p class="pc-left">排完还剩 <b>${span(plan.leftover_minutes ?? plan.available_minutes ?? 0)}</b> 留白 · 最长连续 ${span(plan.longest_free_minutes || 0)}${plan.reserve_rest_minutes ? ` · 已预留休息 ${span(plan.reserve_rest_minutes)}` : ''}</p>`;
+  const trade = !ok && plan.tradeoffs?.length ? `<div class="pc-trades"><p>可以这样取舍：</p><ol>${plan.tradeoffs.map(option => `<li><b>${esc(option.title)}</b><span>${esc(option.consequence || '')}</span></li>`).join('')}</ol></div>` : '';
+  const warn = plan.warnings?.length ? `<p class="pc-warn">${plan.warnings.map(esc).join(' ')}</p>` : '';
+  const adopt = multi && ok && id ? `<div class="pc-actions"><button type="button" class="primary-button" data-plan-adopt="${esc(id)}">照这样记进日历</button><a href="#/calendar" data-agenda-calendar>看画卷</a></div>` : '<p class="inline-links"><a href="#/calendar" data-agenda-calendar>看画卷</a></p>';
+  return `<section class="plan-card ${ok ? 'is-ok' : 'is-short'}" aria-label="${esc(verdict)}"><header><i aria-hidden="true"></i><strong>${esc(verdict)}</strong></header><ul>${rows}</ul>${left}${trade}${warn}${adopt}</section>`;
+}

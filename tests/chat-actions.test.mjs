@@ -41,3 +41,17 @@ test('the 起步卡 reply quotes the material, says when the user is resting, an
   assert.match(nextChips(['帮我开个头：交实验报告']), /data-say="帮我开个头：交实验报告"/);
   assert.equal(nextChips([]), '');
 });
+
+test('the 试算卡 shows the verdict, each placement or its shortfall, what is left, and the trade-offs when it does not fit', async () => {
+  const { planCardMarkup } = await import('../chat-actions.js');
+  const short = planCardMarkup({ tool: 'plan_activities', scope: { label: '本周末' }, feasible: false, leftover_minutes: 0, longest_free_minutes: 0,
+    placements: [{ title: '社团活动', status: 'unplaced', shortfall_minutes: 120, blocks: [] }],
+    tradeoffs: [{ title: '把「出去玩」从 4 小时缩到 2 小时', consequence: '其余活动全部排得开' }] }, 'plan-1');
+  assert.match(short, /本周末排不开/);
+  assert.match(short, /放不下，还差 2 小时/);
+  assert.match(short, /缩到 2 小时/);
+  assert.doesNotMatch(short, /data-plan-adopt/);
+  const free = planCardMarkup({ tool: 'check_capacity', scope: { label: '本周末' }, available_minutes: 600, longest_free_minutes: 300, free_slots: [{ label: '11月28日 周六 09:00–14:00' }] });
+  assert.match(free, /本周末还剩 10 小时/);
+  assert.match(free, /11月28日 周六 09:00–14:00/);
+});

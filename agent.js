@@ -5,13 +5,13 @@ import {
   addImported, updateTask, updateEvent, addTask, addEvent, removeItem, setDailyWindow, addRoutine,
   addAdjustment, addTimetable, setReferenceTime, setRoutinesConfirmed, skipRoutineDate, isPersonal, personalDay, addPersonalTask, setPersonalDay, setTaskDeadline,
 } from './time-state.js';
-import { agendaReply, hasPersonalClock, isConversation } from './agenda.js';
+import { agendaReply, hasPersonalClock, isConversation, parseActivities } from './agenda.js';
 import { calendarMarkup, conflictKey, conflictsInWeek, digestChanges, minutesLabel, resultDigest, weekStart, weekRange } from './calendar.js';
 import { LEADS, dueReminders, icsCalendar, reminderText, upcomingCount } from './reminders.js';
 import { createBellToggle } from './bell-toggle.js';
 import { readMemory, writeMemory, recordActual, suggestEstimate, readCalibration, writeCalibration, recordCalibration, calibrationFor } from './estimate-memory.js';
 import { createRecognizer, imageProblem } from './screenshot-ocr.js';
-import { parseChatAction, findTask, starterReply, nextChips } from './chat-actions.js';
+import { parseChatAction, findTask, starterReply, nextChips, planCardMarkup } from './chat-actions.js';
 import { readFocus, writeFocus, pruneStates, setMark, setCommonWindows, addStates, removeState, parseStateSentence, draftLabel, previewRequest, confirmRequest, replanRange, lockedRests, daySegments, bandMarkup, ribbonMarkup, bandUsed, bandLegend, todayStateMarkup, replanMarkup, spanText, dayLabel } from './focus.js';
 import { parseJwTimetable, termStartFrom } from './jw-timetable.js';
 
@@ -711,6 +711,21 @@ $('noticeForm').addEventListener('submit', async event => {
       showTurn(text, stateReply(draft, state));
       return;
     }
+    // 排不排得开: two or more activities with lengths go to the backend's planner (capacity_plan_v1).
+    const asked = mode === 'chat' ? null : parseActivities(text);
+    if (asked) {
+      const service = await ensureHealth(base);
+      if (service.capabilities.includes('capacity_plan_v1')) {
+        $('parseStep').textContent = '正在试算这几件事排不排得开';
+        const body = { snapshot, now: planNow(), scope: asked.scope, activities: asked.activities, reserve_rest_minutes: asked.reserve_rest_minutes };
+        if (asked.scope === 'weekday') Object.assign(body, { weekday_index: asked.weekdayIndex, weekday_next: asked.weekdayNext });
+        const plan = await request('/api/v3/capacity/plan', body, base);
+        if (!stillCurrent()) return;
+        agendaWeek = plan.scope?.from ? weekStart(Date.parse(plan.scope.from)) : null;
+        showTurn(text, `<p>${escapeHTML(plan.summary || '')}</p>${planCardMarkup(plan, keepPlan(plan))}`);
+        return;
+      }
+    }
     let reply = mode === 'chat' ? null : await agendaReply(text, { snapshot, lastTaskId, calculate: async body => {
       await ensureHealth(base);
       return request('/api/v3/calendar', body, base);
@@ -724,10 +739,13 @@ $('noticeForm').addEventListener('submit', async event => {
       if (!service.capabilities.includes('agenda_chat_v1') || !service.timetable_model?.configured) throw new Error('当前服务尚未开启模型聊天。');
       $('parseStep').textContent = '司序正在回复';
       const messages = [...chatHistory.slice(-8), { role: 'user', text }];
-      const result = await modelRequest('/api/v3/chat', { mode: 'model', messages }, base, 90000);
+      // With agenda_chat_tools_v1 the model may check the list itself (the list never reaches the model).
+      const tools = service.capabilities.includes('agenda_chat_tools_v1');
+      const result = await modelRequest('/api/v3/chat', { mode: 'model', messages, ...(tools ? { snapshot, now: planNow() } : {}) }, base, 90000);
       if (!stillCurrent()) return;
       chatHistory.splice(0, chatHistory.length, ...messages.slice(-7), { role: 'assistant', text: result.reply });
-      reply = { text: result.reply };
+      reply = { text: result.reply, ...(result.capacity ? { extraHtml: planCardMarkup(result.capacity, keepPlan(result.capacity)) } : {}) };
+      if (result.capacity?.scope?.from) reply.week = weekStart(Date.parse(result.capacity.scope.from));
     }
     if (!reply && isConversation(text)) {
       reply = { text: '这句我还接不住。可以继续问本周空档，或在输入框下选「模型聊天」聊别的。' };
@@ -1739,8 +1757,39 @@ async function runChatAction(text, action) {
   const card = await request('/api/v3/starter', body, apiBase);
   return reply(starterReply(task, card, { degraded: Boolean(action.material) && !rich }), ['这周还剩多少时间？', `${task.title}需要专注`]);
 }
+// 试算 starts from now, or from the list's planning start when that is later (the roadshow case).
+function planNow() {
+  const ref = Date.parse(snapshot.reference_time || '');
+  return new Date(Math.max(Date.now(), Number.isFinite(ref) ? ref : 0)).toISOString();
+}
+// Plans shown in the thread, so a card's 记进日历 adds exactly what it showed.
+const shownPlans = new Map();
+function keepPlan(plan) {
+  if (plan?.tool !== 'plan_activities' || !plan.feasible) return '';
+  const id = `plan-${shownPlans.size + 1}`;
+  shownPlans.set(id, plan);
+  return id;
+}
+function adoptPlan(id, button) {
+  const plan = shownPlans.get(id);
+  if (!plan) return;
+  let next = snapshot;
+  let count = 0;
+  for (const item of plan.placements || []) for (const block of item.blocks || []) {
+    next = addEvent(next, { title: item.title, kind: 'appointment', start_at: block.start, end_at: block.end, notes: ['研磨试算后记下的约定'] });
+    count += 1;
+  }
+  if (!count) return;
+  commit(next);
+  shownPlans.delete(id);
+  button.disabled = true;
+  button.textContent = `已记进日历 · ${count} 段约定`;
+  tell(`已把 ${count} 段时间记成约定，画卷里能看到；在笔墨 · 约定里可以改或删。`);
+}
 // The chips send their sentence; a 起步卡 has its own 5-minute timer and copy button.
 $('inkThread').addEventListener('click', event => {
+  const adopt = event.target.closest('[data-plan-adopt]');
+  if (adopt && !adopt.disabled) { adoptPlan(adopt.dataset.planAdopt, adopt); return; }
   const chip = event.target.closest('[data-say]');
   if (chip && !$('parseNotice').disabled) { $('noticeText').value = chip.dataset.say; $('noticeForm').requestSubmit(); return; }
   const timer = event.target.closest('[data-turn-timer]');
