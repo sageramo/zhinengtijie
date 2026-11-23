@@ -48,25 +48,58 @@ export function parseStarter(text) {
 }
 
 const HOUR = String.raw`(\d{1,2}|[一二两三四五六七八九十]{1,3})(?:点|:00)?(半)?`;
-const RECURRING = /(平时|每天|工作日|周一到周五|周末|一般|通常|往往|每周)/;
+// 常 alone, but not inside 非常 / 异常 / 正常 / 日常 / 平常 / 反常 / 通常 (通常 is listed on its own).
+const RECURRING = /(平时|每天|工作日|周一到周五|周末|一般|通常|往往|每周|常常|经常|习惯|总是|(?<![非异正日平反通])常)/;
 const FOCUS_WORD = /(最专注|专注|效率最高|效率高|最清醒|脑子最好使|状态最好|最能静下心)/;
-/** "我工作日晚上7点到9点最专注" → { kind: 'focus-window', weekday?: {start,end}, weekend?: {...} } */
-export function parseFocusWindow(text) {
+// Without an explicit X点到Y点, a part of the day stands for a default span (adjustable on 铺纸).
+const PERIODS = [
+  [/全天|整天|一整天/, '全天', '09:00', '22:00'],
+  [/早上|上午|清早|早晨/, '上午', '08:00', '12:00'],
+  [/下午/, '下午', '14:00', '18:00'],
+  [/晚上|傍晚|夜里|晚间/, '晚上', '19:00', '22:00'],
+];
+/** Which days a sentence speaks of: { weekday, weekend } (neither named → null). */
+function focusDays(line) {
+  if (/每天|每周/.test(line)) return { weekday: true, weekend: true };
+  if (/周末/.test(line) && !/工作日|平时/.test(line)) return { weekday: false, weekend: true };
+  if (/工作日|平时|周一到周五/.test(line)) return { weekday: true, weekend: false };
+  return null;
+}
+/**
+ * "我工作日晚上7点到9点最专注" → { kind: 'focus-window', weekday?: {start,end}, weekend?: {...} }.
+ * Without a clock range a part of the day maps to its default span ({ guessed: '下午 14:00–18:00' }).
+ * Nothing to go on → { missing: true, days }, so the follow-up can be read against it.
+ * afterAsk: the {weekday, weekend} of a focus question just asked; the reply then needs no 平时/经常 word and
+ * may leave the days out ("常在下午专注" after "我需要在周末的全天专注" is about the weekend).
+ */
+export function parseFocusWindow(text, { afterAsk = null } = {}) {
   const line = String(text || '').trim();
-  if (!RECURRING.test(line) || !FOCUS_WORD.test(line) || /累|困|休息|歇/.test(line)) return null;
+  if (/累|困|休息|歇/.test(line) || !FOCUS_WORD.test(line)) return null;
+  if (!RECURRING.test(line) && !afterAsk) return null;
+  const said = focusDays(line);
+  const days = said || afterAsk || { weekday: true, weekend: false };
+  // byContext: only the question just asked makes this a focus answer; agent.js still lets a task name win.
+  const byContext = !RECURRING.test(line);
+  const out = span => ({ kind: 'focus-window', weekday: days.weekday ? span : null, weekend: days.weekend ? span : null, ...(byContext ? { byContext } : {}) });
+  const missing = { kind: 'focus-window', missing: true, days, ...(byContext ? { byContext } : {}) };
   const range = line.match(new RegExp(`${HOUR}\\s*(?:到|至|-|—|~)\\s*${HOUR}`));
-  if (!range) return { kind: 'focus-window', missing: true };
+  if (!range) {
+    const hits = PERIODS.filter(([pattern]) => pattern.test(line));
+    if (!hits.length) return missing;
+    const all = hits.find(([, name]) => name === '全天');
+    const chosen = all ? [all] : hits;
+    const start = chosen.map(item => item[2]).sort()[0];
+    const end = chosen.map(item => item[3]).sort().at(-1);
+    return { ...out({ start, end }), guessed: `${chosen.map(item => item[1]).join('、')} ${start}–${end}` };
+  }
   const period = (line.match(/上午|早上|下午|晚上|傍晚/) || [''])[0];
   const toHour = (h, half) => { let hour = num(h); if (Number.isNaN(hour)) return null; if (/下午|晚上|傍晚/.test(period) && hour < 12) hour += 12; else if (!period && hour <= 6) hour += 12; return `${pad(hour)}:${half ? '30' : '00'}`; };
   const start = toHour(range[1], range[2]);
   let end = toHour(range[3], range[4]);
-  if (!start || !end) return { kind: 'focus-window', missing: true };
+  if (!start || !end) return missing;
   if (end <= start && Number(end.slice(0, 2)) < 12) end = `${pad(Number(end.slice(0, 2)) + 12)}:${end.slice(3)}`;
-  if (end <= start) return { kind: 'focus-window', missing: true };
-  const weekend = /周末/.test(line) && !/工作日|平时|每天/.test(line);
-  const both = /每天|每周/.test(line);
-  const span = { start, end };
-  return { kind: 'focus-window', weekday: weekend ? null : span, weekend: weekend || both ? span : null };
+  if (end <= start) return missing;
+  return out({ start, end });
 }
 
 /** "实验报告需要专注" / "报名表碎片时间做就行" → { kind: 'mark', phrase, mark } */
@@ -97,8 +130,8 @@ export function parseNamedUpdate(text) {
 }
 
 /** First match of all the sentence actions above, in a fixed order. */
-export function parseChatAction(text) {
-  return parseStarter(text) || parseFocusWindow(text) || parseMark(text) || parseNamedUpdate(text);
+export function parseChatAction(text, { afterAsk = null } = {}) {
+  return parseStarter(text) || parseFocusWindow(text, { afterAsk }) || parseMark(text) || parseNamedUpdate(text);
 }
 
 // ---- Markup in the 研磨 thread ------------------------------------------------------

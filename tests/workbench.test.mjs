@@ -983,3 +983,18 @@ test('1.31 several activities in one question go to the planner, and a fitting p
   const added = app.stored().events.slice(before);
   assert.deepEqual(added.map(event => [event.kind, event.title, event.start_at]), [['appointment', '出去玩', '2099-01-03T09:00:00+08:00'], ['appointment', '写作业', '2099-01-03T14:00:00+08:00']]);
 });
+
+test('专注时段 follow-up: "常在下午专注" answers the weekend question and is never imported as a task', async t => {
+  const app = await boot(t);
+  const say = async text => { app.set('#noticeText', text, 'input'); app.submit('#noticeForm'); await settle(300); };
+  await say('我需要在周末专注');
+  assert.match(app.find('#inkThread').textContent, /周末常在几点到几点最能专注/);
+  await say('常在下午专注');
+  assert.equal(app.calls.filter(call => call.path === '/api/v3/extract').length, 0, 'the answer is not sent to /api/v3/extract');
+  assert.equal(app.stored()?.tasks?.length ?? 0, 0, 'no task named 常在下午专注');
+  const focus = JSON.parse(app.data.get('sixu.focus.v1'));
+  assert.deepEqual(focus.windows.map(w => [w.id, w.start, w.end]), [['w-weekend', '14:00', '18:00']]);
+  assert.match(app.find('#inkThread').textContent, /先按下午 14:00–18:00 记下，可以在铺纸/);
+  await say('我需要在周末的全天专注');
+  assert.deepEqual(JSON.parse(app.data.get('sixu.focus.v1')).windows.map(w => [w.id, w.start, w.end]), [['w-weekend', '09:00', '22:00']]);
+});

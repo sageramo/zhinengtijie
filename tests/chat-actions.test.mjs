@@ -55,3 +55,29 @@ test('the 试算卡 shows the verdict, each placement or its shortfall, what is 
   assert.match(free, /本周末还剩 10 小时/);
   assert.match(free, /11月28日 周六 09:00–14:00/);
 });
+
+test('专注时段：a part of the day stands for a default span, and a follow-up is read against the question asked', async () => {
+  const { parseFocusWindow } = await import('../chat-actions.js');
+  // "全天" maps straight to 09:00–22:00 on the days named; nothing is asked.
+  assert.deepEqual(parseChatAction('我需要在周末的全天专注'), { kind: 'focus-window', weekday: null, weekend: { start: '09:00', end: '22:00' }, guessed: '全天 09:00–22:00' });
+  // The follow-up names no days and has no 平时/经常 word of the old list: 常 now counts, and after a weekend question it is the weekend.
+  const asked = parseChatAction('我需要在周末专注');
+  assert.deepEqual(asked, { kind: 'focus-window', missing: true, days: { weekday: false, weekend: true } });
+  assert.deepEqual(parseChatAction('常在下午专注', { afterAsk: asked.days }), { kind: 'focus-window', weekday: null, weekend: { start: '14:00', end: '18:00' }, guessed: '下午 14:00–18:00' });
+  // Without the question, 常 alone is enough (weekday by default); 常常/经常/习惯/总是 likewise.
+  assert.deepEqual(parseChatAction('常在下午专注'), { kind: 'focus-window', weekday: { start: '14:00', end: '18:00' }, weekend: null, guessed: '下午 14:00–18:00' });
+  for (const [text, span] of [['我经常晚上最专注', ['19:00', '22:00']], ['习惯上午效率最高', ['08:00', '12:00']], ['总是傍晚状态最好', ['19:00', '22:00']], ['常常早上最清醒', ['08:00', '12:00']]]) {
+    const hit = parseChatAction(text);
+    assert.deepEqual([hit.weekday.start, hit.weekday.end], span, text);
+  }
+  // An explicit range still wins over the part of the day.
+  assert.deepEqual(parseFocusWindow('我经常下午3点到5点专注'), { kind: 'focus-window', weekday: { start: '15:00', end: '17:00' }, weekend: null });
+  // A bare answer to the question with no time at all asks again instead of becoming an item.
+  assert.equal(parseChatAction('嗯，专注', { afterAsk: { weekday: false, weekend: true } }).missing, true);
+  // An answer that only the question makes a focus answer is flagged, so agent.js can let a named task win.
+  assert.equal(parseChatAction('下午专注写实验报告', { afterAsk: { weekday: true, weekend: false } }).byContext, true);
+  // 非常/正常/日常 are not 常; without the question nothing is taken.
+  assert.equal(parseChatAction('实验报告非常需要专注').kind, 'mark');
+  assert.equal(parseChatAction('下午专注'), null);
+  assert.equal(parseChatAction('正常下午专注'), null);
+});

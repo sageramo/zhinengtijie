@@ -88,6 +88,8 @@ let coverPainted = false; // the 山水 brushes in once per cover, not on every 
 let unrollTimer = null;
 let parseSequence = 0;
 let lastTaskId = null;
+// The days a 专注时段 question was just asked about ({weekday, weekend}); the next sentence is read as its answer.
+let focusAsk = null;
 const chatHistory = [];
 let connectionSequence = 0;
 let timetableSequence = 0;
@@ -699,7 +701,11 @@ $('noticeForm').addEventListener('submit', async event => {
   try {
     const inputSnapshot = snapshot;
     // One sentence does what the detail pages do: 起步卡, 专注时段, 任务标记, 点名完成与估时.
-    const action = mode === 'chat' ? null : parseChatAction(text);
+    const afterAsk = focusAsk;
+    focusAsk = null;
+    let action = mode === 'chat' ? null : parseChatAction(text, { afterAsk });
+    // An answer that only counts as one because of the question (no 平时/经常…) still yields to a task it names.
+    if (action?.kind === 'focus-window' && action.byContext && findTask(snapshot, text).byName) action = null;
     if (action && await runChatAction(text, action)) return;
     // "下午四点半到五点半想歇会儿" / "三点到四点临时要帮辅导员搬东西" / "有点累": a change to the plan, not an item.
     const draft = mode === 'chat' ? null : parseStateSentence(text, Date.now());
@@ -1708,13 +1714,18 @@ const activeTitles = () => snapshot.tasks.filter(task => task.status === 'active
 async function runChatAction(text, action) {
   const reply = (body, says = []) => { showTurn(text, body + nextChips(says)); return true; };
   if (action.kind === 'focus-window') {
-    if (action.missing) return reply(replyMarkup({ text: '你常在几点到几点最能专注？比如「我工作日晚上7点到9点最专注」。' }));
+    if (action.missing) {
+      focusAsk = action.days;
+      const which = action.days.weekend && !action.days.weekday ? '周末' : action.days.weekday && !action.days.weekend ? '工作日' : '';
+      return reply(replyMarkup({ text: `你${which}常在几点到几点最能专注？说「下午」「晚上」「全天」也行，比如「${which || '工作日'}晚上7点到9点最专注」。` }), ['常在下午专注', '全天都能专注']);
+    }
     const span = id => { const w = focusSettings.windows.find(item => item.id === id); return w ? { start: w.start, end: w.end } : null; };
     const next = setCommonWindows(focusSettings, { weekday: action.weekday || span('w-weekday'), weekend: action.weekend || span('w-weekend') });
     saveFocus(next);
     const said = [action.weekday && `工作日 ${action.weekday.start}–${action.weekday.end}`, action.weekend && `周末 ${action.weekend.start}–${action.weekend.end}`].filter(Boolean).join('、');
     const titles = activeTitles();
-    return reply(replyMarkup({ text: `记下了：${said} 是你的常用专注时段。计划被打断时，标了“需要专注”的事会优先排进这里；平时不打扰你。` }), titles.length ? [`${titles[0]}需要专注`] : []);
+    const guess = action.guessed ? `没说具体几点，先按${action.guessed} 记下，可以在铺纸 · 留白里微调。` : '';
+    return reply(replyMarkup({ text: `记下了：${said} 是你的常用专注时段。${guess}计划被打断时，标了“需要专注”的事会优先排进这里；平时不打扰你。` }), titles.length ? [`${titles[0]}需要专注`] : []);
   }
   const { task, byName } = findTask(snapshot, action.phrase, lastTaskId);
   if (action.kind === 'complete' || action.kind === 'estimate') {
