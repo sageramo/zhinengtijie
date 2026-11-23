@@ -9,6 +9,8 @@ const DAY = 86400000;
 const HOUR = 3600000;
 const W = 1000;
 const H = 420;
+const FAR = [1.5, 2.4, 1.2, 2.8, 1.8, 2.2, 1.4];
+const DISTANT = [2.4, 1.8, 3, 2, 3.2, 1.8, 2.5];
 const BASE = 318; // ridge height for an empty day
 const PEAK = 272; // extra height for a full day
 const FULL = 12; // a 12-hour day is a full peak; a lighter week is scaled to its own busiest day (at least 6 h)
@@ -90,8 +92,10 @@ export function shanshuiMarkup({ items, start, now, conflicts = [], energy = [],
   const busy = dayTotals(items, start, BUSY);
   const free = dayTotals(items, start, new Set(['free']));
   const near = ridge(busy);
-  const far = ridge(busy.map((h, index) => (h + (busy[(index + 1) % 7] || 0)) / 2), 0.78, STEP * 0.32);
-  const distant = ridge(busy.map((h, index) => Math.max(h, busy[(index + 6) % 7] || 0)), 1.05, -STEP * 0.4);
+  // The far ranges are scenery only, the same every week: just the near ridge carries the week's hours
+  // (they used to echo the week's hours, which read as a second chart nobody could explain).
+  const far = ridge(FAR, 0.78, STEP * 0.32);
+  const distant = ridge(DISTANT, 1.05, -STEP * 0.4);
   const today = now >= start && now < start + 7 * DAY ? Math.floor((now - start) / DAY) : -1;
   const clouds = free.map((hours, index) => {
     if (hours < 0.5) return '';

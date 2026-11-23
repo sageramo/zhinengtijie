@@ -3115,3 +3115,27 @@ html[data-current="calendar"] [data-app]::before {
 @keyframes brush-run { from { background-position: -40% 0; } to { background-position: 140% 0; } }
 @keyframes ink-drop { 0%, 70%, 100% { opacity: .25; transform: translateY(0) scale(.7); } 30% { opacity: 1; transform: translateY(-3px) scale(1); } }
 @keyframes ink-drop-mid { 0%, 70%, 100% { background-size: 7px 7px; background-position: 50% 2px; } 30% { background-size: 10px 10px; background-position: 50% -3px; } }
+
+/* ==== 本周山水修整（.66）============================================================================
+   The 截止 star is placed by its SVG transform; the drop-in animated transform and overrode it, so the star
+   ended in the corner. It now scales with the independent `scale` property. The far ranges are scenery
+   (fixed, fainter); the painting is sized to the screen so the week and its legend fit in one view; the
+   山居 picture fades in at its top edge instead of starting on a line. */
+@keyframes ss-drop { from { opacity: 0; scale: .2; } to { opacity: 1; scale: 1; } }
+.shanshui .ss-far { opacity: .5; }
+.shanshui .ss-distant { opacity: .38; }
+.cover-legend .lg-far::before { background: linear-gradient(180deg, rgba(108, 133, 157, .45), rgba(108, 133, 157, .08)); }
+html[data-current="calendar"] [data-app]::before {
+  -webkit-mask-image: linear-gradient(0deg, #000 0, #000 calc(100vw / 2.33 - 16vw), transparent calc(100vw / 2.33));
+  mask-image: linear-gradient(0deg, #000 0, #000 calc(100vw / 2.33 - 16vw), transparent calc(100vw / 2.33));
+}
+@media (max-width: 760px) {
+  html[data-current="calendar"] [data-app]::before {
+    -webkit-mask-image: linear-gradient(0deg, #000 0, #000 26vh, transparent 40vh);
+    mask-image: linear-gradient(0deg, #000 0, #000 26vh, transparent 40vh);
+  }
+}
+.page-calendar .scroll-cover > .cal-bar.is-docked { margin-bottom: 12px; }
+@media (min-width: 761px) {
+  .page-calendar .scroll-cover .cover-painting { width: min(100%, calc((100svh - var(--cover-chrome, 400px)) * 1000 / 420)); margin-inline: auto; }
+}

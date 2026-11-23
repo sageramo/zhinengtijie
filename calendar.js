@@ -448,15 +448,15 @@ export function calendarMarkup({ result, start, now, loading = false, error = ''
   const cover = `<section class="scroll-cover" aria-labelledby="coverHeading">
       <header class="cover-head"><p class="cal-eyebrow">本周山水</p><h3 id="coverHeading">峰高是忙，云白是留白</h3></header>
       <div class="cover-painting">${painting || (error ? `<p class="cover-wait is-error" role="status">${escape(error)}</p>` : '<p class="cover-wait">正在铺开这一周…</p>')}</div>
-      <ul class="cover-legend" aria-label="山水图例"><li class="lg-peak">峰 · 这天排了多少</li><li class="lg-cloud">云 · 留白</li><li class="lg-dot">墨点 · 点墨</li><li class="lg-star">金星 · 截止</li><li class="lg-bleed">朱晕 · 叠墨</li><li class="lg-moon">朱日 · 今天</li>${energy.length ? '<li class="lg-glow">暖光 · 专注时段</li><li class="lg-haze">灰雾 · 精力偏低</li>' : ''}</ul>
+      <ul class="cover-legend" aria-label="山水图例"><li class="lg-peak">近处深色的峰 · 这天排了多少</li><li class="lg-cloud">云 · 留白</li><li class="lg-dot">墨点 · 点墨</li><li class="lg-star">金星 · 截止</li><li class="lg-bleed">朱晕 · 叠墨</li><li class="lg-moon">朱日 · 今天</li><li class="lg-far">淡远山 · 远景，不计时</li>${energy.length ? '<li class="lg-glow">暖光 · 专注时段</li><li class="lg-haze">灰雾 · 精力偏低</li>' : ''}</ul>
       <div class="cover-actions">
         <button type="button" class="primary-button cover-open" data-scroll-open${result ? '' : ' disabled'}><svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><path d="M4 5v14M20 5v14M8 12h8M11 9l-3 3 3 3M13 9l3 3-3 3" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>展开画卷</button>
         <button type="button" class="cover-analyze" data-cal-analyze aria-expanded="${analyzed}">${analyzed ? '收起本周解析' : `解析画卷${weekConflicts.length ? `（${weekConflicts.length} 处叠墨）` : ''}`}</button>
       </div>
     </section>`;
   const backdrop = painting ? `<div class="ss-backdrop" aria-hidden="true">${painting.replace('role="img"', 'focusable="false"')}</div><i class="unroll-ink" aria-hidden="true"></i>` : '';
-  // 画卷 open on the week: the bar docks inside the board as its first row, so the week starts at the top.
-  const docked = !rolled && !analyzed;
+  // The bar docks as the first row of what is shown: the week's board, or the 本周山水 cover when rolled.
+  const docked = !analyzed;
   const bar = `<header class="cal-bar${docked ? ' is-docked' : ''}" aria-label="画卷周次与解析">
       <div class="cal-bar-left">
         <div class="cal-bar-title"><p class="cal-eyebrow">${local(start).getUTCFullYear()} · 第 ${weekNumber(start)} 周</p><h2 class="cal-range" id="calendarHeading">${range}</h2></div>
@@ -483,7 +483,7 @@ export function calendarMarkup({ result, start, now, loading = false, error = ''
         ${brief.length ? `<ul class="cal-brief" aria-label="本周提要">${brief.map(line => `<li>${line}</li>`).join('')}</ul>` : ''}
         <ul class="cal-stats" aria-label="本周统计">${stat(count('routine'), '底色')}${stat(count('work') + count('appointment'), '落笔')}${stat(count('temporary'), '点墨')}${stat(count('deadline'), '截止')}</ul>
       </aside>
-      ${rolled ? cover : `    <div class="scroll-mount"><div class="cal-board">${backdrop}${docked ? bar : ''}${banner}${layerStrip}${bandLegend}
+      ${rolled ? cover.replace('<section class="scroll-cover" aria-labelledby="coverHeading">', head => head + bar) : `    <div class="scroll-mount"><div class="cal-board">${backdrop}${docked ? bar : ''}${banner}${layerStrip}${bandLegend}
         <div class="cal-week${crowded.size ? ' has-crowded' : ''}${band ? ' has-band' : ''}"${focus ? ` data-focus="${escape(focus)}"` : ''} style="--rows:${last - first}${crowded.size ? `;--cols:var(--time-col, 54px) ${days.map((_, index) => crowded.has(index) ? 'minmax(0, 1.5fr)' : 'minmax(0, 1fr)').join(' ')}` : ''}">
           <div class="cal-corner" aria-hidden="true"></div>${heads}
           <div class="cal-hours" aria-hidden="true">${hours}</div>${columns}
