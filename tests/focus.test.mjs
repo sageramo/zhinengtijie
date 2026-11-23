@@ -33,7 +33,20 @@ test('a sentence about rest, energy or an interruption becomes a draft with real
 
 test('an interruption without times asks for them; reminders, notices and questions are not states', () => {
   assert.equal(parseStateSentence('临时被叫去开会', NOW).missing, '什么时候到什么时候');
-  for (const text of ['提醒我今天交报告', '我这周末要写高数作业', '周末我有没有时间？', '【通知】明天下午三点开会']) assert.equal(parseStateSentence(text, NOW), null, text);
+  // Real user trial regressions: weekday/date schedules go to /api/v3/extract instead of disruption,
+  // and today/tomorrow disruptions with a second period word or 中午 start parse cleanly.
+  for (const text of ['提醒我今天交报告', '我这周末要写高数作业', '周末我有没有时间？', '【通知】明天下午三点开会', '周一中午到晚上五点开会', '周一中午十二点到下午五点开会', '11月26日下午三点排练']) {
+    assert.equal(parseStateSentence(text, NOW), null, text);
+  }
+  const morning = Date.parse('2026-11-25T09:00:00+08:00');
+  const noonCut = parseStateSentence('临时中午十二点到下午五点开会', morning);
+  assert.equal(noonCut.disruption.title, '开会');
+  assert.equal(noonCut.disruption.start_at, '2026-11-25T12:00:00+08:00');
+  assert.equal(noonCut.disruption.end_at, '2026-11-25T17:00:00+08:00');
+  const noonBare = parseStateSentence('临时中午到晚上五点开会', morning);
+  assert.equal(noonBare.disruption.title, '开会');
+  assert.equal(noonBare.disruption.start_at, '2026-11-25T12:00:00+08:00');
+  assert.equal(noonBare.disruption.end_at, '2026-11-25T17:00:00+08:00');
 });
 
 test('settings keep only valid windows, states and marks, and drop stale states', () => {
