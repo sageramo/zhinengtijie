@@ -969,14 +969,23 @@ let ocrPreviewUrl = null;
 // Local OCR reads lines, not grids. A timetable screenshot belongs to timetable reading,
 // so the last recognised image can be handed over there.
 let ocrHandoff = null;
+let ocrCurrentFile = null;
+let ocrTextBefore = '';
 const TIMETABLE_LIKE = /[一二三四五六日]{4,}|第\s*0*\d+\s*周|星期[一二三四五六日天]|第\s*\d+\s*[-—~至]\s*\d+\s*节/;
+const ocrActions = Object.assign(document.createElement('div'), { className: 'ocr-actions', hidden: true });
+const ocrAsVision = Object.assign(document.createElement('button'), { type: 'button', id: 'ocrAsVision', className: 'primary-button', hidden: true, textContent: '海报 / 复杂版面？用大模型识图' });
 const ocrAsTimetable = Object.assign(document.createElement('button'), { type: 'button', id: 'ocrAsTimetable', hidden: true, textContent: '这是课表？改用课表截图识别' });
-$('ocrStatus').after(ocrAsTimetable);
+ocrActions.append(ocrAsVision, ocrAsTimetable);
+$('ocrStatus').after(ocrActions);
+function syncOcrActions() { ocrActions.hidden = ocrAsVision.hidden && ocrAsTimetable.hidden; }
 function ocrStatus(message) { $('ocrStatus').textContent = message; }
 function clearOcrPreview({ keepStatus = false } = {}) {
   ocrSequence += 1;
   ocrHandoff = null;
+  ocrCurrentFile = null;
+  ocrAsVision.hidden = true;
   ocrAsTimetable.hidden = true;
+  syncOcrActions();
   if (ocrPreviewUrl) { window.URL.revokeObjectURL(ocrPreviewUrl); ocrPreviewUrl = null; }
   $('ocrPreviewImage')?.removeAttribute('src');
   if ($('ocrPreview')) $('ocrPreview').hidden = true;
@@ -992,32 +1001,83 @@ async function recognizeNotice(file) {
   if (problem) return ocrStatus(problem);
   const ticket = ++ocrSequence;
   ocrHandoff = null;
+  ocrCurrentFile = file;
+  ocrTextBefore = $('noticeText').value;
+  ocrAsVision.hidden = false;
   ocrAsTimetable.hidden = true;
+  syncOcrActions();
   if (ocrPreviewUrl) window.URL.revokeObjectURL(ocrPreviewUrl);
   ocrPreviewUrl = window.URL.createObjectURL(file);
   $('ocrPreviewImage').src = ocrPreviewUrl;
   $('ocrPreview').hidden = false;
   $('chooseNoticeImage').disabled = true;
-  ocrStatus('正在本机识别截图…');
+  ocrStatus('正在本机识别截图… 若是海报或周历表，可直接点下方「用大模型识图」。');
   try {
     const text = await recognizeScreenshot(file, progress => { if (ticket === ocrSequence) ocrStatus(`正在本机识别截图… ${Math.round(progress * 100)}%`); });
     if (ticket !== ocrSequence) return;
-    if (!text) return ocrStatus('没有识别出文字。请换一张更清晰、只含通知部分的截图，或手动输入；输入框内容没有改动。');
+    if (!text) return ocrStatus('没有识别出文字。可以点下方「用大模型识图」，或换一张更清晰的截图。');
     const box = $('noticeText');
     ocrHandoff = { file, textBefore: box.value };
     box.value = box.value.trim() ? `${box.value.trimEnd()}\n\n${text}` : text;
     box.dispatchEvent(new window.Event('input', { bubbles: true }));
     ocrAsTimetable.hidden = false;
+    syncOcrActions();
     ocrStatus(TIMETABLE_LIKE.test(text)
       ? '这张图像是一张课表。本机识别只能读一行行的通知文字，课表格子会被读乱；请点下面的按钮改用课表截图识别。'
-      : '已把识别出的文字放进输入框。请对照截图逐字核对时间、地点和数字，修改后再导入。');
+      : '已把识别出的文字放进输入框。请对照截图核对；若海报排版复杂，可直接点下方「用大模型识图」。');
   } catch (error) {
-    if (ticket === ocrSequence) ocrStatus(`未能识别这张截图（${error.message}）。输入框内容没有改动，可以重试或手动输入。`);
+    if (ticket === ocrSequence) ocrStatus(`未能识别这张截图（${error.message}）。可以改点下方「用大模型识图」或手动输入。`);
   } finally {
     if (ticket === ocrSequence) $('chooseNoticeImage').disabled = false;
   }
 }
 $('chooseNoticeImage').addEventListener('click', () => $('noticeImage').click());
+ocrAsVision.addEventListener('click', async () => {
+  const file = ocrCurrentFile || ocrHandoff?.file;
+  if (!file || ocrAsVision.disabled) return;
+  if (externalConflict) return tell('请先处理另一个标签页的清单变化。', 'warning');
+  const restoreText = ocrHandoff ? ocrHandoff.textBefore : ocrTextBefore;
+  ocrSequence += 1; // cancel any still-running local OCR
+  $('chooseNoticeImage').disabled = false;
+  busy(ocrAsVision, true, '海报 / 复杂版面？用大模型识图', '大模型正在识图…');
+  showParseProgress('model');
+  $('parseStep').textContent = '大模型正在识别海报版面与日期';
+  const base = apiBase;
+  try {
+    if (!['image/png', 'image/jpeg', 'image/webp', 'image/gif'].includes(file.type)) {
+      throw new Error('请选择 PNG、JPG、WebP 或 GIF 格式的图片。');
+    }
+    const image = await imageToDataUrl(file);
+    const service = await ensureHealth(base, { fresh: true });
+    if (!service.capabilities.includes('notice_image_v1')) throw new Error('当前计算服务尚未启用海报大模型识图，请稍后再试。');
+    if (!service.timetable_model?.configured) throw new Error('当前服务尚未配置视觉模型 Key。');
+    const referenceDate = $('noticeDate').value || null;
+    const imported = await modelRequest('/api/v3/extract', { mode: 'image', image, reference_date: referenceDate }, base, 100000);
+    if (!imported.events.length && !imported.tasks.length) {
+      showTurn('（上传了一张海报/通知截图）', replyMarkup({ text: imported.warnings?.join(' ') || '没有从图片里读出明确的日程或任务。' }));
+      clearOcrPreview();
+      return;
+    }
+    let next = addImported(snapshot, imported);
+    const defaulted = !next.daily_window;
+    if (defaulted) next = setDailyWindow(next, DEFAULT_WINDOW);
+    commit(next);
+    const firstDateIso = imported.events.find(e => e.start_at)?.start_at || imported.tasks.find(t => t.deadline_at)?.deadline_at;
+    agendaWeek = firstDateIso ? weekStart(Date.parse(firstDateIso)) : null;
+    lastTaskId = null;
+    $('noticeText').value = restoreText;
+    const first = imported.tasks.find(task => task.status === 'active');
+    const nextSay = nextChips(first ? [`帮我开个头：${first.title}`, '这周还剩多少时间？'] : ['这周还剩多少时间？']);
+    showTurn(`（大模型识图）${imported.source.text.split('\n')[0].slice(0, 48)}`, importSummary(imported) + (defaulted ? '<p class="field-help">先用默认作息（工作日 08:00–23:00，周末 09:00–23:00）。课表和作息可以在铺纸里补齐。</p>' : '') + endAskMarkup(imported) + nextSay);
+    estimateEnds('rules', imported.source.text);
+    tell(`大模型识图完成：已导入 ${imported.events.length} 项到场安排、${imported.tasks.length} 项截止任务，点「看画卷」即可查看。`);
+  } catch (error) {
+    tell(`大模型识图未完成：${error.message}`, 'error');
+  } finally {
+    busy(ocrAsVision, false, '海报 / 复杂版面？用大模型识图');
+    hideParseProgress();
+  }
+});
 ocrAsTimetable.addEventListener('click', () => {
   if (!ocrHandoff) return;
   const { file, textBefore } = ocrHandoff;

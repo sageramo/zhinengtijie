@@ -1146,3 +1146,38 @@ test('adopting a start-only event or unestimated task from chat proposal offers 
   assert.equal(app.stored().tasks.find(tk => tk.id === 't-unest-chat').estimate_minutes, 30);
   assert.equal(app.stored().events.find(ev => ev.id === 'e-open-chat').end_at, '2099-01-05T16:30:00+08:00');
 });
+
+test('a complex weekly poster screenshot can be sent to multimodal vision extraction and imported into the calendar', async t => {
+  const posted = [];
+  const engine = ocrEngine(async () => '14:00-17:00 乱码');
+  const app = await boot(t, {
+    ocrEngine: engine,
+    health: { capabilities: [...CAPABILITIES, 'notice_image_v1', 'end_estimate_v1'], timetable_model: { configured: true } },
+    routes: {
+      '/api/v3/extract': async body => {
+        posted.push(body);
+        return [200, {
+          source: { id: 's-poster', kind: 'pasted_notice', text: '【信息化实践与服务社】\nWED 11.25 14:00-17:00 智伴校园长者', published_at: null },
+          events: [{ id: 'e-p1', kind: 'temporary', title: '智伴校园长者 · 共享信息服务', start_at: '2026-11-25T14:00:00+08:00', end_at: '2026-11-25T17:00:00+08:00', location: '艺术与传播大楼一层校园生活服务大厅', status: 'active', source_id: 's-poster', evidence: [], notes: [] }],
+          tasks: [{ id: 't-p1', title: 'AI万象比赛报名截止', deadline_at: '2026-11-28T23:59:00+08:00', estimate_minutes: null, splittable: true, min_block_minutes: null, earliest_start_at: null, priority: null, status: 'active', location: null, materials: [], source_id: 's-poster', evidence: [], notes: [] }],
+          warnings: ['以下事项由大模型直接识图整理，请对照原图核对日期、时刻与地点。'],
+          mode: 'image',
+        }];
+      },
+    },
+  });
+  const picker = app.find('#noticeImage');
+  const file = new app.window.File([new Uint8Array([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a])], 'poster.png', { type: 'image/png' });
+  Object.defineProperty(picker, 'files', { value: [file], configurable: true });
+  picker.dispatchEvent(new app.window.Event('change', { bubbles: true }));
+  await settle(40);
+  assert.equal(app.find('#ocrAsVision').hidden, false);
+  app.click('#ocrAsVision');
+  await settle(300);
+  assert.equal(posted.length, 1);
+  assert.equal(posted[0].mode, 'image');
+  assert.match(posted[0].image, /^data:image\/png;base64,/);
+  assert.equal(app.stored().events.some(ev => ev.title === '智伴校园长者 · 共享信息服务'), true);
+  assert.equal(app.stored().tasks.some(tk => tk.title === 'AI万象比赛报名截止'), true);
+  assert.equal(app.find('#ocrPreview').hidden, true);
+});
