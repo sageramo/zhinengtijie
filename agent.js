@@ -668,12 +668,16 @@ $('importSummary').addEventListener('click', event => {
     return;
   }
   const chip = event.target.closest('[data-turn-estimate]');
-  if (chip && lastImport) {
+  if (chip) {
     const [id, minutes] = chip.dataset.turnEstimate.split(':');
     if (!snapshot.tasks.some(task => task.id === id)) return tell('这件事已经不在清单里了。', 'warning');
     commit(updateTask(snapshot, id, { estimate_minutes: Number(minutes) }));
     const box = $('importSummary').querySelector('[data-turn-result]');
-    if (box) box.outerHTML = importResult(lastImport);
+    if (box && lastImport) box.outerHTML = importResult(lastImport);
+    else {
+      const wrap = chip.closest('.turn-estimate');
+      if (wrap) { wrap.classList.add('is-set'); wrap.innerHTML = `预计 ${minutesLabel(Number(minutes))}<small>画卷会在截止前的留白里排入</small>`; }
+    }
     tell(`已记下预计用时 ${minutesLabel(Number(minutes))}，画卷会在截止前的留白里排入。`);
     return;
   }
@@ -1855,6 +1859,14 @@ function switchProposalKind(spec, button) {
     confirmBtn.textContent = allDisrupt ? '按临时打断重算本周' : anyDisrupt ? '确认记入并重算' : '确认记入清单';
   }
 }
+function offerOptionalDurations(card, addedEvents, addedTasks, sourceText = '') {
+  if (!card || !card.closest('#importSummary')) return;
+  const unestimated = (addedTasks || []).filter(task => task.status === 'active' && task.estimate_minutes === null);
+  const estMarkup = unestimated.map(task => `<div class="turn-estimate" role="group" aria-label="「${escapeHTML(task.title)}」的预计用时"><span>「${escapeHTML(task.title)}」预计用时（选填）</span>${ESTIMATE_PRESETS.slice(0, 4).map(preset => `<button type="button" class="chip" data-turn-estimate="${escapeHTML(task.id)}:${preset.minutes}">${preset.label}</button>`).join('')}</div>`).join('');
+  const endMarkup = endAskMarkup({ events: addedEvents || [], tasks: addedTasks || [] });
+  if (estMarkup || endMarkup) card.insertAdjacentHTML('afterend', estMarkup + endMarkup);
+  if (endMarkup) estimateEnds('rules', sourceText);
+}
 async function adoptProposal(id, button) {
   const entry = shownProposals.get(id);
   if (!entry) return;
@@ -1863,17 +1875,22 @@ async function adoptProposal(id, button) {
   const lockPills = () => card?.querySelectorAll('.pc-pill').forEach(pill => { pill.disabled = true; });
   if (proposal.kind === 'add_items') {
     if (revision !== snapshot.revision) { shownProposals.delete(id); return tell('清单刚刚有变化，请再发一次以重新核对冲突。', 'warning'); }
+    const prevEventIds = new Set(snapshot.events.map(ev => ev.id));
+    const prevTaskIds = new Set(snapshot.tasks.map(tk => tk.id));
     const unchanged = choices.every((choice, i) => choice === initialChoices[i]);
     if (unchanged) {
       let next;
       try { next = parseTimeSnapshot(JSON.stringify({ ...proposal.preview_snapshot, revision: snapshot.revision + 1 })); }
       catch (error) { return tell(`草案没能写入：${error.message}`, 'error'); }
       if (!next.daily_window) next = setDailyWindow(next, DEFAULT_WINDOW);
+      const addedEvents = next.events.filter(ev => !prevEventIds.has(ev.id));
+      const addedTasks = next.tasks.filter(tk => !prevTaskIds.has(tk.id));
       commit(next);
       shownProposals.delete(id);
       lockPills();
       button.disabled = true;
       button.textContent = `已记入清单 · ${(proposal.items || []).length} 项`;
+      offerOptionalDurations(card, addedEvents, addedTasks, next.sources.at(-1)?.text || '');
       tell('已按确认的草案记入清单，画卷已更新。');
       return;
     }
@@ -1904,13 +1921,17 @@ async function adoptProposal(id, button) {
         addedCount += 1;
       }
     }
+    let addedEvents = [], addedTasks = [];
     if (addedCount) {
       if (!next.daily_window) next = setDailyWindow(next, DEFAULT_WINDOW);
+      addedEvents = next.events.filter(ev => !prevEventIds.has(ev.id));
+      addedTasks = next.tasks.filter(tk => !prevTaskIds.has(tk.id));
       commit(next);
     }
     shownProposals.delete(id);
     lockPills();
     button.disabled = true;
+    if (addedCount) offerOptionalDurations(card, addedEvents, addedTasks, next.sources.at(-1)?.text || '');
     if (disruptions.length) {
       button.textContent = '正在按临时打断重算…';
       const state = await startReplan({ kind: 'disruption', disruption: disruptions[0] });

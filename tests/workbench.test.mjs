@@ -1098,3 +1098,51 @@ test('user can switch a proposed item layer inline (点墨/约定/截止/个人�
   assert.equal(replans.length, 1, 'switched disruption item triggered deterministic replan preview');
   assert.equal(replans[0].disruptions[0].title, '系里临时开会');
 });
+
+test('adopting a start-only event or unestimated task from chat proposal offers optional end-time and duration pickers', async t => {
+  const app = await boot(t, {
+    health: { capabilities: [...CAPABILITIES, 'agenda_chat_v1', 'agenda_chat_tools_v1', 'agenda_chat_proposals_v1', 'end_estimate_v1'], timetable_model: { configured: true } },
+    routes: {
+      '/api/v3/chat': async body => {
+        const preview = structuredClone(body.snapshot);
+        preview.revision = (preview.revision || 0) + 1;
+        preview.events.push({
+          id: 'e-open-chat', kind: 'temporary', title: '主题大课', start_at: '2099-01-05T15:00:00+08:00', end_at: null,
+          location: '中传礼堂', status: 'active', source_id: null, evidence: [], notes: ['草案'],
+        });
+        preview.tasks.push({
+          id: 't-unest-chat', title: '整理笔记', deadline_at: '2099-01-05T23:59:00+08:00', estimate_minutes: null,
+          splittable: true, min_block_minutes: null, earliest_start_at: '2099-01-05T00:00:00+08:00',
+          priority: null, status: 'active', location: null, materials: [], source_id: null, evidence: [], notes: ['个人任务'],
+        });
+        return [200, {
+          reply: '已整理好草案。',
+          proposal: {
+            tool: 'propose_items', kind: 'add_items',
+            items: [
+              { kind: 'event', layer: 'temporary', title: '主题大课', start_at: '2099-01-05T15:00:00+08:00', end_at: null, location: '中传礼堂' },
+              { kind: 'task', layer: 'personal', title: '整理笔记', deadline_at: '2099-01-05T23:59:00+08:00', estimate_minutes: null },
+            ],
+            preview_snapshot: preview, impact: null,
+          },
+        }];
+      },
+      '/api/v3/estimate-end': async () => [200, { estimates: [{ id: 'e-open-chat', minutes: 90, end_at: '2099-01-05T16:30:00+08:00', basis: 'rules', reason: '按常见讲座时长估计约1小时30分钟。' }] }],
+    },
+  });
+  app.set('#extractionMode', 'chat', 'change');
+  app.set('#noticeText', '周五三点中传礼堂大课，顺便整理笔记', 'input');
+  app.submit('#noticeForm');
+  await settle(300);
+  app.click('[data-proposal-adopt]');
+  await settle(300);
+  // Both optional pickers appear right after adopting
+  assert.match(app.find('#importSummary').textContent, /大约几点结束/);
+  assert.ok(app.find('[data-turn-estimate="t-unest-chat:30"]'), 'optional 30-min preset shown for unestimated task');
+  // Clicking optional preset & end-save updates snapshot cleanly
+  app.click('[data-turn-estimate="t-unest-chat:30"]');
+  app.click('[data-end-save]');
+  await settle(100);
+  assert.equal(app.stored().tasks.find(tk => tk.id === 't-unest-chat').estimate_minutes, 30);
+  assert.equal(app.stored().events.find(ev => ev.id === 'e-open-chat').end_at, '2099-01-05T16:30:00+08:00');
+});
