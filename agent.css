@@ -3059,3 +3059,59 @@ html[data-current="calendar"] [data-app]::before {
     radial-gradient(ellipse 30% 34% at 42% 54%, rgba(223, 212, 196, .7), rgba(223, 212, 196, 0) 72%),
     linear-gradient(180deg, rgba(223, 212, 196, 0) 0%, rgba(223, 212, 196, .5) 36%, rgba(223, 212, 196, .82) 50%, rgba(223, 212, 196, .5) 64%, rgba(223, 212, 196, 0) 100%);
 }
+
+/* ==== 山居（.65）：画卷页自己的一幅画 ===============================================================
+   画卷 no longer borrows the landing's lake: a study under pines on the left, a stream and stone bridge
+   on the right, mist in between where the week sits. Laid along the bottom at full width so neither
+   side is cropped; the paper above it is the page's own ground (the picture is toned to #ebe5da). */
+html[data-current="calendar"] [data-app]::before {
+  top: 0; height: auto; opacity: 1; filter: none;
+  background: url("./assets/calendar-scene.webp") 50% 100% / 100% auto no-repeat;
+  -webkit-mask-image: linear-gradient(180deg, rgba(0, 0, 0, .35) 0%, #000 45%);
+  mask-image: linear-gradient(180deg, rgba(0, 0, 0, .35) 0%, #000 45%);
+}
+/* the board lets the 山居 through: thinner paper, no frosting (blur only turned the pines to mush). */
+.page-calendar .scroll-mount .cal-board, [data-app] .page-calendar .scroll-mount .cal-board {
+  background: rgba(255, 254, 250, .56); -webkit-backdrop-filter: none; backdrop-filter: none;
+}
+.page-calendar .scroll-mount { background: rgba(255, 254, 250, .16) !important; -webkit-backdrop-filter: none !important; backdrop-filter: none !important; }
+[data-app] .page-calendar .cal { background: rgba(251, 249, 245, .14); box-shadow: 0 0 0 1px rgba(30, 42, 53, .06), 0 30px 60px -40px rgba(30, 42, 53, .3); }
+@media (max-width: 760px) { html[data-current="calendar"] [data-app]::before { background-size: auto 40vh; background-position: 4% 100%; } }
+
+/* ==== 研磨在想（.65）================================================================================
+   No more spinning ink blob over the composer, and no ring: what you wrote stays legible (only quieter),
+   and the status line shows three ink dots dropping in turn with a brush stroke running under the words. */
+.inkwell-ripple, .inkwell.is-grinding .inkwell-ripple { display: none; animation: none; }
+.inkwell.is-grinding textarea { color: rgba(30, 42, 53, .45); text-shadow: none; }
+.page-import .ink-composer .parse-progress, .parse-progress {
+  position: relative; gap: 12px; padding: 10px 16px 12px; overflow: hidden;
+  border: 0; border-radius: 10px; background: rgba(255, 254, 250, .78); color: #34424f;
+  box-shadow: inset 0 0 0 1px rgba(74, 96, 118, .14);
+}
+.parse-progress #parseStep { font-family: var(--font-serif); letter-spacing: .06em; color: #1e2a35; }
+.parse-progress .field-help { color: #6a6358; font-size: .75rem; }
+.parse-progress::after {
+  content: ""; position: absolute; left: 16px; right: 16px; bottom: 4px; height: 2px; border-radius: 2px;
+  background: linear-gradient(90deg, rgba(74, 96, 118, 0), rgba(74, 96, 118, .55) 50%, rgba(74, 96, 118, 0)) no-repeat;
+  background-size: 34% 100%; background-position: -40% 0;
+}
+.ink-swirl, .parse-progress .ink-swirl {
+  position: relative; flex: none; width: 34px; height: 10px; border-radius: 0; background: none;
+  -webkit-mask: none; mask: none; animation: none;
+}
+.ink-swirl::before, .ink-swirl::after, .ink-swirl {
+  --dot: radial-gradient(circle at 50% 45%, #1e2a35 0 46%, rgba(30, 42, 53, .35) 60%, rgba(30, 42, 53, 0) 72%);
+}
+.ink-swirl::before, .ink-swirl::after { content: ""; position: absolute; top: 0; width: 10px; height: 10px; background: var(--dot); }
+.ink-swirl::before { left: 0; }
+.ink-swirl::after { right: 0; }
+.ink-swirl { background: var(--dot) 50% 0 / 10px 10px no-repeat; }
+@media (prefers-reduced-motion: no-preference) {
+  .parse-progress::after { animation: brush-run 1.8s cubic-bezier(.45, 0, .25, 1) infinite; }
+  .ink-swirl::before { animation: ink-drop 1.35s ease-in-out infinite; }
+  .ink-swirl { animation: ink-drop-mid 1.35s ease-in-out .18s infinite; }
+  .ink-swirl::after { animation: ink-drop 1.35s ease-in-out .36s infinite; }
+}
+@keyframes brush-run { from { background-position: -40% 0; } to { background-position: 140% 0; } }
+@keyframes ink-drop { 0%, 70%, 100% { opacity: .25; transform: translateY(0) scale(.7); } 30% { opacity: 1; transform: translateY(-3px) scale(1); } }
+@keyframes ink-drop-mid { 0%, 70%, 100% { background-size: 7px 7px; background-position: 50% 2px; } 30% { background-size: 10px 10px; background-position: 50% -3px; } }
