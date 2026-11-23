@@ -203,21 +203,34 @@ function impactLine(impact) {
   if (impact.free_delta_minutes) parts.push(`本周留白 ${impact.free_delta_minutes > 0 ? '+' : '−'}${span(Math.abs(impact.free_delta_minutes))}`);
   return `<p class="pc-left">确定性校验预览：${parts.join(' · ')}</p>`;
 }
+const PROPOSAL_KINDS = [
+  ['temporary', '点墨', '外部安排，到点必须到场'],
+  ['appointment', '约定', '自己或和朋友定的固定时段'],
+  ['deadline', '截止', '有明确交付节点的任务'],
+  ['personal', '个人任务', '给自己立的弹性待办'],
+  ['disruption', '临时打断', '突发插入，按此重算这一周'],
+];
+export const PROPOSAL_KIND_LABEL = Object.fromEntries(PROPOSAL_KINDS.map(([key, label]) => [key, label]));
 export function proposalCardMarkup(proposal, id = '') {
   if (!proposal || typeof proposal !== 'object' || !id) return '';
   if (proposal.kind === 'add_items') {
     const items = proposal.items || [];
     const title = `待确认记入清单（${items.length} 项）`;
-    const rows = items.map(item => {
-      const layerBadge = { temporary: '点墨', appointment: '约定', deadline: '截止', personal: '个人任务' };
-      const badge = layerBadge[item.layer] || (item.kind === 'event' ? '约定' : '截止');
+    const rows = items.map((item, index) => {
+      const layer = item.layer || (item.kind === 'event' ? 'appointment' : 'deadline');
+      const badge = PROPOSAL_KIND_LABEL[layer] || (item.kind === 'event' ? '约定' : '截止');
       const when = item.kind === 'event'
         ? (item.start_at ? `${fmtBeijing(item.start_at)}${item.end_at ? `–${fmtBeijing(item.end_at).split(' ')[1]}` : ''}` : '时间待书')
         : (item.deadline_at ? `${fmtBeijing(item.deadline_at)} 前` : '时间待书');
       const extra = [item.estimate_minutes ? `约 ${span(item.estimate_minutes)}` : '', item.location || ''].filter(Boolean).join(' · ');
-      return `<li class="pc-row is-placed"><b>${badge} · ${esc(item.title)}</b><span>${esc(when)}${extra ? `（${esc(extra)}）` : ''}</span></li>`;
+      const canDisrupt = Boolean(item.start_at || item.deadline_at);
+      const pills = PROPOSAL_KINDS
+        .filter(([key]) => key !== 'disruption' || canDisrupt)
+        .map(([key, label, tip]) => `<button type="button" class="pc-pill${layer === key ? ' is-on' : ''}" data-prop-kind="${esc(id)}:${index}:${key}" aria-pressed="${layer === key}" title="${esc(tip)}">${label}</button>`)
+        .join('');
+      return `<li class="pc-row is-placed is-switchable" data-prop-item="${index}"><div class="pc-row-main"><b data-prop-title>${badge} · ${esc(item.title)}</b><span>${esc(when)}${extra ? `（${esc(extra)}）` : ''}</span></div><div class="pc-kind-pills" role="group" aria-label="切换归类">${pills}</div></li>`;
     }).join('');
-    return `<section class="plan-card is-ok" aria-label="${esc(title)}"><header><i aria-hidden="true"></i><strong>${esc(title)}</strong></header><ul>${rows}</ul>${impactLine(proposal.impact)}<div class="pc-actions"><button type="button" class="primary-button" data-proposal-adopt="${esc(id)}">确认记入清单</button><a href="#/calendar" data-agenda-calendar>看画卷</a></div></section>`;
+    return `<section class="plan-card is-ok" aria-label="${esc(title)}"><header><i aria-hidden="true"></i><strong>${esc(title)}</strong></header><ul>${rows}</ul><p class="pc-hint">归类不准可直接点每项下方标签切换（点墨＝到点必到，约定＝自己定，截止＝要交付，个人任务＝弹性待办）。</p>${impactLine(proposal.impact)}<div class="pc-actions"><button type="button" class="primary-button" data-proposal-adopt="${esc(id)}">确认记入清单</button><a href="#/calendar" data-agenda-calendar>看画卷</a></div></section>`;
   }
   if (proposal.kind === 'update_item') {
     const verb = proposal.action === 'cancel' ? '取消' : proposal.action === 'complete' ? '标记完成' : '改动';

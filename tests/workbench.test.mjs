@@ -1055,3 +1055,46 @@ test('chat proposal card and one-click model escalation commit only after user c
   await settle(100);
   assert.equal(app.stored().tasks.some(task => task.title === '大创结题PPT'), true);
 });
+
+test('user can switch a proposed item layer inline (点墨/约定/截止/个人任务/临时打断) before confirming', async t => {
+  const replans = [];
+  const app = await boot(t, {
+    health: { capabilities: [...CAPABILITIES, 'agenda_chat_v1', 'agenda_chat_tools_v1', 'agenda_chat_proposals_v1', 'replan_loop_v1'], timetable_model: { configured: true } },
+    routes: {
+      '/api/v3/chat': async body => {
+        const preview = structuredClone(body.snapshot);
+        preview.revision = (preview.revision || 0) + 1;
+        return [200, {
+          reply: '已整理好草案，归类不对可直接切换。',
+          proposal: {
+            tool: 'propose_items', kind: 'add_items',
+            items: [
+              { kind: 'task', layer: 'deadline', title: '复习高数', deadline_at: '2099-01-05T23:59:00+08:00', estimate_minutes: 60 },
+              { kind: 'event', layer: 'appointment', title: '系里临时开会', start_at: '2099-01-05T15:00:00+08:00', end_at: '2099-01-05T16:30:00+08:00' },
+            ],
+            preview_snapshot: preview, impact: null,
+          },
+        }];
+      },
+      '/api/v3/replan/preview': async body => {
+        replans.push(body);
+        return [200, { status: 'clear', applied: true, decision_reason: '无冲突', candidate_plans: [], missing_windows: [] }];
+      },
+    },
+  });
+  app.set('#extractionMode', 'chat', 'change');
+  app.set('#noticeText', '周五复习高数，下午三点系里临时开会', 'input');
+  app.submit('#noticeForm');
+  await settle(300);
+  // Switch item 0 (deadline -> personal) and item 1 (appointment -> disruption)
+  app.click('[data-prop-kind$=":0:personal"]');
+  app.click('[data-prop-kind$=":1:disruption"]');
+  assert.match(app.find('[data-proposal-adopt]').textContent, /确认记入并重算/);
+  app.click('[data-proposal-adopt]');
+  await settle(300);
+  const savedTask = app.stored().tasks.find(task => task.title === '复习高数');
+  assert.ok(savedTask, 'personal task saved');
+  assert.ok(savedTask.notes.includes('个人任务'), 'marked as 个人任务 after inline toggle');
+  assert.equal(replans.length, 1, 'switched disruption item triggered deterministic replan preview');
+  assert.equal(replans[0].disruptions[0].title, '系里临时开会');
+});

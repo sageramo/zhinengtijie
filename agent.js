@@ -11,8 +11,8 @@ import { LEADS, dueReminders, icsCalendar, reminderText, upcomingCount } from '.
 import { createBellToggle } from './bell-toggle.js';
 import { readMemory, writeMemory, recordActual, suggestEstimate, readCalibration, writeCalibration, recordCalibration, calibrationFor } from './estimate-memory.js';
 import { createRecognizer, imageProblem } from './screenshot-ocr.js';
-import { parseChatAction, findTask, starterReply, nextChips, planCardMarkup, proposalCardMarkup } from './chat-actions.js';
-import { readFocus, writeFocus, pruneStates, setMark, setCommonWindows, addStates, removeState, parseStateSentence, draftLabel, previewRequest, confirmRequest, replanRange, lockedRests, daySegments, bandMarkup, ribbonMarkup, bandUsed, bandLegend, todayStateMarkup, replanMarkup, spanText, dayLabel } from './focus.js';
+import { parseChatAction, findTask, starterReply, nextChips, planCardMarkup, proposalCardMarkup, PROPOSAL_KIND_LABEL } from './chat-actions.js';
+import { readFocus, writeFocus, pruneStates, setMark, setCommonWindows, addStates, removeState, parseStateSentence, draftLabel, previewRequest, confirmRequest, replanRange, lockedRests, daySegments, bandMarkup, ribbonMarkup, bandUsed, bandLegend, todayStateMarkup, replanMarkup, spanText, dayLabel, isoAt } from './focus.js';
 import { parseJwTimetable, termStartFrom } from './jw-timetable.js';
 
 /*
@@ -1826,14 +1826,104 @@ function escalateMarkup(text) {
 function keepProposal(proposal) {
   if (!proposal || typeof proposal !== 'object') return '';
   const id = `prop-${shownProposals.size + 1}`;
-  shownProposals.set(id, { proposal, revision: snapshot.revision });
+  const choices = (proposal.items || []).map(item => item.layer || (item.kind === 'event' ? 'appointment' : 'deadline'));
+  shownProposals.set(id, { proposal, revision: snapshot.revision, choices, initialChoices: [...choices] });
   return id;
+}
+function switchProposalKind(spec, button) {
+  const [id, idxText, nextKind] = String(spec || '').split(':');
+  const idx = Number(idxText);
+  const entry = shownProposals.get(id);
+  if (!entry || !Number.isInteger(idx) || idx < 0 || idx >= entry.choices.length || !PROPOSAL_KIND_LABEL[nextKind]) return;
+  entry.choices[idx] = nextKind;
+  const row = button.closest('[data-prop-item]');
+  if (row) {
+    for (const pill of row.querySelectorAll('.pc-pill')) {
+      const on = pill === button;
+      pill.classList.toggle('is-on', on);
+      pill.setAttribute('aria-pressed', String(on));
+    }
+    const titleEl = row.querySelector('[data-prop-title]');
+    const item = entry.proposal.items[idx];
+    if (titleEl && item) titleEl.textContent = `${PROPOSAL_KIND_LABEL[nextKind]} · ${item.title}`;
+  }
+  const card = button.closest('.plan-card');
+  const confirmBtn = card?.querySelector('[data-proposal-adopt]');
+  if (confirmBtn && !confirmBtn.disabled) {
+    const allDisrupt = entry.choices.every(choice => choice === 'disruption');
+    const anyDisrupt = entry.choices.some(choice => choice === 'disruption');
+    confirmBtn.textContent = allDisrupt ? '按临时打断重算本周' : anyDisrupt ? '确认记入并重算' : '确认记入清单';
+  }
 }
 async function adoptProposal(id, button) {
   const entry = shownProposals.get(id);
   if (!entry) return;
-  const { proposal, revision } = entry;
-  if (proposal.kind === 'add_items' || proposal.kind === 'update_item') {
+  const { proposal, revision, choices, initialChoices } = entry;
+  const card = button.closest('.plan-card');
+  const lockPills = () => card?.querySelectorAll('.pc-pill').forEach(pill => { pill.disabled = true; });
+  if (proposal.kind === 'add_items') {
+    if (revision !== snapshot.revision) { shownProposals.delete(id); return tell('清单刚刚有变化，请再发一次以重新核对冲突。', 'warning'); }
+    const unchanged = choices.every((choice, i) => choice === initialChoices[i]);
+    if (unchanged) {
+      let next;
+      try { next = parseTimeSnapshot(JSON.stringify({ ...proposal.preview_snapshot, revision: snapshot.revision + 1 })); }
+      catch (error) { return tell(`草案没能写入：${error.message}`, 'error'); }
+      if (!next.daily_window) next = setDailyWindow(next, DEFAULT_WINDOW);
+      commit(next);
+      shownProposals.delete(id);
+      lockPills();
+      button.disabled = true;
+      button.textContent = `已记入清单 · ${(proposal.items || []).length} 项`;
+      tell('已按确认的草案记入清单，画卷已更新。');
+      return;
+    }
+    let next = snapshot;
+    let addedCount = 0;
+    const disruptions = [];
+    for (const [index, item] of (proposal.items || []).entries()) {
+      const chosen = choices[index] || 'appointment';
+      if (chosen === 'disruption') {
+        const startAt = item.start_at || item.deadline_at;
+        if (!startAt) continue;
+        const startMs = Date.parse(startAt);
+        const endAt = item.end_at && Date.parse(item.end_at) > startMs ? item.end_at : isoAt(startMs + 60 * 60000);
+        disruptions.push({ title: item.title, start_at: startAt, end_at: endAt });
+      } else if (chosen === 'temporary' || chosen === 'appointment') {
+        const startAt = item.start_at || item.deadline_at || null;
+        const endAt = item.end_at && startAt && Date.parse(item.end_at) > Date.parse(startAt) ? item.end_at : null;
+        next = addEvent(next, { title: item.title, kind: chosen, start_at: startAt, end_at: endAt, location: item.location || null, notes: ['由司序语义理解生成草案，经用户切换归类后记入'] });
+        addedCount += 1;
+      } else {
+        const deadlineAt = item.deadline_at || item.end_at || item.start_at || null;
+        let earliest = item.earliest_start_at || (chosen === 'personal' && deadlineAt ? `${deadlineAt.slice(0, 10)}T00:00:00+08:00` : null);
+        if (earliest && deadlineAt && Date.parse(earliest) >= Date.parse(deadlineAt)) earliest = null;
+        const notes = chosen === 'personal'
+          ? ['个人任务', '由司序语义理解生成草案，经用户切换归类后记入']
+          : ['由司序语义理解生成草案，经用户切换归类后记入'];
+        next = addTask(next, { title: item.title, deadline_at: deadlineAt, earliest_start_at: earliest, estimate_minutes: item.estimate_minutes ?? null, location: item.location || null, notes });
+        addedCount += 1;
+      }
+    }
+    if (addedCount) {
+      if (!next.daily_window) next = setDailyWindow(next, DEFAULT_WINDOW);
+      commit(next);
+    }
+    shownProposals.delete(id);
+    lockPills();
+    button.disabled = true;
+    if (disruptions.length) {
+      button.textContent = '正在按临时打断重算…';
+      const state = await startReplan({ kind: 'disruption', disruption: disruptions[0] });
+      if (state?.error) { button.textContent = addedCount ? `已记入 ${addedCount} 项（重算未完成）` : '重算未完成'; return tell(state.error, 'error'); }
+      button.textContent = addedCount ? `已记入 ${addedCount} 项并重算` : (state?.applied ? '已记下临时打断（原安排不用动）' : '已生成重排方案 · 去画卷选');
+      tell(state?.applied ? '已按临时打断记下，原来的安排都赶得上。' : '已按临时打断重算这一周，请到画卷查看并选择方案。');
+      return;
+    }
+    button.textContent = `已记入清单 · ${addedCount} 项`;
+    tell('已按你切换后的归类记入清单，画卷已更新。');
+    return;
+  }
+  if (proposal.kind === 'update_item') {
     if (revision !== snapshot.revision) { shownProposals.delete(id); return tell('清单刚刚有变化，请再发一次以重新核对冲突。', 'warning'); }
     let next;
     try { next = parseTimeSnapshot(JSON.stringify({ ...proposal.preview_snapshot, revision: snapshot.revision + 1 })); }
@@ -1842,8 +1932,8 @@ async function adoptProposal(id, button) {
     commit(next);
     shownProposals.delete(id);
     button.disabled = true;
-    button.textContent = proposal.kind === 'add_items' ? `已记入清单 · ${(proposal.items || []).length} 项` : '已采用这项改动';
-    tell(proposal.kind === 'add_items' ? '已按确认的草案记入清单，画卷已更新。' : '已按确认的改动更新清单，画卷已重算。');
+    button.textContent = '已采用这项改动';
+    tell('已按确认的改动更新清单，画卷已重算。');
     return;
   }
   if (proposal.kind === 'focus_window') {
@@ -1877,6 +1967,8 @@ async function adoptProposal(id, button) {
 $('inkThread').addEventListener('click', event => {
   const adopt = event.target.closest('[data-plan-adopt]');
   if (adopt && !adopt.disabled) { adoptPlan(adopt.dataset.planAdopt, adopt); return; }
+  const propKind = event.target.closest('[data-prop-kind]');
+  if (propKind && !propKind.disabled) { switchProposalKind(propKind.dataset.propKind, propKind); return; }
   const propBtn = event.target.closest('[data-proposal-adopt]');
   if (propBtn && !propBtn.disabled) { adoptProposal(propBtn.dataset.proposalAdopt, propBtn); return; }
   const escalate = event.target.closest('[data-escalate-chat]');
