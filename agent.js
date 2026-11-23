@@ -646,6 +646,7 @@ function showTurn(text, html) {
   $('noticeText').value = '';
   $('noticeText').style.height = '';
   $('noticeDate').value = '';
+  clearOcrPreview();
   // Like a chat: the composer stays put at the bottom, and the thread scrolls so this turn starts at the top.
   const turn = $('importSummary').previousElementSibling;
   (window.requestAnimationFrame || window.setTimeout)(() => turn?.scrollIntoView?.({ block: 'start', behavior: scrollBehavior() }));
@@ -868,6 +869,7 @@ $('newThread')?.addEventListener('click', () => {
   const box = $('importSummary');
   box.hidden = true; box.innerHTML = ''; delete box.dataset.turn;
   chatHistory.splice(0); lastTaskId = null; pendingDiff = null;
+  clearOcrPreview();
   setRail(false);
   window.scrollTo({ top: 0, behavior: scrollBehavior() });
   $('noticeText').focus({ preventScroll: true });
@@ -962,6 +964,20 @@ const TIMETABLE_LIKE = /[一二三四五六日]{4,}|第\s*0*\d+\s*周|星期[一
 const ocrAsTimetable = Object.assign(document.createElement('button'), { type: 'button', id: 'ocrAsTimetable', hidden: true, textContent: '这是课表？改用课表截图识别' });
 $('ocrStatus').after(ocrAsTimetable);
 function ocrStatus(message) { $('ocrStatus').textContent = message; }
+function clearOcrPreview({ keepStatus = false } = {}) {
+  ocrSequence += 1;
+  ocrHandoff = null;
+  ocrAsTimetable.hidden = true;
+  if (ocrPreviewUrl) { window.URL.revokeObjectURL(ocrPreviewUrl); ocrPreviewUrl = null; }
+  $('ocrPreviewImage')?.removeAttribute('src');
+  if ($('ocrPreview')) $('ocrPreview').hidden = true;
+  if ($('chooseNoticeImage')) $('chooseNoticeImage').disabled = false;
+  if (!keepStatus) ocrStatus('');
+}
+$('clearOcrPreview')?.addEventListener('click', () => {
+  clearOcrPreview();
+  $('noticeText')?.focus({ preventScroll: true });
+});
 async function recognizeNotice(file) {
   const problem = imageProblem(file);
   if (problem) return ocrStatus(problem);
@@ -996,8 +1012,7 @@ $('chooseNoticeImage').addEventListener('click', () => $('noticeImage').click())
 ocrAsTimetable.addEventListener('click', () => {
   if (!ocrHandoff) return;
   const { file, textBefore } = ocrHandoff;
-  ocrHandoff = null;
-  ocrAsTimetable.hidden = true;
+  clearOcrPreview({ keepStatus: true });
   $('noticeText').value = textBefore;
   $('noticeText').dispatchEvent(new window.Event('input', { bubbles: true }));
   ocrStatus('已把这张图交给课表截图识别，结果在“铺纸”页的“从课表铺底色”里。');

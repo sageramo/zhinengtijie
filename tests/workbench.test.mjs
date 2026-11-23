@@ -690,6 +690,22 @@ test('a screenshot is recognised locally into the notice box without any request
   assert.equal(app.calls.length, before);
   assert.equal(app.find('#ocrPreview').hidden, false);
   assert.match(app.find('#ocrStatus').textContent, /对照截图/);
+  app.find('#clearOcrPreview').click();
+  assert.equal(app.find('#ocrPreview').hidden, true);
+  assert.equal(app.find('#ocrAsTimetable').hidden, true);
+  assert.equal(app.find('#ocrStatus').textContent, '');
+});
+
+test('starting a new thread clears any lingering screenshot preview', async t => {
+  const engine = ocrEngine(async () => '2026年11月24日15:00举办主题大课');
+  const app = await boot(t, { ocrEngine: engine });
+  chooseImage(app, screenshot());
+  await settle(20);
+  assert.equal(app.find('#ocrPreview').hidden, false);
+  app.find('#newThread').click();
+  assert.equal(app.find('#ocrPreview').hidden, true);
+  assert.equal(app.find('#ocrAsTimetable').hidden, true);
+  assert.equal(app.find('#ocrStatus').textContent, '');
 });
 
 test('recognised text is appended, failures keep the text and non-images are refused', async t => {
