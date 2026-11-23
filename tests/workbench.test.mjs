@@ -144,10 +144,10 @@ test('the task starter uses only the supplied excerpt, never writes back, and cl
   assert.equal(app.find('[data-starter-result]').hidden, true);
 });
 
-test('tabs start at 研磨, the agent entry, with plain glosses, and the workbench links back home', async t => {
+test('tabs start at 研墨, the agent entry, with plain glosses, and the workbench links back home', async t => {
   const app = await boot(t);
   assert.deepEqual(app.all('.page-tabs a').map(tab => [tab.dataset.tab, tab.querySelector('.tab-name').textContent, tab.querySelector('.tab-sub').textContent]),
-    [['import', '研磨', '通知与提醒'], ['time', '铺纸', '底色与留白'], ['items', '笔墨', '落笔与点墨'], ['calendar', '画卷', '一周日历']]);
+    [['import', '研墨', '通知与提醒'], ['time', '铺纸', '底色与留白'], ['items', '笔墨', '落笔与点墨'], ['calendar', '画卷', '一周日历']]);
   assert.equal(app.find('.aux-nav a[href="#/"]').textContent, '项目介绍');
   assert.deepEqual(app.all('.next-step').map(link => link.getAttribute('href')).sort(), ['#/calendar', '#/items', '#/time']);
   assert.deepEqual(app.all('.feature-card').map(card => card.getAttribute('href')), ['#/import', '#/time', '#/items', '#/calendar']);

@@ -528,7 +528,7 @@ function renderItems() {
   $('appointmentList').innerHTML = appointments.length ? appointments.map(eventMarkup).join('') : '<p class="empty-note">还没有约定。和别人约好的事可以加在这里。</p>';
   const personal = snapshot.tasks.filter(isPersonal);
   const deadlines = snapshot.tasks.filter(task => !isPersonal(task));
-  $('personalList').innerHTML = personal.length ? personal.map(taskMarkup).join('') : '<p class="empty-note">还没有个人任务。点“添加个人任务”，或在研磨里说“提醒我今天……”。</p>';
+  $('personalList').innerHTML = personal.length ? personal.map(taskMarkup).join('') : '<p class="empty-note">还没有个人任务。点“添加个人任务”，或在研墨里说“提醒我今天……”。</p>';
   $('taskList').innerHTML = deadlines.length ? deadlines.map(taskMarkup).join('') : '<p class="empty-note">还没有截止之事。导入通知或手动添加。</p>';
   for (const [id, list] of [['eventCount', points], ['appointmentCount', appointments], ['personalCount', personal], ['deadlineCount', deadlines]]) $(id).textContent = String(list.length);
   const sizes = { appointment: appointments.length, personal: personal.length, deadline: deadlines.length };
@@ -836,7 +836,7 @@ $('noticeForm').addEventListener('submit', async event => {
     if (ticket === parseSequence) { busy($('parseNotice'), false, '发送', '正在处理…'); hideParseProgress(); }
   }
 });
-// ---- The 研磨 conversation: what was sent, and what 司序 added, newest last above the composer.
+// ---- The 研墨 conversation: what was sent, and what 司序 added, newest last above the composer.
 function archiveTurn() {
   const current = $('importSummary');
   if (!current.dataset.turn) return; // the box is hidden while a new send runs, so a flag says it holds a reply
@@ -854,7 +854,7 @@ function pushUserTurn(text) {
   turn.textContent = text;
   $('importSummary').before(turn);
 }
-// ---- 研磨的左栏：导入过的通知与说过的状态（清单里的东西，不是另一套会话） ----------------
+// ---- 研墨的左栏：导入过的通知与说过的状态（清单里的东西，不是另一套会话） ----------------
 function renderInkRail() {
   if (!$('railSources')) return;
   const sources = snapshot.sources.filter(source => source.kind !== 'timetable').slice().reverse().slice(0, 40);
@@ -1667,7 +1667,7 @@ function applyPlan(index) {
 }
 
 // ---- 计划被打断：重排预览与确认（后端 /api/v3/replan/*）-----------------------------
-// One sentence in 研磨 becomes a draft (an interruption, a rest to keep, a low/high-energy window). The backend
+// One sentence in 研墨 becomes a draft (an interruption, a rest to keep, a low/high-energy window). The backend
 // plans every option inside the hard constraints and says whether the user has to choose; only then a card shows.
 // Nothing is written until a plan is taken, and what is written is exactly what the 画卷 then draws.
 function saveFocus(next, { render = true } = {}) {
@@ -1764,7 +1764,7 @@ function toggleStart() {
   }, 1000) };
   renderCalendar();
 }
-/** 铺纸 · 常用专注时段 and the temporary states said in 研磨 (each can be removed). */
+/** 铺纸 · 常用专注时段 and the temporary states said in 研墨 (each can be removed). */
 function renderFocusSetup() {
   const form = $('focusForm');
   if (!form) return;
@@ -1776,7 +1776,7 @@ function renderFocusSetup() {
   fill('Weekday', 'w-weekday');
   fill('Weekend', 'w-weekend');
   const states = focusSettings.states.filter(state => Date.parse(state.end_at) > Date.now());
-  $('focusStates').innerHTML = states.length ? `<p class="field-help">研磨里说过的状态</p><ul class="focus-state-list">${states.map(state => `<li><span>${state.level === 'low' ? '精力偏低' : '临时专注'} ${escapeHTML(dayLabel(Date.parse(state.start_at)))} ${spanText(Date.parse(state.start_at), Date.parse(state.end_at))}</span><em>“${escapeHTML(state.text)}”</em><button type="button" class="text-button" data-focus-state="${escapeHTML(state.id)}">删去</button></li>`).join('')}</ul>` : '';
+  $('focusStates').innerHTML = states.length ? `<p class="field-help">研墨里说过的状态</p><ul class="focus-state-list">${states.map(state => `<li><span>${state.level === 'low' ? '精力偏低' : '临时专注'} ${escapeHTML(dayLabel(Date.parse(state.start_at)))} ${spanText(Date.parse(state.start_at), Date.parse(state.end_at))}</span><em>“${escapeHTML(state.text)}”</em><button type="button" class="text-button" data-focus-state="${escapeHTML(state.id)}">删去</button></li>`).join('')}</ul>` : '';
 }
 $('focusForm')?.addEventListener('submit', event => {
   event.preventDefault();
@@ -1792,7 +1792,7 @@ $('focusStates')?.addEventListener('click', event => {
   if (button) saveFocus(removeState(focusSettings, button.dataset.focusState));
 });
 
-// ---- 研磨里一句话完成的操作（chat-actions.js 解析，这里执行并回复） -----------------------
+// ---- 研墨里一句话完成的操作（chat-actions.js 解析，这里执行并回复） -----------------------
 const activeTitles = () => snapshot.tasks.filter(task => task.status === 'active').slice(0, 3).map(task => task.title);
 /** Runs one sentence action and answers in the thread; false hands the sentence on to the usual flow. */
 async function runChatAction(text, action) {
@@ -1872,7 +1872,7 @@ function adoptPlan(id, button) {
   let next = snapshot;
   let count = 0;
   for (const item of plan.placements || []) for (const block of item.blocks || []) {
-    next = addEvent(next, { title: item.title, kind: 'appointment', start_at: block.start, end_at: block.end, notes: ['研磨试算后记下的约定'] });
+    next = addEvent(next, { title: item.title, kind: 'appointment', start_at: block.start, end_at: block.end, notes: ['研墨试算后记下的约定'] });
     count += 1;
   }
   if (!count) return;
@@ -2080,7 +2080,7 @@ $('inkThread').addEventListener('click', event => {
   }
 });
 
-/** What 研磨 answers after a sentence about one's state or an interruption. */
+/** What 研墨 answers after a sentence about one's state or an interruption. */
 function stateReply(draft, state) {
   const said = escapeHTML(draftLabel(draft));
   const go = '<p class="inline-links"><a href="#/calendar" data-agenda-calendar>去画卷看</a></p>';

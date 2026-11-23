@@ -120,7 +120,7 @@ test('the band draws each interval with its source, and rests written by a confi
   assert.deepEqual(lockedRests(snapshot).map(rest => rest.label), ['午休恢复']);
   const focus = setCommonWindows(normalizeFocus(null), { weekday: { start: '14:00', end: '16:00' } });
   const day = dayStartOf(Date.parse('2026-11-25T12:00:00+08:00'));
-  assert.deepEqual(daySegments(focus, snapshot, day).map(s => [s.kind, s.source]), [['rest', '研磨 · 休息“午休恢复”'], ['focus', '铺纸 · 常用专注时段']]);
+  assert.deepEqual(daySegments(focus, snapshot, day).map(s => [s.kind, s.source]), [['rest', '研墨 · 休息“午休恢复”'], ['focus', '铺纸 · 常用专注时段']]);
   const band = bandMarkup(focus, snapshot, day, 8, 22);
   assert.match(band, /fb-focus/);
   assert.match(band, /left:42\.86%;width:14\.29%/); // 14:00–16:00 across 08:00–22:00

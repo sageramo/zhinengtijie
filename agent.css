@@ -1380,7 +1380,7 @@ html[data-dir="prev"]::view-transition-new(sixu-page) { animation-name: page-in-
 .ss-backdrop .ss-day, .ss-backdrop .ss-water { display: none; }
 @media (max-width: 1000px) { .scroll.is-rolled .scroll-cover { order: -1; margin-top: 0; } }
 
-/* ---- 研磨：对话与通知输入 ---- */
+/* ---- 研墨：对话与通知输入 ---- */
 .page-import { max-width: 1120px; }
 .ink-chat { padding: 32px clamp(20px, 3.2vw, 44px) 26px; }
 .ink-hello { display: grid; justify-items: center; gap: 8px; margin: 0 0 26px; text-align: center; }
@@ -1461,7 +1461,7 @@ html[data-dir="prev"]::view-transition-new(sixu-page) { animation-name: page-in-
 .ink-chat:has(.turn-user) .ink-hello { padding-bottom: 16px; border-bottom: 1px solid var(--line); }
 .ink-chat:has(.turn-user) .ink-hello h2 { font-size: 1.25rem; }
 
-/* ---- 路演打磨：研磨结果分组、画卷图层条、叠墨标出位置与变化 ---- */
+/* ---- 路演打磨：研墨结果分组、画卷图层条、叠墨标出位置与变化 ---- */
 .turn-result { display: grid; gap: 12px; margin: 0 0 10px; }
 .turn-group h4 { display: flex; align-items: baseline; gap: 10px; margin: 0 0 6px; font-size: .875rem; font-weight: 700; color: var(--text); }
 .turn-group h4 small { color: var(--muted); font-size: .75rem; font-weight: 400; }
@@ -1673,7 +1673,7 @@ html[data-dir="prev"]::view-transition-new(sixu-page) { animation-name: page-in-
 .item-list > .item-card > .evidence[open] > summary::before { transform: rotate(45deg) translate(-2px, -1px); }
 @media (max-width: 760px) { .item-list > .item-card > .evidence, .item-list > .item-card > .item-edit { margin-top: 4px; } }
 
-/* ---- 研磨：墨韵页头、浮在墨上的砚池、试一试 ---- */
+/* ---- 研墨：墨韵页头、浮在墨上的砚池、试一试 ---- */
 .ink-chat { --pad: clamp(20px, 3.2vw, 44px); position: relative; padding: 0 var(--pad) 26px; }
 .ink-chat > .ink-hello { position: relative; isolation: isolate; display: grid; grid-template-columns: auto minmax(0, 1fr); justify-items: start; align-items: center; gap: 8px 26px; margin: 0 calc(-1 * var(--pad)); padding: 40px var(--pad) 70px; overflow: hidden; border-radius: calc(var(--radius) - 1px) calc(var(--radius) - 1px) 0 0; color: #fff; text-align: left;
   background:
@@ -1993,7 +1993,7 @@ html[data-dir="prev"]::view-transition-new(sixu-page) { animation-name: page-in-
 
 /* ---- 专注时段带 & 重排卡 (UI .51) ------------------------------------------------
    The band is a thin ink strip under each day head: self-reported intervals, drawn as intervals.
-   深墨 = 常用专注（铺纸），中墨描边 = 临时专注，淡墨 = 精力偏低，斜纹 = 休息（研磨）. */
+   深墨 = 常用专注（铺纸），中墨描边 = 临时专注，淡墨 = 精力偏低，斜纹 = 休息（研墨）. */
 .cal-head-day.has-band { position: relative; padding-bottom: 14px; }
 html[data-current="calendar"] .cal-head-day.has-band { padding-bottom: 13px; }
 .cal-fb { position: absolute; left: 4px; right: 4px; bottom: 3px; height: 7px; border-radius: 4px; background: rgba(43, 38, 32, .05); overflow: hidden; }
@@ -2079,9 +2079,9 @@ html[data-current="calendar"] .cal-head-day.has-band { padding-bottom: 13px; }
 .focus-state-list li { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 10px; font-size: .8125rem; }
 .focus-state-list em { color: var(--muted); font-style: normal; font-size: .75rem; }
 
-/* ==== UI .53 — 浮动顶栏 & 研磨对话布局 ==========================================================
+/* ==== UI .53 — 浮动顶栏 & 研墨对话布局 ==========================================================
    The header floats over every page as a translucent bar and tucks away while scrolling down.
-   研磨 reads like Claude / Codex: records on the left, the thread scrolls, the composer stays put. */
+   研墨 reads like Claude / Codex: records on the left, the thread scrolls, the composer stays put. */
 :root { --layer-header-height: 0px; }
 [data-app] .site-header {
   position: fixed; top: 10px; left: 50%; z-index: 40;
@@ -2110,7 +2110,7 @@ html[data-current="calendar"] .cal-head-day.has-band { padding-bottom: 13px; }
   [data-app] .workspace { padding-top: calc(var(--hdr-h, 110px) + 14px); }
 }
 
-/* ---- 研磨: page background in the 画卷 palette (paper, pale blue ink, far mountains). */
+/* ---- 研墨: page background in the 画卷 palette (paper, pale blue ink, far mountains). */
 html[data-current="import"] [data-app] {
   background:
     url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 1600 360' preserveAspectRatio='none'%3E%3Cpath d='M0 250 C120 200 210 150 330 190 S520 120 640 170 S850 230 980 160 S1220 110 1340 175 S1520 210 1600 180 V360 H0Z' fill='%23c9d6e6' opacity='.45'/%3E%3Cpath d='M0 300 C160 250 260 230 400 262 S640 220 780 250 S1010 290 1160 240 S1420 230 1600 268 V360 H0Z' fill='%23a9bcd3' opacity='.4'/%3E%3Cpath d='M0 340 C200 310 380 300 560 322 S900 330 1100 312 S1420 318 1600 330 V360 H0Z' fill='%238ea6c2' opacity='.32'/%3E%3C/svg%3E") left bottom / 100% 32vh no-repeat fixed,
@@ -2201,7 +2201,7 @@ html[data-current="import"] [data-page="import"] {
   .page-import .ink-composer { padding-bottom: max(12px, env(safe-area-inset-bottom)); }
 }
 /* The rail replaces the old 原文记录 list; settings and the footer stay on the other pages, so the
-   研磨 column ends at the composer and the composer can stay at the bottom of the window. */
+   研墨 column ends at the composer and the composer can stay at the bottom of the window. */
 .page-import > .import-side { display: none; }
 html[data-current="import"] .workspace > :is(.settings, .page-footer) { display: none; }
 html[data-current="import"] [data-app] .workspace { padding-bottom: 0; }
@@ -2237,7 +2237,7 @@ html[data-current="items"] [data-app] .workspace:has(> [data-page="items"] > .ro
   html[data-current="items"] [data-app] .workspace:has(> [data-page="items"] > .rolls:not([data-open])) { padding-top: 0; }
 }
 /* Where the floating note goes: bottom right on most pages (their controls sit at the top),
-   top right on 研磨 (its composer sits at the bottom). */
+   top right on 研墨 (its composer sits at the bottom). */
 [data-app] :is(.backup-nudge, #storageConflict):not([hidden]) {
   top: auto; bottom: max(18px, env(safe-area-inset-bottom)); left: auto; right: 18px; width: min(400px, calc(100% - 36px)); transform: none;
 }
@@ -2246,14 +2246,14 @@ html[data-current="import"] [data-app] :is(.backup-nudge, #storageConflict):not(
 .page-import .ink-chat .ink-composer { position: sticky; bottom: 0; }
 @media (max-width: 760px) {
   .page-import .ink-chat { min-height: calc(100dvh - var(--hdr-h, 110px) - 12px); }
-  /* On a phone's 研磨 the note sits just above the composer, clear of 记录与工具 at the top. */
+  /* On a phone's 研墨 the note sits just above the composer, clear of 记录与工具 at the top. */
   html[data-current="import"] [data-app] :is(.backup-nudge, #storageConflict):not([hidden]) { top: auto; bottom: 200px; }
 }
 /* The phone drawer opens below the floating header, so its 收起 button is never under the header. */
 @media (max-width: 900px) {
   .ink-rail { top: var(--hdr-h, 110px); border-radius: 0 18px 0 0; }
 }
-/* Narrow screens put the page arrows at the bottom; on 研磨 that is the composer, so they sit above it. */
+/* Narrow screens put the page arrows at the bottom; on 研墨 that is the composer, so they sit above it. */
 @media (max-width: 1240px) {
   html[data-current="import"] .page-arrow { bottom: 214px; }
 }
@@ -2275,7 +2275,7 @@ html[data-current="import"] [data-app] :is(.backup-nudge, #storageConflict):not(
 /* The .50 entrance rule sizes the note to the page width through an id selector; the floating note keeps its own size. */
 [data-app] .workspace > :is(.backup-nudge, #storageConflict):not([hidden]) { width: min(400px, calc(100% - 36px)) !important; max-width: none !important; margin: 0 !important; }
 
-/* ==== UI .55 — 研磨 as calm as a chat harness =====================================================
+/* ==== UI .55 — 研墨 as calm as a chat harness =====================================================
    Only the conversation and the composer carry weight: flat paper, one-line greeting, plain-text
    suggestions above the composer, a list-like rail, small muted chrome. */
 html[data-current="import"] [data-app] { background: linear-gradient(180deg, #faf8f3 0%, #f7f4ec 100%); }
@@ -2413,7 +2413,7 @@ html[data-current="import"] body { background: #f7f4ec; }
 /* The brush lettering is drawn on near-white; multiply lets the paper and the blur show through it. */
 .hero.is-genie .hero-brush, .hero.is-genie .hero-tagline img { mix-blend-mode: multiply; }
 /* 墨韵 in the ink-and-paper palette of the pages (the sky blues came from the old blue theme):
-   thick ink, then pale ink, then the 研磨 paper, which is what the workbench opens onto. */
+   thick ink, then pale ink, then the 研墨 paper, which is what the workbench opens onto. */
 .route-veil { color: #2a3a4c; }
 .route-veil .ink-1 { background: radial-gradient(circle, #121c27 0%, #1f2d3c 55%, #34465a 100%); }
 .route-veil .ink-2 { background: radial-gradient(circle, #6f8296 0%, #b9c4cf 100%); }
@@ -2454,7 +2454,7 @@ html.intro .route-veil { background: #f7f4ec; }
 .koi-bloom { position: absolute; width: 320px; height: 320px; border-radius: 50%; transform: translate(-50%, -50%) scale(.1); opacity: 0;
   background: radial-gradient(circle, rgba(15, 24, 34, .7) 0%, rgba(34, 52, 74, .4) 38%, rgba(76, 99, 128, 0) 70%); filter: blur(6px); }
 
-/* 研磨 keeps the scroll painting as a faint background: what the crossing fades into. */
+/* 研墨 keeps the scroll painting as a faint background: what the crossing fades into. */
 html[data-current="import"] [data-app] { position: relative; isolation: isolate; }
 html[data-current="import"] [data-app]::before {
   content: ""; position: fixed; inset: 0; z-index: -1; pointer-events: none;
@@ -2463,7 +2463,7 @@ html[data-current="import"] [data-app]::before {
   mask-image: linear-gradient(180deg, rgba(0, 0, 0, .95) 0%, rgba(0, 0, 0, .3) 38%, rgba(0, 0, 0, .3) 62%, rgba(0, 0, 0, .85) 100%);
 }
 
-/* Arrival: 研磨's parts wait while the fish swims, then come up in turn as it dives in. */
+/* Arrival: 研墨's parts wait while the fish swims, then come up in turn as it dives in. */
 html.koi-arriving:not(.koi-landed) :is(.site-header, .ink-rail, .page-import .ink-hello > *, .page-import .ink-hello .inkstone, .page-import .ink-suggest, .page-import .ink-thread, .page-import .ink-composer, .page-arrow) { opacity: 0; }
 html.koi-landed .page-import .ink-hello .inkstone { animation: koi-stone 760ms cubic-bezier(.3, 1.4, .5, 1) both; }
 html.koi-landed .page-import .ink-hello > :not(svg) { animation: koi-rise 620ms ease 260ms both; }
@@ -2949,7 +2949,7 @@ html[data-current="calendar"] [data-app]::after {
 .ss-backdrop .ss-energy-light, .ss-backdrop .ss-energy-veil { display: none; }
 
 /* ==== 试算卡（.63）：排不排得开 =====================================================================
-   One card in the 研磨 thread for /api/v3/capacity/plan and the chat's capacity: an ink verdict line
+   One card in the 研墨 thread for /api/v3/capacity/plan and the chat's capacity: an ink verdict line
    (blue-grey when it fits, vermilion when it does not), one row per activity, what is left, the
    backend's trade-offs, and 照这样记进日历 when it fits. */
 .plan-card { display: grid; gap: 10px; max-width: 560px; margin-top: 10px; padding: 14px 16px 16px; border-radius: 6px; background: rgba(255, 254, 250, .78); box-shadow: inset 0 0 0 1px rgba(74, 96, 118, .16), 0 14px 30px -24px rgba(30, 42, 53, .5); }
@@ -3092,7 +3092,7 @@ html[data-current="calendar"] [data-app]::before {
 [data-app] .page-calendar .cal { background: rgba(251, 249, 245, .14); box-shadow: 0 0 0 1px rgba(30, 42, 53, .06), 0 30px 60px -40px rgba(30, 42, 53, .3); }
 @media (max-width: 760px) { html[data-current="calendar"] [data-app]::before { background-size: auto 40vh; background-position: 4% 100%; } }
 
-/* ==== 研磨在想（.65）================================================================================
+/* ==== 研墨在想（.65）================================================================================
    No more spinning ink blob over the composer, and no ring: what you wrote stays legible (only quieter),
    and the status line shows three ink dots dropping in turn with a brush stroke running under the words. */
 .inkwell-ripple, .inkwell.is-grinding .inkwell-ripple { display: none; animation: none; }

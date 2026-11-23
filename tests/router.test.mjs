@@ -18,15 +18,15 @@ function boot(hash) {
   return { window, doc, key, current: () => doc.documentElement.dataset.current, find: selector => doc.querySelector(selector) };
 }
 
-test('side arrows step through 研磨 → 铺纸 → 笔墨 → 画卷 and hide at the ends', () => {
+test('side arrows step through 研墨 → 铺纸 → 笔墨 → 画卷 and hide at the ends', () => {
   const app = boot('#/import');
   assert.equal(app.current(), 'import');
-  assert.equal(app.find('.page-arrow.is-prev').hidden, true, 'no page before 研磨');
+  assert.equal(app.find('.page-arrow.is-prev').hidden, true, 'no page before 研墨');
   assert.equal(app.find('.page-arrow.is-next').getAttribute('aria-label'), '下一页：铺纸');
   assert.equal(app.find('.page-arrow.is-next .page-arrow-label').textContent, '铺纸');
   app.find('.page-arrow.is-next').click();
   assert.equal(app.current(), 'time');
-  assert.equal(app.find('.page-arrow.is-prev').getAttribute('aria-label'), '上一页：研磨');
+  assert.equal(app.find('.page-arrow.is-prev').getAttribute('aria-label'), '上一页：研墨');
 });
 
 test('the arrow keys turn pages, but not while typing or with a modifier', () => {

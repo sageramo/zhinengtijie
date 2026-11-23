@@ -1,9 +1,9 @@
 // 墨鱼入砚: entering the workbench from the landing.
 // The scroll painting comes up clear over everything and the view drifts in towards the lake. Behind it
-// 研磨 is switched in and measured, so the fish has a real destination: the inkstone above the greeting
+// 研墨 is switched in and measured, so the fish has a real destination: the inkstone above the greeting
 // (or, mid-conversation, the composer — the 砚池). Rings spread on the water, an ink fish leaps out and
 // swims an S towards it, leaving a trail, and dives in: the stone splashes, ink blooms out of the pool,
-// and the painting fades into the faint copy of itself that 研磨 keeps as its background, while 研磨's
+// and the painting fades into the faint copy of itself that 研墨 keeps as its background, while 研墨's
 // parts come up in turn (stone, greeting, suggestions, composer, rail, header). Played on every entry
 // from the landing; a click or key skips to the end; reduced motion and browsers without CSS motion
 // paths switch at once.
@@ -85,10 +85,10 @@
     paint.animate([{ opacity: 0 }, { opacity: 1 }], { duration: 300, easing: 'ease-out', fill: 'forwards' });
     paint.animate([{ transform: 'scale(1)' }, { transform: 'scale(1.16)' }], { duration: 3400, easing: 'cubic-bezier(.3,.1,.3,1)', fill: 'forwards' });
 
-    // 2. Behind it, 研磨 is switched in and measured: the fish swims to its inkstone (or its composer).
+    // 2. Behind it, 研墨 is switched in and measured: the fish swims to its inkstone (or its composer).
     later(320, () => {
       switchIn();
-      // 研磨 opens at its top: measure only once the page has scrolled there and laid out.
+      // 研墨 opens at its top: measure only once the page has scrolled there and laid out.
       window.scrollTo(0, 0);
       window.requestAnimationFrame(() => window.requestAnimationFrame(aim));
     });
@@ -121,8 +121,8 @@
       layer.querySelector('.koi-tail').animate([{ transform: 'rotate(-16deg)' }, { transform: 'rotate(16deg)' }], { duration: 240, iterations: Infinity, direction: 'alternate', easing: 'ease-in-out' });
       layer.querySelectorAll('.koi-fin').forEach(fin => fin.animate([{ transform: 'rotate(-8deg)' }, { transform: 'rotate(8deg)' }], { duration: 420, iterations: Infinity, direction: 'alternate', easing: 'ease-in-out' }));
       trail.animate([{ strokeDashoffset: length, opacity: .9 }, { strokeDashoffset: 0, opacity: .6 }], { duration: SWIM, delay: 120, easing: 'cubic-bezier(.45,.05,.3,1)', fill: 'both' });
-      // 3. It dives into the stone: the pool splashes, ink blooms, the painting fades into 研磨's own,
-      //    and 研磨's parts come up in turn (CSS, html.koi-landed).
+      // 3. It dives into the stone: the pool splashes, ink blooms, the painting fades into 研墨's own,
+      //    and 研墨's parts come up in turn (CSS, html.koi-landed).
       later(120 + SWIM - 80, () => {
         fish.animate([{ opacity: 1, scale: 1.15 }, { opacity: 0, scale: .25 }], { duration: 300, easing: 'cubic-bezier(.5,0,.8,.4)', fill: 'forwards' });
         layer.querySelectorAll('.koi-splash').forEach((ring, index) => ring.animate(

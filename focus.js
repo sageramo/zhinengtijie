@@ -3,9 +3,9 @@
  *
  * The backend plans, compares and verifies; this module only keeps what the user said and draws it:
  * - 常用专注时段, set once in 铺纸; a task's mark (需要专注 / 适合碎片时间), set in 笔墨 when it matters;
- *   temporary 精力 windows said in 研磨. They live beside the v3 snapshot (whose contract allows no extra
+ *   temporary 精力 windows said in 研墨. They live beside the v3 snapshot (whose contract allows no extra
  *   fields), in this browser only, and go to the backend with every preview.
- * - One sentence in 研磨 → a draft of the change: an interruption, a rest to keep, or a low/high-energy window.
+ * - One sentence in 研墨 → a draft of the change: an interruption, a rest to keep, or a low/high-energy window.
  *   Nothing is written until the user picks a plan; rests and interruptions are then written by the backend.
  * - The 专注时段带 above the week and the 重排卡. Self-reported intervals are drawn as intervals with their
  *   source, never as a measured curve.
@@ -88,7 +88,7 @@ export function removeState(focus, id) {
   return { ...focus, states: focus.states.filter(state => state.id !== id) };
 }
 
-// ---- One sentence in 研磨 → a draft change -------------------------------------
+// ---- One sentence in 研墨 → a draft change -------------------------------------
 const REST = /(歇|休息|躺|放空|喘口气|午睡|睡一会|眯一会|缓一缓|缓一下)/;
 const DEGREE = '(?:有点儿?|有些|略微?|稍微?|非常|特别|太|真|挺|很|较|比较|实在|确实|一直|还是)?';
 const LOW = new RegExp(`(累|困|乏|疲惫|没精神|没精力|没劲|(?:状态|精力|精神)${DEGREE}(?:不(?:太|大|怎么|算)?(?:好|行|够|佳|在线)|差|一般|低|偏低|不足|不够|欠佳|跟不上|糟糕|崩了)|头(?:疼|痛|晕)|不舒服|转不动|脑子很乱|效率${DEGREE}(?:偏低|太低|低|不行|差))`);
@@ -255,10 +255,10 @@ export function daySegments(focus, snapshot, dayStart, pending = null) {
   const out = [];
   const clip = (kind, start, end, source) => { const a = Math.max(start, dayStart); const b = Math.min(end, dayEnd); if (b > a) out.push({ kind, start: a, end: b, source }); };
   for (const w of focus.windows) if (w.weekdays.includes(weekdayOf(dayStart + HOUR))) clip('focus', dayStart + clockMinutes(w.start) * MINUTE, dayStart + clockMinutes(w.end) * MINUTE, '铺纸 · 常用专注时段');
-  for (const state of focus.states) clip(state.level === 'low' ? 'low' : 'high', Date.parse(state.start_at), Date.parse(state.end_at), `研磨 · “${state.text}”`);
-  for (const rest of lockedRests(snapshot)) clip('rest', rest.start, rest.end, `研磨 · 休息“${rest.label}”`);
-  if (pending?.rest) clip('rest', Date.parse(pending.rest.start), Date.parse(pending.rest.end), `研磨 · “${pending.text}”（待你选方案）`);
-  if (pending?.state) clip(pending.state.level === 'low' ? 'low' : 'high', Date.parse(pending.state.start_at), Date.parse(pending.state.end_at), `研磨 · “${pending.text}”（待你选方案）`);
+  for (const state of focus.states) clip(state.level === 'low' ? 'low' : 'high', Date.parse(state.start_at), Date.parse(state.end_at), `研墨 · “${state.text}”`);
+  for (const rest of lockedRests(snapshot)) clip('rest', rest.start, rest.end, `研墨 · 休息“${rest.label}”`);
+  if (pending?.rest) clip('rest', Date.parse(pending.rest.start), Date.parse(pending.rest.end), `研墨 · “${pending.text}”（待你选方案）`);
+  if (pending?.state) clip(pending.state.level === 'low' ? 'low' : 'high', Date.parse(pending.state.start_at), Date.parse(pending.state.end_at), `研墨 · “${pending.text}”（待你选方案）`);
   const order = { focus: 0, high: 1, low: 2, rest: 3 };
   return out.sort((a, b) => a.start - b.start || order[a.kind] - order[b.kind]);
 }
@@ -302,7 +302,7 @@ export function bandLegend(focus, snapshot, pending = null) {
   if (pending?.state) kinds.add(pending.state.level === 'low' ? 'low' : 'high');
   if (!kinds.size) return '';
   const item = (kind, text) => (kinds.has(kind) ? `<li class="fb-key fb-${kind}"><i aria-hidden="true"></i>${text}</li>` : '');
-  return `<ul class="fb-legend" aria-label="专注时段带：每天格子上方的细条">${item('focus', '专注 · 铺纸设的常用时段')}${item('high', '临时专注 · 研磨里说的')}${item('low', '精力偏低 · 研磨里说的')}${item('rest', '休息 · 研磨里说的')}<li class="fb-note">自评的区间，不是测量</li></ul>`;
+  return `<ul class="fb-legend" aria-label="专注时段带：每天格子上方的细条">${item('focus', '专注 · 铺纸设的常用时段')}${item('high', '临时专注 · 研墨里说的')}${item('low', '精力偏低 · 研墨里说的')}${item('rest', '休息 · 研墨里说的')}<li class="fb-note">自评的区间，不是测量</li></ul>`;
 }
 /** 解析画卷 on a phone: today's state, without the band. */
 export function todayStateMarkup(focus, snapshot, now, pending = null) {

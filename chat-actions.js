@@ -1,5 +1,5 @@
 /**
- * 研磨里一句话就能做的事（不必去笔墨、铺纸里找）：
+ * 研墨里一句话就能做的事（不必去笔墨、铺纸里找）：
  * - 起步卡："帮我开个头：交实验报告"（另起一行可贴材料原文）
  * - 常用专注时段："我工作日晚上7点到9点最专注" / "周末上午9到11点效率最高"
  * - 任务标记："实验报告需要专注" / "报名表碎片时间做就行"
@@ -134,7 +134,7 @@ export function parseChatAction(text, { afterAsk = null } = {}) {
   return parseStarter(text) || parseFocusWindow(text, { afterAsk }) || parseMark(text) || parseNamedUpdate(text);
 }
 
-// ---- Markup in the 研磨 thread ------------------------------------------------------
+// ---- Markup in the 研墨 thread ------------------------------------------------------
 /** The 起步卡 as a reply: one first step, the material lines it came from, start and copy. */
 export function starterReply(task, card, { degraded = false } = {}) {
   const excerpts = card.material_brief?.excerpts || [];

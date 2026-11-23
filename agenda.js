@@ -1,4 +1,4 @@
-// Shared by 研磨 and 画卷 on the web and in the mini program.
+// Shared by 研墨 and 画卷 on the web and in the mini program.
 import { minutesLabel, remainingCapacity, weekStart, weekRange } from './calendar.js';
 import { isPersonal, setPersonalDay, setReferenceTime, updateTask } from './time-state.js';
 

@@ -423,7 +423,7 @@ export function calendarMarkup({ result, start, now, loading = false, error = ''
     : weekConflicts.length ? (weekUndefined.length ? `<p class="cal-hint" role="status">另有 ${weekUndefined.length} 项待书，见下方。</p>` : '')
     : weekUndefined.length ? `<p class="cal-hint" role="status">有 ${weekUndefined.length} 项待书，已按写清楚的部分落笔。</p>`
     : result ? '<p class="cal-hint" role="status">这一周没有叠墨，所有信息都已写清楚。</p>' : '';
-  const empty = result && !inWeek.length ? '<div class="cal-empty"><p>这一周还是一片空白。</p><span>在「铺纸」里铺好底色、定下留白，再到「研磨」导入通知，事情会落在这里。</span></div>' : '';
+  const empty = result && !inWeek.length ? '<div class="cal-empty"><p>这一周还是一片空白。</p><span>在「铺纸」里铺好底色、定下留白，再到「研墨」导入通知，事情会落在这里。</span></div>' : '';
   const brief = result ? weeklyBrief(inWeek, start, now) : [];
   const side = result ? sideLists(result, weekConflicts, weekUndefined, undo, note, weighs, changes, plans) : '<section class="cal-side-block"><p>计算完成后，这里列出这一周的叠墨对策、剩余留白和待书。</p></section>';
   const stat = (value, label) => `<li><b>${value}</b><span>${label}</span></li>`;

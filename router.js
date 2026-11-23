@@ -3,11 +3,11 @@
 // The current page is html[data-current]; CSS shows only that page, so back/forward and reload all work.
 (() => {
   const root = document.documentElement;
-  const titles = { home: '司序 Marshal · 知所先后', time: '铺纸 · 司序', import: '研磨 · 司序', items: '笔墨 · 司序', calendar: '画卷 · 司序' };
+  const titles = { home: '司序 Marshal · 知所先后', time: '铺纸 · 司序', import: '研墨 · 司序', items: '笔墨 · 司序', calendar: '画卷 · 司序' };
   const aliases = { review: 'items', plan: 'calendar' };
   const routeOf = hash => {
     if (!hash.startsWith('#/')) return hash && root.dataset.current ? root.dataset.current : 'home';
-    // #/import?text=… (from an iPhone shortcut) and #/import?shared=1 (from the share sheet) open 研磨.
+    // #/import?text=… (from an iPhone shortcut) and #/import?shared=1 (from the share sheet) open 研墨.
     const raw = hash.slice(2).split('?')[0];
     const name = aliases[raw] || raw;
     return Object.hasOwn(titles, name) && name ? name : 'home';
@@ -107,7 +107,7 @@
 
   // The four workbench pages in painting order; arrows and the arrow keys step through them.
   const ORDER = ['import', 'time', 'items', 'calendar'];
-  const NAMES = { time: '铺纸', import: '研磨', items: '笔墨', calendar: '画卷' };
+  const NAMES = { time: '铺纸', import: '研墨', items: '笔墨', calendar: '画卷' };
 
   // A link click fires both hashchange and popstate; the veil already on its way absorbs the second.
   let pending = null;
@@ -118,7 +118,7 @@
     if (ready && veil && !calm.matches && from === 'home' && route !== 'home') {
       pending = route;
       const enter = () => { pending = null; show(route, options); };
-      // 墨鱼入砚 (koi.js): the painting fades into 研磨's background as the fish dives into its inkstone.
+      // 墨鱼入砚 (koi.js): the painting fades into 研墨's background as the fish dives into its inkstone.
       if (window.SixuKoi?.supported()) window.SixuKoi.cross(enter);
       else playVeil(enter);
     } else if (ready && veil && !calm.matches && ORDER.includes(from) && route === 'home') {
