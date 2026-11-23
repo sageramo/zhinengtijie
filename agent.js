@@ -352,7 +352,8 @@ function renderCalendar() {
     energy: showBand ? Array.from({ length: 7 }, (_, index) => daySegments(focusSettings, snapshot, shownWeek() + index * DAY, pending)).flat() : [],
     bandLegend: showBand ? bandLegend(focusSettings, snapshot, pending) : '',
     banner: replanState ? replanMarkup(card, 'board') : '',
-    sideTop: (replanState ? replanMarkup(card, 'side') : '') + todayStateMarkup(focusSettings, snapshot, nowMs, pending),
+    sideTop: replanState ? replanMarkup(card, 'side') : '',
+    sideToday: todayStateMarkup(focusSettings, snapshot, nowMs, pending),
     alertLabel: waiting ? '1 个取舍' : '' });
   if (scrollRolled && calendarResult) coverPainted = true;
   $('calendarView').querySelector('.cal-remind-slot')?.append(remindBar);

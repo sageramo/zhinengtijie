@@ -3139,3 +3139,17 @@ html[data-current="calendar"] [data-app]::before {
 @media (min-width: 761px) {
   .page-calendar .scroll-cover .cover-painting { width: min(100%, calc((100svh - var(--cover-chrome, 400px)) * 1000 / 420)); margin-inline: auto; }
 }
+
+/* ==== 本周解析两栏（.67）===========================================================================
+   The page was one grid that put only the reminder beside 叠墨 · 对策 and left the right half empty.
+   Now: what needs a decision on the left (叠墨, 待书); the week's reading on the right, stacked:
+   reminder, 本周还可用, 提要, the four counts. One column on narrow screens. */
+.scroll.is-analyzed .side-aside { display: grid; align-content: start; gap: 14px; }
+.scroll.is-analyzed .side-aside > * { min-width: 0; margin: 0; }
+.scroll.is-analyzed .side-aside .cal-stats { border-top: 0; padding: 12px 0; border-radius: 4px; background: rgba(255, 254, 250, .72); box-shadow: inset 0 0 0 1px rgba(30, 42, 53, .1); }
+@media (min-width: 1000px) {
+  .scroll.is-analyzed .scroll-side { grid-template-columns: minmax(0, 1.7fr) minmax(300px, 1fr); }
+  .scroll.is-analyzed .scroll-side > .cal-pending { grid-column: 1; }
+  .scroll.is-analyzed .scroll-side > .side-aside { grid-column: 2; }
+}
+@media (max-width: 999px) { .scroll.is-analyzed .scroll-side > :is(.cal-pending, .side-aside) { grid-column: 1 / -1; } }

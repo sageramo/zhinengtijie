@@ -331,9 +331,9 @@ export function weeklyBrief(items, start, now) {
  * Optional page-supplied parts (kept out of this module so the mini program can share it unchanged):
  * band(dayStart, firstHour, lastHour) draws the 专注时段带 in each day head, ribbon(...) the same intervals
  * inside each day column on the week's time axis, bandLegend explains them,
- * banner is the 重排卡 above the week, sideTop opens 本周解析, alertLabel badges the 解析画卷 button.
+ * banner is the 重排卡 above the week, sideTop opens 本周解析 (full width), sideToday heads its right column, alertLabel badges the 解析画卷 button.
  */
-export function calendarMarkup({ result, start, now, loading = false, error = '', undo = '', note = '', changes = [], plans = null, weighs = {}, focus = '', rolled = false, unrolling = false, fresh = false, analyzed = true, futureRef = '', listView = false, band = null, ribbon = null, energy = [], bandLegend = '', banner = '', sideTop = '', alertLabel = '' }) {
+export function calendarMarkup({ result, start, now, loading = false, error = '', undo = '', note = '', changes = [], plans = null, weighs = {}, focus = '', rolled = false, unrolling = false, fresh = false, analyzed = true, futureRef = '', listView = false, band = null, ribbon = null, energy = [], bandLegend = '', banner = '', sideTop = '', sideToday = '', alertLabel = '' }) {
   const weekConflicts = conflictsInWeek(result?.conflicts || [], start);
   const weekUndefined = undefinedInWeek(result, start);
   const items = calendarItems(result, start);
@@ -478,10 +478,13 @@ export function calendarMarkup({ result, start, now, loading = false, error = ''
         ${sideTop}
         ${status}
         <div class="cal-pending">${side}</div>
-        <div class="cal-remind-slot"></div>
-        ${remaining && end > now ? `<section class="cal-capacity" aria-label="剩余可用时间"><h3>${start > now ? '这一周可用' : '本周还可用'}</h3><p><strong>${minutesLabel(remaining.total)}</strong><span>最长连续 ${minutesLabel(remaining.longest)}</span>${weekUndefined.length ? '<span>待补时间的事项可能占用空档。</span>' : ''}</p><a href="#/import?capacity=1">试算一项新承诺</a></section>` : ''}
-        ${brief.length ? `<ul class="cal-brief" aria-label="本周提要">${brief.map(line => `<li>${line}</li>`).join('')}</ul>` : ''}
-        <ul class="cal-stats" aria-label="本周统计">${stat(count('routine'), '底色')}${stat(count('work') + count('appointment'), '落笔')}${stat(count('temporary'), '点墨')}${stat(count('deadline'), '截止')}</ul>
+        <div class="side-aside">
+          ${sideToday}
+          <div class="cal-remind-slot"></div>
+          ${remaining && end > now ? `<section class="cal-capacity" aria-label="剩余可用时间"><h3>${start > now ? '这一周可用' : '本周还可用'}</h3><p><strong>${minutesLabel(remaining.total)}</strong><span>最长连续 ${minutesLabel(remaining.longest)}</span>${weekUndefined.length ? '<span>待补时间的事项可能占用空档。</span>' : ''}</p><a href="#/import?capacity=1">试算一项新承诺</a></section>` : ''}
+          ${brief.length ? `<ul class="cal-brief" aria-label="本周提要">${brief.map(line => `<li>${line}</li>`).join('')}</ul>` : ''}
+          <ul class="cal-stats" aria-label="本周统计">${stat(count('routine'), '底色')}${stat(count('work') + count('appointment'), '落笔')}${stat(count('temporary'), '点墨')}${stat(count('deadline'), '截止')}</ul>
+        </div>
       </aside>
       ${rolled ? cover.replace('<section class="scroll-cover" aria-labelledby="coverHeading">', head => head + bar) : `    <div class="scroll-mount"><div class="cal-board">${backdrop}${docked ? bar : ''}${banner}${layerStrip}${bandLegend}
         <div class="cal-week${crowded.size ? ' has-crowded' : ''}${band ? ' has-band' : ''}"${focus ? ` data-focus="${escape(focus)}"` : ''} style="--rows:${last - first}${crowded.size ? `;--cols:var(--time-col, 54px) ${days.map((_, index) => crowded.has(index) ? 'minmax(0, 1.5fr)' : 'minmax(0, 1fr)').join(' ')}` : ''}">
