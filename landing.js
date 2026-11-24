@@ -1,4 +1,4 @@
-// Landing page motion: the looping hero film over its still (assets/hero-ribbon-loop.mp4, hero-ribbon-plate.jpg), words that
+// Landing page motion: the looping hero film over its still (assets/hero-loop.webm / .mp4 over hero-poster.webp), words that
 // pull up into place once, and an about paragraph whose characters brighten as it scrolls through. Reduced
 // motion keeps the film on its poster frame and shows all text at full strength.
 (() => {
@@ -110,20 +110,23 @@
   }
   // The living painting in the lens: plays only on the landing, never for reduced motion (the poster,
   // its first frame, stays), and pauses while the tab is hidden.
+  // The film (0.7–1.3 MB) is not fetched until the page has loaded, so on a slow phone it never competes with the code and
+  // the first screen; the poster is its first frame, so nothing jumps. With Save-Data on it stays a still.
   const loop = stage?.querySelector('.hg-video');
+  let pageLoaded = document.readyState === 'complete';
+  const saveData = Boolean(navigator.connection?.saveData);
   function runLoop() {
     if (!loop) return;
-    const play = !calm.matches && root.dataset.current === 'home' && !document.hidden;
+    const play = pageLoaded && !saveData && !calm.matches && root.dataset.current === 'home' && !document.hidden;
     if (play) loop.play()?.catch(() => { /* autoplay refused: the poster stays */ });
     else loop.pause();
   }
-  if (loop && calm.matches) loop.removeAttribute('autoplay');
   document.addEventListener('visibilitychange', runLoop);
   calm.addEventListener?.('change', runLoop);
   measureTitle();
   window.addEventListener('scroll', () => { updateReveal(); updateLens(); }, { passive: true });
   window.addEventListener('resize', () => { updateReveal(); measureTitle(); updateLens(); });
-  window.addEventListener('load', () => { measureTitle(); updateLens(); });
+  window.addEventListener('load', () => { pageLoaded = true; measureTitle(); updateLens(); runLoop(); });
   document.addEventListener('sixu:route', event => { runLoop(); if (event.detail === 'home') { startSky(); updateReveal(); measureTitle(); updateLens(); } else { pauseFilm(); chart?.stop(); night?.stop(); } });
   startSky();
   updateReveal();
