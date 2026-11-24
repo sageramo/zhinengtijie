@@ -126,3 +126,37 @@ test('the band draws each interval with its source, and rests written by a confi
   assert.match(band, /left:42\.86%;width:14\.29%/); // 14:00–16:00 across 08:00–22:00
   assert.equal(bandUsed(normalizeFocus(null), fixtures.success_replan.preview_request.snapshot), false);
 });
+
+test('compact hyphen ranges and 后天 work for disruptions and states without misparsing plain future notices', () => {
+  const morning = Date.parse('2026-11-25T09:00:00+08:00');
+  const groupCut = parseStateSentence('明天下午 2-4 点临时加了个组会', NOW);
+  assert.equal(groupCut?.kind, 'disruption');
+  assert.deepEqual([groupCut.disruption.start_at, groupCut.disruption.end_at, groupCut.disruption.title], ['2026-11-26T14:00:00+08:00', '2026-11-26T16:00:00+08:00', '加了个组会']);
+
+  const halfCut = parseStateSentence('今天下午2-4点半临时开会', morning);
+  assert.deepEqual([halfCut?.disruption?.start_at, halfCut?.disruption?.end_at, halfCut?.disruption?.title], ['2026-11-25T14:00:00+08:00', '2026-11-25T16:30:00+08:00', '开会']);
+
+  const morningCut = parseStateSentence('明早9-11点临时开复盘会', NOW);
+  assert.deepEqual([morningCut?.disruption?.start_at, morningCut?.disruption?.end_at], ['2026-11-26T09:00:00+08:00', '2026-11-26T11:00:00+08:00']);
+
+  const rest24 = parseStateSentence('明天14-16点想歇会儿', NOW);
+  assert.equal(rest24?.kind, 'rest');
+  assert.deepEqual([rest24.rest.start, rest24.rest.end, rest24.rest.locked], ['2026-11-26T14:00:00+08:00', '2026-11-26T16:00:00+08:00', true]);
+
+  const cnCompact = parseStateSentence('下午两到四点临时开会', morning);
+  assert.deepEqual([cnCompact?.disruption?.start_at, cnCompact?.disruption?.end_at, cnCompact?.disruption?.title], ['2026-11-25T14:00:00+08:00', '2026-11-25T16:00:00+08:00', '开会']);
+
+  const dayAfterCut = parseStateSentence('后天下午2-4点临时开会', NOW);
+  assert.deepEqual([dayAfterCut?.disruption?.start_at, dayAfterCut?.disruption?.end_at, dayAfterCut?.disruption?.title], ['2026-11-27T14:00:00+08:00', '2026-11-27T16:00:00+08:00', '开会']);
+
+  const dayAfterRest = parseStateSentence('后天下午想歇会儿', NOW);
+  assert.deepEqual([dayAfterRest?.rest?.start, dayAfterRest?.rest?.end], ['2026-11-27T13:00:00+08:00', '2026-11-27T18:00:00+08:00']);
+
+  const dayAfterLow = parseStateSentence('后天晚上状态不好', NOW);
+  assert.deepEqual([dayAfterLow?.state?.level, dayAfterLow?.state?.start_at, dayAfterLow?.state?.end_at], ['low', '2026-11-27T19:00:00+08:00', '2026-11-27T23:00:00+08:00']);
+
+  for (const text of ['后天下午三点排练', '后天下午2-4点开班会']) {
+    assert.equal(parseStateSentence(text, NOW), null, text);
+  }
+  assert.equal(parseStateSentence('临时帮辅导员搬2-4箱东西', NOW)?.missing, '什么时候到什么时候');
+});

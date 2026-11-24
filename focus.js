@@ -94,8 +94,9 @@ const DEGREE = '(?:有点儿?|有些|略微?|稍微?|非常|特别|太|真|挺|�
 const LOW = new RegExp(`(累|困|乏|疲惫|没精神|没精力|没劲|(?:状态|精力|精神)${DEGREE}(?:不(?:太|大|怎么|算)?(?:好|行|够|佳|在线)|差|一般|低|偏低|不足|不够|欠佳|跟不上|糟糕|崩了)|头(?:疼|痛|晕)|不舒服|转不动|脑子很乱|效率${DEGREE}(?:偏低|太低|低|不行|差))`);
 const HIGH = new RegExp(`((?:状态|精力|精神)${DEGREE}(?:不错|很好|挺好|蛮好|充沛|拉满|(?<!不)在线)|能专心|很专注|能专注|静得下心|效率${DEGREE}(?:高|不错))`);
 const DISRUPT = /(开.{0,6}会|被(?:叫|拉|喊)|临时|突然|找我|帮(?:忙|辅导员|老师|同学)|搬东西|值班|加班|排练|集合|面试)/;
-const NOT_STATE = /^(?:提醒我|帮我记|记得|别忘了|待办)|【|通知|截止|提交|报名|作业|考试|讲座|\d{4}年|\d{1,2}月\d{1,2}[日号]|(?:下个?|本|这)?(?:周|星期|礼拜)[一二三四五六日天]|后天|大后天|[？?]$/;
-const PERIOD_WORD = '(上午|早上|早晨|中午|下午|傍晚|晚上|今晚|明晚)';
+const EXPLICIT_DISRUPT = /(?:临时|突然|被(?:叫|拉|喊)|插)/;
+const NOT_STATE = /^(?:提醒我|帮我记|记得|别忘了|待办)|【|通知|截止|提交|报名|作业|考试|讲座|\d{4}年|\d{1,2}月\d{1,2}[日号]|(?:下个?|本|这)?(?:周|星期|礼拜)[一二三四五六日天]|大后天|[？?]$/;
+const PERIOD_WORD = '(上午|早上|早晨|明早|中午|下午|傍晚|晚上|今晚|明晚)';
 const NUM = { 半: 0.5, 一: 1, 两: 2, 二: 2, 三: 3, 四: 4 };
 function chineseNumber(word) {
   const digit = { 零: 0, 〇: 0, 一: 1, 二: 2, 两: 2, 三: 3, 四: 4, 五: 5, 六: 6, 七: 7, 八: 8, 九: 9 };
@@ -124,8 +125,12 @@ export function parseStateSentence(text, now) {
   const rest = !disrupt && REST.test(line);
   const level = !disrupt && !rest ? (LOW.test(line) ? 'low' : HIGH.test(line) ? 'high' : null) : null;
   if (!disrupt && !rest && !level) return null;
-  const digits = line.replace(/[零〇一二两三四五六七八九十]+(?=点)/g, word => String(chineseNumber(word)));
-  const dayShift = /明天|明早|明晚/.test(digits) ? 1 : 0;
+  const digits = line.replace(
+    /[零〇一二两三四五六七八九十]+(?=\s*(?:点|(?:到|至|-|—|~|～)\s*(?:上午|早上|早晨|明早|中午|下午|傍晚|晚上|今晚|明晚)?\s*[零〇一二两三四五六七八九十\d]+\s*(?:点|:)))/g,
+    word => String(chineseNumber(word))
+  );
+  const dayShift = /后天/.test(digits) ? 2 : /明天|明早|明晚/.test(digits) ? 1 : 0;
+  if (dayShift === 2 && disrupt && !EXPLICIT_DISRUPT.test(line)) return null;
   const base = dayStartOf(now) + dayShift * DAY;
   const period = (digits.match(/上午|早上|早晨|中午|下午|傍晚|晚上|今晚|明晚|明早/) || [''])[0];
   const afternoonHint = !dayShift && now - dayStartOf(now) >= 12 * HOUR;
@@ -139,8 +144,10 @@ export function parseStateSentence(text, now) {
   };
   let start = null;
   let end = null;
-  const range = digits.match(new RegExp(`${PERIOD_WORD}?\\s*(\\d{1,2})(?:点|:)(半|\\d{2})?\\s*(?:分)?\\s*(?:到|至|-|—|~)\\s*${PERIOD_WORD}?\\s*(\\d{1,2})(?:点|:)?(半|\\d{2})?`));
-  const noonRange = digits.match(new RegExp(`中午\\s*(?:到|至|-|—|~)\\s*${PERIOD_WORD}?\\s*(\\d{1,2})(?:点|:)?(半|\\d{2})?`));
+  const SEP = '(?:到|至|-|—|~|～)';
+  const range = digits.match(new RegExp(`${PERIOD_WORD}?\\s*(\\d{1,2})\\s*(?:点|:)(半|\\d{2})?\\s*(?:分)?\\s*${SEP}\\s*${PERIOD_WORD}?\\s*(\\d{1,2})\\s*(?:点|:)?(半|\\d{2})?`))
+    || digits.match(new RegExp(`${PERIOD_WORD}?\\s*(\\d{1,2})()\\s*${SEP}\\s*${PERIOD_WORD}?\\s*(\\d{1,2})\\s*(?:点|:)(半|\\d{2})?`));
+  const noonRange = digits.match(new RegExp(`中午\\s*${SEP}\\s*${PERIOD_WORD}?\\s*(\\d{1,2})\\s*(?:点|:)?(半|\\d{2})?`));
   const until = digits.match(new RegExp(`到\\s*${PERIOD_WORD}?\\s*(\\d{1,2})(?:点|:)(半|\\d{2})?`));
   const after = digits.match(/(\d{1,2})(?:点|:)(半|\d{2})?\s*(?:以后|之后|后)/);
   const length = digits.match(/(半|一|两|二|三|四|\d+(?:\.\d)?)\s*个?\s*(半)?\s*小时|(\d+)\s*分钟/);
@@ -183,10 +190,10 @@ export function parseStateSentence(text, now) {
   const id = `${start.toString(36)}`;
   if (disrupt) {
     const title = line
-      .replace(/(?:今天|明天|下午|上午|中午|晚上|傍晚|今晚|刚刚?|突然|临时|我)/g, '')
-      .replace(/\d{1,2}(?:点|:)(?:半|\d{2})?(?:分)?\s*(?:到|至|-|—|~)\s*(?:上午|中午|下午|傍晚|晚上)?\s*\d{1,2}(?:点|:)?(?:半|\d{2})?/g, '')
-      .replace(/[零〇一二两三四五六七八九十\d]+点半?(?:到|至)(?:上午|中午|下午|傍晚|晚上)?[零〇一二两三四五六七八九十\d]+点半?/g, '')
-      .replace(/(?:到|至|-|—|~)\s*[零〇一二两三四五六七八九十\d]+点半?/g, '')
+      .replace(/(?:今天|明天|后天|明早|明晚|下午|上午|早上|早晨|中午|晚上|傍晚|今晚|刚刚?|突然|临时|我)/g, '')
+      .replace(/\d{1,2}\s*(?:点|:)?(?:半|\d{2})?(?:分)?\s*(?:到|至|-|—|~|～)\s*(?:上午|早上|早晨|明早|中午|下午|傍晚|晚上|今晚|明晚)?\s*\d{1,2}\s*(?:点|:)?(?:半|\d{2})?(?:分)?/g, '')
+      .replace(/[零〇一二两三四五六七八九十]+(?:点半?)?\s*(?:到|至|-|—|~|～)\s*(?:上午|早上|早晨|明早|中午|下午|傍晚|晚上|今晚|明晚)?\s*[零〇一二两三四五六七八九十]+点半?/g, '')
+      .replace(/(?:到|至|-|—|~|～)\s*[零〇一二两三四五六七八九十\d]+\s*(?:点|:)?(?:半|\d{2})?/g, '')
       .replace(/^[\s了要得被到至]+|[\s了]+$/g, '')
       .slice(0, 30) || '临时打断';
     return { kind: 'disruption', text: line, disruption: { id: `e-cut-${id}`, title, start_at: isoAt(start), end_at: isoAt(end), location: null } };
