@@ -3167,3 +3167,11 @@ html[data-current="calendar"] [data-app]::before {
   .scroll.is-analyzed .scroll-side > .side-aside { grid-column: 2; }
 }
 @media (max-width: 999px) { .scroll.is-analyzed .scroll-side > :is(.cal-pending, .side-aside) { grid-column: 1 / -1; } }
+
+/* ==== 画卷 top gap (.81) =============================================================================
+   A later tint gave the outer .cal card its fill and ring back, while it kept a 22px top padding and no side
+   padding, and the mount added 14px above itself: two empty bands stacked over the board, none at the sides.
+   The outer card draws nothing again and adds no space; the mount's own paper margin (the same on every side)
+   is the only frame around the board. */
+[data-app] .page-calendar .cal { padding-block: 0; background: transparent; box-shadow: none; }
+.page-calendar .scroll-mount, .page-calendar .scroll.is-solo .scroll-mount { margin-top: 0; }
