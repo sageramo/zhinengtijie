@@ -143,3 +143,29 @@ test('weekly scoping excludes conflicts from other weeks and solo view hides the
   assert.match(soloHtml, /class="scroll-side" aria-label="本周解析" hidden>/);
   assert.match(soloHtml, /data-cal-analyze aria-expanded="false"[^>]*>.*解析画卷.*1 处叠墨/);
 });
+
+test('本周解析 (.82): a clean week is one line, no second 回到画卷, no repeated counts, 待书 says where it leads', () => {
+  const clean = structuredClone(result);
+  clean.conflicts = [];
+  const html = calendarMarkup({ result: clean, start: monday, now: monday });
+  assert.match(html, /class="cal-side-block cx is-clear"[^>]*><p class="cx-clear-line"><b id="calConflictHeading">叠墨 · 对策 <span>0<\/span><\/b>/);
+  assert.doesNotMatch(html, /side-close/);
+  assert.doesNotMatch(html, /cal-stats/);
+  assert.match(html, /待书 <span>\d+<\/span>/);
+  assert.match(html, /class="cal-issue-go">(去补上|去铺纸设置作息|去铺纸确认底色) →<\/em>/);
+  // with 叠墨 the full card and its strategies are still there
+  assert.match(calendarMarkup({ result, start: monday, now: monday }), /<h3 id="calConflictHeading">叠墨 · 对策 <span>[1-9]/);
+});
+
+test('这周还能接多少 names the longest stretch, and without 作息 says why it cannot count, with the way to 铺纸', () => {
+  const html = calendarMarkup({ result, start: monday, now: monday });
+  assert.match(html, /<h3>这周还能接<\/h3><p><strong>[^<]+<\/strong><span>最长连续 [^<：]+：11月\d+日 周. \d\d:\d\d–\d\d:\d\d<\/span>/);
+  assert.match(html, /再接一件事？先试算/);
+  const unknown = structuredClone(result);
+  unknown.definition = { ...unknown.definition, free_time: 'undefined' };
+  const blank = calendarMarkup({ result: unknown, start: monday, now: monday });
+  assert.match(blank, /class="cal-capacity is-unknown"[^>]*><h3>这周还能接多少<\/h3>.*还算不出来：每天的作息还没定/s);
+  assert.match(blank, /data-cal-goto="time" data-cal-roll="free">去铺纸设置作息 →<\/button>/);
+  // a past week asks nothing
+  assert.doesNotMatch(calendarMarkup({ result, start: monday, now: monday + 8 * 86400000 }), /cal-capacity/);
+});

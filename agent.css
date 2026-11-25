@@ -3175,3 +3175,15 @@ html[data-current="calendar"] [data-app]::before {
    is the only frame around the board. */
 [data-app] .page-calendar .cal { padding-block: 0; background: transparent; box-shadow: none; }
 .page-calendar .scroll-mount, .page-calendar .scroll.is-solo .scroll-mount { margin-top: 0; }
+
+/* ==== 本周解析 (.82) ================================================================================
+   An untroubled week's 叠墨 is one quiet line, a 待书 row says where it leads, and 这周还能接多少 stays in
+   view even before 作息 is set (then it says why it cannot count yet, with the way to fix that). */
+.scroll-side .cx.is-clear { padding-block: 14px; }
+.scroll-side .cx-clear-line { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 12px; margin: 0; color: #4f6f5a; font-family: var(--font-kai); font-size: .9rem; }
+.scroll-side .cx-clear-line b { color: var(--text); font-family: var(--font-serif, inherit); font-size: 1.05rem; font-weight: 600; }
+.scroll-side .cx-clear-line b span { display: inline-grid; place-items: center; min-width: 1.5em; height: 1.5em; margin-left: 4px; border-radius: 999px; background: rgba(79, 111, 90, .14); color: #4f6f5a; font-size: .8rem; }
+.cal-issue .cal-issue-go { display: block; margin-top: 6px; color: var(--accent-deep, #8a5a2b); font-style: normal; font-size: .78rem; font-weight: 600; }
+.cal-issue:hover .cal-issue-go { text-decoration: underline; text-underline-offset: 3px; }
+.cal-capacity.is-unknown p span { color: var(--muted); line-height: 1.6; }
+.cal-capacity.is-unknown .text-button { margin-top: 8px; padding: 0; font-weight: 600; }

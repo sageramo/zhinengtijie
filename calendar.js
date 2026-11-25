@@ -222,9 +222,13 @@ function sideLists(result, weekConflicts, weekUndefined, undo, note, weighs, cha
   const conflicts = weekConflicts.map(conflict => conflictCard(conflict, result, weighs)).join('');
   const undefinedRows = weekUndefined.map(item => {
     const target = item.id ? `data-cal-item="${escape(item.id)}" data-cal-layer="${item.type.startsWith('event_') ? 'event' : 'task'}"` : `data-cal-goto="time" data-cal-roll="${item.type === 'routines_unconfirmed' ? 'routine' : 'free'}"`;
-    return `<li><button type="button" class="cal-issue is-undefined" ${target}><strong>${escape(item.title || (item.type === 'free_time_undefined' ? '留白' : '底色'))}</strong><span>${escape(item.reason)}</span></button></li>`;
+    const go = item.id ? '去补上' : item.type === 'routines_unconfirmed' ? '去铺纸确认底色' : '去铺纸设置作息';
+    return `<li><button type="button" class="cal-issue is-undefined" ${target}><strong>${escape(item.title || (item.type === 'free_time_undefined' ? '留白' : '底色'))}</strong><span>${escape(item.reason)}</span><em class="cal-issue-go">${go} →</em></button></li>`;
   }).join('');
   const undoBar = undo ? `<p class="cx-undo">已采用：${escape(undo)}<button type="button" class="text-button" data-strategy-undo>撤销</button></p>${changesMarkup(changes)}${noteMarkup(note)}` : '';
+  if (!conflicts && !undoBar) return `<section class="cal-side-block cx is-clear" aria-labelledby="calConflictHeading"><p class="cx-clear-line"><b id="calConflictHeading">叠墨 · 对策 <span>0</span></b>这一周没有相叠，这一卷是干净的。</p></section>
+    ${plansMarkup(plans, weekConflicts)}
+    <section class="cal-side-block" aria-labelledby="calUndefinedHeading"><h3 id="calUndefinedHeading">待书 <span>${weekUndefined.length}</span></h3>${undefinedRows ? `<ul>${undefinedRows}</ul>` : '<p>这一周信息都已写清楚。</p>'}</section>`;
   return `<section class="cal-side-block cx" aria-labelledby="calConflictHeading"><h3 id="calConflictHeading">叠墨 · 对策 <span>${weekConflicts.length}</span></h3>${undoBar}${conflicts ? `<p class="cal-side-note">按规则为这一周每处相叠拟好对策，点一下即采用，画卷随之重算。</p><ol class="cx-list">${conflicts}</ol>` : '<p class="cx-clear">这一周底色、落笔与点墨之间没有相叠，这一卷是干净的。</p>'}</section>
     ${plansMarkup(plans, weekConflicts)}
     <section class="cal-side-block" aria-labelledby="calUndefinedHeading"><h3 id="calUndefinedHeading">待书 <span>${weekUndefined.length}</span></h3>${undefinedRows ? `<ul>${undefinedRows}</ul>` : '<p>这一周信息都已写清楚。</p>'}</section>`;
@@ -307,7 +311,7 @@ export function remainingCapacity(result, from, to) {
   }
   const length = slot => Math.floor((slot.end - slot.start) / MINUTE);
   const longest = slots.reduce((best, slot) => !best || length(slot) > length(best) ? slot : best, null);
-  return { slots, total: slots.reduce((sum, slot) => sum + length(slot), 0), longest: longest ? length(longest) : 0 };
+  return { slots, total: slots.reduce((sum, slot) => sum + length(slot), 0), longest: longest ? length(longest) : 0, longestSlot: longest ? { start: longest.start, end: longest.end } : null };
 }
 
 /** Two or three plain lines about the week: the fullest day and what is due soon. */
@@ -426,7 +430,6 @@ export function calendarMarkup({ result, start, now, loading = false, error = ''
   const empty = result && !inWeek.length ? '<div class="cal-empty"><p>这一周还是一片空白。</p><span>在「铺纸」里铺好底色、定下留白，再到「研墨」导入通知，事情会落在这里。</span></div>' : '';
   const brief = result ? weeklyBrief(inWeek, start, now) : [];
   const side = result ? sideLists(result, weekConflicts, weekUndefined, undo, note, weighs, changes, plans) : '<section class="cal-side-block"><p>计算完成后，这里列出这一周的叠墨对策、剩余留白和待书。</p></section>';
-  const stat = (value, label) => `<li><b>${value}</b><span>${label}</span></li>`;
   const freeMinutes = inWeek.filter(item => item.type === 'free').reduce((sum, item) => sum + (item.end - item.start) / MINUTE, 0);
   const layerButton = (key, name, meaning, value) => `<li><button type="button" class="cal-layer lg-${key}" data-cal-focus="${key}" aria-pressed="${focus === key}"><i aria-hidden="true"></i><strong>${name}</strong><span>${meaning}</span><b>${value}</b></button></li>`;
   const layerStrip = result ? `<div class="cal-layers"><ul aria-label="四层时间，点一层只看这一层">${layerButton('routine', '底色', '每周照例的课与例会', count('routine'))}${layerButton('free', '留白', '自己支配的时间', `${Math.round(freeMinutes / 60)} 小时`)}${layerButton('work', '落笔', '约定与截止之事', count('work') + count('appointment'))}${layerButton('temporary', '点墨', '临时、突发事项', count('temporary'))}${layerButton('conflict', '叠墨', '两件事相撞', weekConflicts.filter(conflict => conflict.start).length)}</ul><p>${focus ? '再点一次，恢复全部图层' : '点一层，只看这一层'}</p></div>` : '';
@@ -474,16 +477,16 @@ export function calendarMarkup({ result, start, now, loading = false, error = ''
     ${docked ? '' : bar}
     <div class="scroll-body">
       <aside class="scroll-side" aria-label="本周解析"${analyzed ? '' : ' hidden'}>
-        <div class="side-head"><span>本周解析</span><button type="button" class="text-button side-close" data-cal-analyze aria-label="回到画卷">回到画卷</button></div>
+        <div class="side-head"><span>本周解析</span></div>
         ${sideTop}
         ${status}
         <div class="cal-pending">${side}</div>
         <div class="side-aside">
           ${sideToday}
           <div class="cal-remind-slot"></div>
-          ${remaining && end > now ? `<section class="cal-capacity" aria-label="剩余可用时间"><h3>${start > now ? '这一周可用' : '本周还可用'}</h3><p><strong>${minutesLabel(remaining.total)}</strong><span>最长连续 ${minutesLabel(remaining.longest)}</span>${weekUndefined.length ? '<span>待补时间的事项可能占用空档。</span>' : ''}</p><a href="#/import?capacity=1">试算一项新承诺</a></section>` : ''}
+          ${end > now && result ? (remaining ? `<section class="cal-capacity" aria-label="这周还能接多少"><h3>${start > now ? '这一周还能接' : '这周还能接'}</h3><p><strong>${minutesLabel(remaining.total)}</strong><span>最长连续 ${minutesLabel(remaining.longest)}${remaining.longestSlot ? `：${monthDay(remaining.longestSlot.start)} ${WEEKDAYS[Math.floor((remaining.longestSlot.start - start) / DAY)] || ''} ${clock(remaining.longestSlot.start)}–${clock(remaining.longestSlot.end)}` : ''}</span>${weekUndefined.length ? '<span>待补时间的事项可能占用空档。</span>' : ''}</p><a href="#/import?capacity=1">再接一件事？先试算</a></section>`
+            : `<section class="cal-capacity is-unknown" aria-label="这周还能接多少"><h3>这周还能接多少</h3><p><span>还算不出来：每天的作息还没定，系统不知道哪些时间归你支配。</span></p><button type="button" class="text-button" data-cal-goto="time" data-cal-roll="free">去铺纸设置作息 →</button></section>`) : ''}
           ${brief.length ? `<ul class="cal-brief" aria-label="本周提要">${brief.map(line => `<li>${line}</li>`).join('')}</ul>` : ''}
-          <ul class="cal-stats" aria-label="本周统计">${stat(count('routine'), '底色')}${stat(count('work') + count('appointment'), '落笔')}${stat(count('temporary'), '点墨')}${stat(count('deadline'), '截止')}</ul>
         </div>
       </aside>
       ${rolled ? cover.replace('<section class="scroll-cover" aria-labelledby="coverHeading">', head => head + bar) : `    <div class="scroll-mount"><div class="cal-board">${backdrop}${docked ? bar : ''}${banner}${layerStrip}${bandLegend}
