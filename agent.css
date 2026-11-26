@@ -2545,6 +2545,29 @@ html.koi-landed .site-header, html.koi-landed .page-arrow { animation: koi-fade 
 .landing .feature-card ul { color: #3d4650; }
 .landing .feature-card li svg { color: #8a7a62; }
 .landing .feature-link { color: #1e2a35; text-decoration: underline; text-decoration-color: rgba(168, 55, 44, .5); text-underline-offset: 5px; }
+
+/* Custom brush lettering on the landing only. The source copy stays in the headings. */
+.landing .about-title { max-width: 46rem; font-size: clamp(1.5rem, 6.4vw, 4.75rem); }
+.brush-lettering { display: block; min-width: 0; }
+.brush-art, .brush-lettering > .brush-art.w { display: none; }
+.about-title .brush-lettering { width: 100%; }
+.features-head .brush-lettering { width: min(100%, 37rem); }
+.brush-lettering.is-lettered > .brush-art { display: block; width: 100%; height: auto; }
+.feature-title .brush-lettering.is-lettered > .brush-art {
+  width: auto; max-width: 100%; height: 2.25rem; object-fit: contain; object-position: left;
+}
+.brush-lettering.is-lettered > .brush-text {
+  position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap;
+}
+@media (forced-colors: active) {
+  .landing .brush-lettering.is-lettered > .brush-art { display: none; }
+  .brush-lettering.is-lettered > .brush-text {
+    position: static; width: auto; height: auto; clip-path: none; white-space: normal;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .landing [data-pull] .brush-art.w { opacity: 1; transform: none; transition: none; }
+}
 @media (min-width: 761px) { .landing .feature-card + .feature-card { border-left: 1px solid rgba(30, 42, 53, .12); } }
 @media (max-width: 760px) { .landing .feature-card + .feature-card { border-top: 1px solid rgba(30, 42, 53, .12); } }
 .landing .landing-foot { color: #6a6358; }

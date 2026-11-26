@@ -30,6 +30,10 @@
     else if (calm.matches || !pullObserver) block.classList.add('is-in');
     else pullObserver.observe(block);
   }
+  // Keep the original title readable until its lettering has decoded, including on image failure.
+  for (const art of document.querySelectorAll('.brush-art')) {
+    art.decode().then(() => art.parentElement.classList.add('is-lettered'), () => {});
+  }
   // The hero is the opening frame: it plays as soon as the intro opens onto it (or at once without one).
   // Timers, not requestAnimationFrame: background tabs never run rAF, and the text must not wait on it.
   const playHero = () => heroBlocks.forEach(block => block.classList.add('is-in'));
