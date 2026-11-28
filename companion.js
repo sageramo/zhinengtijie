@@ -252,6 +252,8 @@ export function companionMarkup({
   chimeOn = true,
   soundSupported = true,
   settlement = null,
+  ledgerOpen = false,
+  ledgerHtml = '',
 } = {}) {
   const totalSec = Math.max(60, durationMinutes * 60);
   const progress = finished ? 1 : Math.max(0, Math.min(1, 1 - remainingSeconds / totalSec));
@@ -353,7 +355,9 @@ export function companionMarkup({
       ${soundMixer}
       <footer class="cmp-foot">
         <span>今日砚耕 <b>${todayStats.study}</b> 分 · 今日闲暇 <b>${todayStats.leisure}</b> 分</span>
+        <button type="button" class="cmp-ledger-toggle" data-cmp-ledger-toggle aria-expanded="${ledgerOpen}">${ledgerOpen ? '收起本周账卷' : '查看本周学休账卷'}</button>
       </footer>
+      ${ledgerOpen && ledgerHtml ? `<div class="cmp-ledger-drawer">${ledgerHtml}</div>` : ''}
     </div>
   </div>`;
 }

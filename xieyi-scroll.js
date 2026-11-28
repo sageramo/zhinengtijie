@@ -220,7 +220,7 @@ export function slotSummary(result, dayStartMs, slot) {
   const e = dayStartMs + slot.endHour * HOUR;
   const busyItems = [];
   if (!result?.layers) {
-    return { freeMinutes: null, busyItems, density: 'is-unknown', label: '待计算' };
+    return { freeMinutes: null, busyItems, density: 'is-unknown', label: '' };
   }
   const pushBusy = (layer, list) => {
     for (const item of list || []) {
@@ -238,7 +238,7 @@ export function slotSummary(result, dayStartMs, slot) {
   busyItems.sort((a, b) => a.start - b.start);
 
   if (result.definition?.free_time !== 'defined') {
-    return { freeMinutes: null, busyItems, density: 'is-unknown', label: '未定作息' };
+    return { freeMinutes: null, busyItems, density: 'is-unknown', label: '' };
   }
   const rawFree = (result.layers.free || [])
     .map(f => [Math.max(s, Date.parse(f.start)), Math.min(e, Date.parse(f.end))])
@@ -291,7 +291,7 @@ export function weeklyLedgerStats(state, result, weekStartMs) {
 }
 
 /**
- * 渲染「本周学休账卷」（可用于画卷侧栏简版或写意页下方的完整账卷）。
+ * 渲染「本周学休账卷」（嵌于解析画卷侧栏与案头伴读抽屉的宋元账帖卡片）。
  */
 export function ledgerMarkup({ state, result, start, now = Date.now(), snapshot = null, compact = false } = {}) {
   const stats = weeklyLedgerStats(state, result, start);
@@ -305,59 +305,63 @@ export function ledgerMarkup({ state, result, start, now = Date.now(), snapshot 
   const activeTasks = (snapshot?.tasks || []).filter(t => t.status === 'active');
 
   const bars = stats.daily.map(d => {
-    const sh = Math.round((d.study / maxDay) * 100);
-    const lh = Math.round((d.leisure / maxDay) * 100);
+    const sh = d.study ? Math.max(6, Math.round((d.study / maxDay) * 100)) : 0;
+    const lh = d.leisure ? Math.max(6, Math.round((d.leisure / maxDay) * 100)) : 0;
     return `<div class="xy-daybar${d.date === todayYmd ? ' is-today' : ''}" title="${d.weekday}：砚耕 ${minutesLabel(d.study)} · 闲暇 ${minutesLabel(d.leisure)}"><div class="xy-cols"><i class="xy-col is-study" style="height:${sh}%"></i><i class="xy-col is-leisure" style="height:${lh}%"></i></div><span>${d.weekday.replace('周', '')}</span></div>`;
   }).join('');
 
   const taskOptions = activeTasks.length
-    ? `<select name="taskId" class="xy-log-task" aria-label="关联落笔事项（可选）"><option value="">不关联具体落笔</option>${activeTasks.map(t => `<option value="${escapeHTML(t.id)}">${escapeHTML(t.title)}${t.estimate_minutes ? `（预估 ${t.estimate_minutes}分）` : ''}</option>`).join('')}</select>`
+    ? `<select name="taskId" class="xy-log-task" aria-label="关联落笔事项（可选）"><option value="">不关联特定落笔</option>${activeTasks.map(t => `<option value="${escapeHTML(t.id)}">${escapeHTML(t.title)}${t.estimate_minutes ? `（${t.estimate_minutes}分）` : ''}</option>`).join('')}</select>`
     : '';
 
-  const recentList = stats.recentLogs.length
-    ? `<ul class="xy-log-list">${stats.recentLogs.map(log => `<li class="xy-log-item is-${log.kind}"><em>${log.kind === 'study' ? '砚耕' : '闲暇'}</em><span>${escapeHTML(log.title)}</span><b>${minutesLabel(log.minutes)} · ${shortDate(log.date)}</b><button type="button" class="xy-del" data-xy-log-del="${escapeHTML(log.id)}" aria-label="删去此笔记录">×</button></li>`).join('')}</ul>`
-    : '<p class="xy-empty-hint">本周尚无记录，可随手记一笔学习或娱乐时间。</p>';
+  const shownLogs = compact ? stats.recentLogs.slice(0, 5) : stats.recentLogs;
+  const recentList = shownLogs.length
+    ? `<ul class="xy-log-list">${shownLogs.map(log => `<li class="xy-log-item is-${log.kind}"><i class="xy-log-dot" aria-hidden="true"></i><span class="xy-log-title">${escapeHTML(log.title)}</span><b>${minutesLabel(log.minutes)} · ${shortDate(log.date)}</b><button type="button" class="xy-del" data-xy-log-del="${escapeHTML(log.id)}" aria-label="删去此笔记录">×</button></li>`).join('')}</ul>`
+    : '<p class="xy-empty-hint">本周尚未落账，专注或手动记一笔后会显于此处。</p>';
 
   return `<section class="xy-ledger${compact ? ' is-compact' : ''}" aria-label="本周学休账卷">
     <header class="xy-ledger-head">
-      <div><p class="cal-eyebrow">本周学休账卷</p><h3>砚耕与闲暇</h3></div>
-      <div class="xy-kpis">
-        <span><em>砚耕（学）</em><strong>${minutesLabel(stats.studyMinutes)}</strong></span>
-        <span><em>闲暇（休/娱）</em><strong>${minutesLabel(stats.leisureMinutes)}</strong></span>
-        <span><em>计划落笔</em><strong>${minutesLabel(stats.plannedWorkMinutes)}</strong></span>
-      </div>
+      <div><p class="xy-ledger-eyebrow">本周学休账卷</p><h3>砚耕与闲暇</h3></div>
+      ${totalLogged ? `<span class="xy-ratio-pill">砚耕 ${studyPct}% · 闲暇 ${leisurePct}%</span>` : '<span class="xy-ratio-pill is-idle">待记</span>'}
     </header>
+    <div class="xy-kpis">
+      <span class="is-study"><em>砚耕（学）</em><strong>${minutesLabel(stats.studyMinutes)}</strong></span>
+      <span class="is-leisure"><em>闲暇（休）</em><strong>${minutesLabel(stats.leisureMinutes)}</strong></span>
+      <span class="is-plan"><em>计划落笔</em><strong>${minutesLabel(stats.plannedWorkMinutes)}</strong></span>
+    </div>
     <div class="xy-ratio" aria-label="砚耕与闲暇比例">
       <div class="xy-ratio-track"><i class="is-study" style="width:${totalLogged ? studyPct : 50}%"></i><i class="is-leisure" style="width:${totalLogged ? leisurePct : 50}%"></i></div>
-      <p class="xy-ratio-note">${totalLogged ? `砚耕占 ${studyPct}% · 闲暇占 ${leisurePct}%（实录自用时间对照）` : '记下一笔砚耕或闲暇后，此处画出本周学休比例'}</p>
     </div>
     <div class="xy-chart" aria-label="本周七日学休柱图">${bars}</div>
-    <form class="xy-log-form" data-xy-log-form>
-      <div class="xy-log-top">
-        <select name="kind" aria-label="记录类型"><option value="study">砚耕（学习/专注）</option><option value="leisure">闲暇（娱乐/休歇）</option></select>
-        <input name="title" type="text" maxlength="80" placeholder="做了什么（如：高数刷题 / 听歌散步）">
-        <input name="date" type="date" value="${defaultDate}" aria-label="日期" required>
-      </div>
-      <div class="xy-log-bottom">
-        <div class="xy-presets" role="group" aria-label="常用时长">
-          <button type="button" data-xy-log-preset="25">25分</button>
-          <button type="button" data-xy-log-preset="45">45分</button>
-          <button type="button" data-xy-log-preset="60">1小时</button>
-          <button type="button" data-xy-log-preset="90">1.5小时</button>
-        </div>
-        <label class="xy-min-input"><input name="minutes" type="number" min="1" max="720" value="45" required><span>分</span></label>
-        ${taskOptions}
-        <button type="submit" class="primary-button">记入账卷</button>
-      </div>
-    </form>
     ${recentList}
+    <details class="xy-log-fold">
+      <summary>+ 手记一笔学休</summary>
+      <form class="xy-log-form" data-xy-log-form>
+        <div class="xy-log-row">
+          <select name="kind" aria-label="记录类型"><option value="study">砚耕（学习）</option><option value="leisure">闲暇（休歇）</option></select>
+          <input name="date" type="date" value="${defaultDate}" aria-label="日期" required>
+        </div>
+        <input name="title" type="text" maxlength="80" placeholder="做了什么（如：高数刷题 / 听歌散步）">
+        <div class="xy-log-dur">
+          <div class="xy-presets" role="group" aria-label="常用时长">
+            <button type="button" data-xy-log-preset="25">25分</button>
+            <button type="button" data-xy-log-preset="45">45分</button>
+            <button type="button" data-xy-log-preset="60">1小时</button>
+            <button type="button" data-xy-log-preset="90">1.5小时</button>
+          </div>
+          <label class="xy-min-input"><input name="minutes" type="number" min="1" max="720" value="45" required><span>分</span></label>
+          <button type="submit" class="primary-button xy-log-submit">记入</button>
+        </div>
+        ${taskOptions}
+      </form>
+    </details>
   </section>`;
 }
 
 /**
- * 渲染「写意 · 四时手卷」主画板：顶部「远山志」 + 七日四时（晨/午/晡/暮）+ 下方账卷。
+ * 渲染「写意 · 四时手卷」主画板：顶部「远山志」 + 七日四时（晨/午/晡/暮）。
  */
-export function xieyiBoardMarkup({ state, result, start, now = Date.now(), snapshot = null } = {}) {
+export function xieyiBoardMarkup({ state, result, start, now = Date.now() } = {}) {
   const days = Array.from({ length: 7 }, (_, idx) => start + idx * DAY);
   const todayYmd = dateStr(now);
   const weekStartYmd = dateStr(start);
@@ -412,7 +416,7 @@ export function xieyiBoardMarkup({ state, result, start, now = Date.now(), snaps
       return `<div class="xy-slot xy-slot-${slot.key}">
         <div class="xy-slot-head">
           <span class="xy-slot-name"><strong>${slot.name}</strong><small>${slot.gloss}</small></span>
-          <span class="xy-slot-cap ${info.density}">${escapeHTML(info.label)}</span>
+          ${info.label ? `<span class="xy-slot-cap ${info.density}">${escapeHTML(info.label)}</span>` : ''}
         </div>
         ${fixedTags ? `<div class="xy-refs" aria-label="已有底色与点墨">${fixedTags}${moreFixed}</div>` : ''}
         ${noteItems ? `<ul class="xy-notes">${noteItems}</ul>` : ''}
@@ -432,6 +436,5 @@ export function xieyiBoardMarkup({ state, result, start, now = Date.now(), snaps
   return `<div class="xy-board">
     ${goalsSection}
     <div class="xy-grid" aria-label="写意四时手卷">${dayColumns}</div>
-    ${ledgerMarkup({ state, result, start, now, snapshot, compact: false })}
   </div>`;
 }

@@ -337,7 +337,7 @@ export function weeklyBrief(items, start, now) {
  * inside each day column on the week's time axis, bandLegend explains them,
  * banner is the 重排卡 above the week, sideTop opens 本周解析 (full width), sideToday heads its right column, alertLabel badges the 解析画卷 button.
  */
-export function calendarMarkup({ result, start, now, loading = false, error = '', undo = '', note = '', changes = [], plans = null, weighs = {}, focus = '', rolled = false, unrolling = false, fresh = false, analyzed = true, futureRef = '', listView = false, scrollMode = 'gongbi', xieyiBoard = '', sideLedger = '', band = null, ribbon = null, energy = [], bandLegend = '', banner = '', sideTop = '', sideToday = '', alertLabel = '' }) {
+export function calendarMarkup({ result, start, now, loading = false, error = '', undo = '', note = '', changes = [], plans = null, weighs = {}, focus = '', rolled = false, unrolling = false, fresh = false, analyzed = true, futureRef = '', listView = false, scrollMode = 'gongbi', xieyiBoard = '', xieyiPainting = '', xieyiCoverMeta = '', sideLedger = '', band = null, ribbon = null, energy = [], bandLegend = '', banner = '', sideTop = '', sideToday = '', alertLabel = '' }) {
   const weekConflicts = conflictsInWeek(result?.conflicts || [], start);
   const weekUndefined = undefinedInWeek(result, start);
   const items = calendarItems(result, start);
@@ -433,8 +433,10 @@ export function calendarMarkup({ result, start, now, loading = false, error = ''
   const freeMinutes = inWeek.filter(item => item.type === 'free').reduce((sum, item) => sum + (item.end - item.start) / MINUTE, 0);
   const layerButton = (key, name, meaning, value) => `<li><button type="button" class="cal-layer lg-${key}" data-cal-focus="${key}" aria-pressed="${focus === key}"><i aria-hidden="true"></i><strong>${name}</strong><span>${meaning}</span><b>${value}</b></button></li>`;
   const layerStrip = result ? `<div class="cal-layers"><ul aria-label="四层时间，点一层只看这一层">${layerButton('routine', '底色', '每周照例的课与例会', count('routine'))}${layerButton('free', '留白', '自己支配的时间', `${Math.round(freeMinutes / 60)} 小时`)}${layerButton('work', '落笔', '约定与截止之事', count('work') + count('appointment'))}${layerButton('temporary', '点墨', '临时、突发事项', count('temporary'))}${layerButton('conflict', '叠墨', '两件事相撞', weekConflicts.filter(conflict => conflict.start).length)}</ul><p>${focus ? '再点一次，恢复全部图层' : '点一层，只看这一层'}</p></div>` : '';
-  // 本周山水: on the cover it is the painting; once the scroll is open it stays as a faint wash behind the week.
+  // 本周山水: 工笔 reflects scheduled calendar hours, while 写意 has its own non-conflicting 写意山水 painting.
+  const isXieyi = scrollMode === 'xieyi';
   const painting = result ? shanshuiMarkup({ items: inWeek, start, now, conflicts: weekConflicts, energy, id: rolled ? 'ss-cover' : 'ss-board' }) : '';
+  const activePainting = isXieyi ? (xieyiPainting || painting) : painting;
   const analyzeBadge = !analyzed && (weekConflicts.length || alertLabel) ? `<em class="cal-analyze-badge">${[weekConflicts.length ? `${weekConflicts.length} 处叠墨` : '', alertLabel].filter(Boolean).join(' · ')}</em>` : '';
   const analyzeBtn = `<button type="button" class="cal-analyze-btn${analyzed ? ' is-open' : ''}${weekConflicts.length ? ' has-alert' : ''}" data-cal-analyze aria-expanded="${analyzed}"><svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true"><path d="M4 6h16M4 12h10M4 18h7M17 14l3 3-3 3" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"/></svg><span>${analyzed ? '回到画卷' : '解析画卷'}</span>${analyzeBadge}</button>`;
   // 本周还可用: the one number the week is for, up in the bar on every view of 画卷: what is left of
@@ -448,16 +450,21 @@ export function calendarMarkup({ result, start, now, loading = false, error = ''
       <i class="cr-bar" aria-hidden="true"><b style="width:${share.toFixed(1)}%"></b></i>
     </div>` : '';
   const clockPill = futureRef ? `<button type="button" class="cal-clock-pill" data-use-now title="安排的起点设在了未来（铺纸里的“从什么时刻开始安排”）。点这里改成从现在开始">从 ${escape(futureRef)} 开始安排 · 改用现在</button>` : '';
+  const coverEyebrow = isXieyi ? (xieyiCoverMeta ? `写意山水 · ${escape(xieyiCoverMeta)}` : '写意山水') : '本周山水';
+  const coverTitle = isXieyi ? '峰随笔意，四时留白' : '峰高是忙，云白是留白';
+  const coverLegend = isXieyi
+    ? '<ul class="cover-legend" aria-label="写意山水图例"><li class="lg-peak">近山 · 本日四时手卷</li><li class="lg-cloud">云 · 尚未落笔</li><li class="lg-dot">墨点 · 待做一笔</li><li class="lg-star">金星 · 已印「成」</li><li class="lg-moon">朱日 · 今天</li><li class="lg-far">淡远山 · 远景</li></ul>'
+    : `<ul class="cover-legend" aria-label="山水图例"><li class="lg-peak">近处深色的峰 · 这天排了多少</li><li class="lg-cloud">云 · 留白</li><li class="lg-dot">墨点 · 点墨</li><li class="lg-star">金星 · 截止</li><li class="lg-bleed">朱晕 · 叠墨</li><li class="lg-moon">朱日 · 今天</li><li class="lg-far">淡远山 · 远景，不计时</li>${energy.length ? '<li class="lg-glow">暖光 · 专注时段</li><li class="lg-haze">灰雾 · 精力偏低</li>' : ''}</ul>`;
   const cover = `<section class="scroll-cover" aria-labelledby="coverHeading">
-      <header class="cover-head"><p class="cal-eyebrow">本周山水</p><h3 id="coverHeading">峰高是忙，云白是留白</h3></header>
-      <div class="cover-painting">${painting || (error ? `<p class="cover-wait is-error" role="status">${escape(error)}</p>` : '<p class="cover-wait">正在铺开这一周…</p>')}</div>
-      <ul class="cover-legend" aria-label="山水图例"><li class="lg-peak">近处深色的峰 · 这天排了多少</li><li class="lg-cloud">云 · 留白</li><li class="lg-dot">墨点 · 点墨</li><li class="lg-star">金星 · 截止</li><li class="lg-bleed">朱晕 · 叠墨</li><li class="lg-moon">朱日 · 今天</li><li class="lg-far">淡远山 · 远景，不计时</li>${energy.length ? '<li class="lg-glow">暖光 · 专注时段</li><li class="lg-haze">灰雾 · 精力偏低</li>' : ''}</ul>
+      <header class="cover-head"><p class="cal-eyebrow">${coverEyebrow}</p><h3 id="coverHeading">${coverTitle}</h3></header>
+      <div class="cover-painting">${activePainting || (error ? `<p class="cover-wait is-error" role="status">${escape(error)}</p>` : '<p class="cover-wait">正在铺开这一周…</p>')}</div>
+      ${coverLegend}
       <div class="cover-actions">
-        <button type="button" class="primary-button cover-open" data-scroll-open${result ? '' : ' disabled'}><svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><path d="M4 5v14M20 5v14M8 12h8M11 9l-3 3 3 3M13 9l3 3-3 3" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>展开画卷</button>
+        <button type="button" class="primary-button cover-open" data-scroll-open${!isXieyi && !result ? ' disabled' : ''}><svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><path d="M4 5v14M20 5v14M8 12h8M11 9l-3 3 3 3M13 9l3 3-3 3" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>${isXieyi ? '展开四时手卷' : '展开画卷'}</button>
         <button type="button" class="cover-analyze" data-cal-analyze aria-expanded="${analyzed}">${analyzed ? '收起本周解析' : `解析画卷${weekConflicts.length ? `（${weekConflicts.length} 处叠墨）` : ''}`}</button>
       </div>
     </section>`;
-  const backdrop = painting ? `<div class="ss-backdrop" aria-hidden="true">${painting.replace('role="img"', 'focusable="false"')}</div><i class="unroll-ink" aria-hidden="true"></i>` : '';
+  const backdrop = activePainting ? `<div class="ss-backdrop" aria-hidden="true">${activePainting.replace('role="img"', 'focusable="false"')}</div><i class="unroll-ink" aria-hidden="true"></i>` : '';
   // The bar docks as the first row of what is shown: the week's board, or the 本周山水 cover when rolled.
   const docked = !analyzed;
   const bar = `<header class="cal-bar${docked ? ' is-docked' : ''}" aria-label="画卷周次与解析">
@@ -470,8 +477,8 @@ export function calendarMarkup({ result, start, now, loading = false, error = ''
         ${clockPill}
         <div class="cal-mode-switch" role="group" aria-label="画卷视图切换"><button type="button" data-cal-mode="gongbi" aria-pressed="${scrollMode === 'gongbi'}">工笔 · 时轴</button><button type="button" data-cal-mode="xieyi" aria-pressed="${scrollMode === 'xieyi'}">写意 · 四时</button></div>
         <button type="button" class="text-button cal-companion-btn" data-open-companion>案头伴读</button>
-        ${result && !rolled && scrollMode === 'gongbi' ? `<button type="button" class="text-button cal-view-toggle" data-cal-view aria-pressed="${listView}">${listView ? '周网格' : '列表'}</button>` : ''}
-        ${result && !rolled ? '<button type="button" class="text-button cal-roll-up" data-scroll-roll>卷起画卷</button>' : ''}
+        ${result && !rolled && !isXieyi ? `<button type="button" class="text-button cal-view-toggle" data-cal-view aria-pressed="${listView}">${listView ? '周网格' : '列表'}</button>` : ''}
+        ${!rolled && (result || isXieyi) ? '<button type="button" class="text-button cal-roll-up" data-scroll-roll>卷起画卷</button>' : ''}
         ${analyzeBtn}
       </div>
     </header>`;

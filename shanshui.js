@@ -7,6 +7,7 @@
  */
 const DAY = 86400000;
 const HOUR = 3600000;
+const OFFSET = 8 * HOUR;
 const W = 1000;
 const H = 420;
 const FAR = [1.5, 2.4, 1.2, 2.8, 1.8, 2.2, 1.4];
@@ -154,6 +155,69 @@ export function shanshuiMarkup({ items, start, now, conflicts = [], energy = [],
     ${dots}${stars}
     <path class="ss-water" d="M40 ${H - 46}Q260 ${H - 54} 500 ${H - 46}T960 ${H - 46}M140 ${H - 34}Q360 ${H - 40} 560 ${H - 34}T880 ${H - 34}"/>
     <g class="ss-seal" transform="translate(${W - 58} 26)"><rect width="30" height="44" rx="3"/><text x="15" y="19">山</text><text x="15" y="37">水</text></g>
+    ${labels}
+  </svg>`;
+}
+
+const dayYmd = ms => new Date(ms + OFFSET).toISOString().slice(0, 10);
+
+/** 写意山水：依每日四时手卷笔数与已印「成」星数描绘这一周的心意山形，不依赖工笔时轴算力。 */
+export function xieyiShanshuiMarkup({ state, start, now, id = 'ss-xy' }) {
+  const days = Array.from({ length: 7 }, (_, idx) => {
+    const ymd = dayYmd(start + idx * DAY);
+    const notes = (state?.notes || []).filter(n => n.date === ymd);
+    return { ymd, notes };
+  });
+  const heights = days.map(d => (d.notes.length ? Math.min(11, 2 + d.notes.length * 2.1) : 0));
+  const near = ridge(heights);
+  const far = ridge(FAR, 0.78, STEP * 0.32);
+  const distant = ridge(DISTANT, 1.05, -STEP * 0.4);
+  const today = now >= start && now < start + 7 * DAY ? Math.floor((now - start) / DAY) : -1;
+
+  const clouds = days.map((d, index) => {
+    if (d.notes.length > 0) return '';
+    const x = LEFT + index * STEP;
+    const y = fixed(near(x) + 26);
+    return `<ellipse class="ss-cloud" style="--d:${index}" cx="${fixed(x)}" cy="${y}" rx="${76 + (index % 2) * 14}" ry="14"/>`;
+  }).join('');
+
+  const marks = days.map((d, index) => d.notes.map((note, ni) => {
+    const spread = d.notes.length === 1 ? 0 : ((ni / (d.notes.length - 1)) - 0.5) * 0.42;
+    const cx = LEFT + index * STEP + spread * STEP;
+    const ridgeY = near(cx);
+    if (note.done) {
+      return `<path class="ss-star" transform="translate(${fixed(cx)} ${fixed(ridgeY - 28)}) scale(.88)" d="M0 -11Q1.1 -1.1 11 0Q1.1 1.1 0 11Q-1.1 1.1 -11 0Q-1.1 -1.1 0 -11Z"/>`;
+    }
+    return `<circle class="ss-dot" cx="${fixed(cx)}" cy="${fixed(ridgeY - 10)}" r="6.5"/>`;
+  }).join('')).join('');
+
+  const moon = today >= 0 ? `<g class="ss-moon"><circle cx="${fixed(LEFT + today * STEP)}" cy="72" r="26" class="ss-moon-glow"/><circle cx="${fixed(LEFT + today * STEP)}" cy="72" r="13" class="ss-moon-disc"/></g>` : '';
+  const labels = NAMES.map((name, index) => `<text x="${fixed(LEFT + index * STEP)}" y="${H - 14}" class="ss-day${index === today ? ' is-today' : ''}">${name}</text>`).join('');
+  const summary = `写意山水：${days.map((d, index) => `周${NAMES[index]}${d.notes.length}笔`).join('，')}。`;
+  return `<svg class="shanshui" viewBox="0 0 ${W} ${H}" preserveAspectRatio="xMidYMid slice" role="img" aria-label="${summary}">
+    <defs>
+      <linearGradient id="${id}-near" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#173046"/><stop offset=".32" stop-color="#2c4a63" stop-opacity=".92"/><stop offset=".58" stop-color="#58758e" stop-opacity=".55"/><stop offset=".82" stop-color="#f3eee6" stop-opacity="0"/></linearGradient>
+      <linearGradient id="${id}-far" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#48637c" stop-opacity=".82"/><stop offset=".45" stop-color="#7c93a8" stop-opacity=".42"/><stop offset=".72" stop-color="#f3eee6" stop-opacity="0"/></linearGradient>
+      <linearGradient id="${id}-distant" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#96a8b9" stop-opacity=".62"/><stop offset=".4" stop-color="#c0cad3" stop-opacity=".22"/><stop offset=".6" stop-color="#f3eee6" stop-opacity="0"/></linearGradient>
+      <linearGradient id="${id}-sky" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#f7f2ea"/><stop offset="1" stop-color="#efe8dc"/></linearGradient>
+      <linearGradient id="${id}-foot" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#f1ece3" stop-opacity="0"/><stop offset=".45" stop-color="#f1ece3" stop-opacity=".85"/><stop offset="1" stop-color="#efe9df"/></linearGradient>
+      <filter id="${id}-paper" x="0" y="0" width="100%" height="100%"><feTurbulence type="fractalNoise" baseFrequency=".8" numOctaves="2" seed="9"/><feColorMatrix values="0 0 0 0 .42  0 0 0 0 .38  0 0 0 0 .32  0 0 0 .05 0"/></filter>
+      <filter id="${id}-brush" x="-5%" y="-10%" width="110%" height="130%"><feTurbulence type="fractalNoise" baseFrequency=".018 .06" numOctaves="3" seed="11"/><feDisplacementMap in="SourceGraphic" scale="9"/></filter>
+      <filter id="${id}-haze" x="-5%" y="-10%" width="110%" height="130%"><feTurbulence type="fractalNoise" baseFrequency=".014 .05" numOctaves="2" seed="13"/><feDisplacementMap in="SourceGraphic" scale="12"/><feGaussianBlur stdDeviation="1.6"/></filter>
+      <filter id="${id}-mist" x="-30%" y="-80%" width="160%" height="260%"><feGaussianBlur stdDeviation="9"/></filter>
+    </defs>
+    <rect class="ss-sky" width="${W}" height="${H}" fill="url(#${id}-sky)"/>
+    <rect class="ss-paper" width="${W}" height="${H}" filter="url(#${id}-paper)"/>
+    ${moon}
+    <path class="ss-distant" d="${range(y => distant(y) - 40)}" fill="url(#${id}-distant)" filter="url(#${id}-haze)"/>
+    <path class="ss-far" d="${range(far)}" fill="url(#${id}-far)" filter="url(#${id}-haze)"/>
+    <path class="ss-near" d="${range(near)}" fill="url(#${id}-near)" filter="url(#${id}-brush)"/>
+    <path class="ss-line" d="${range(near, false)}" filter="url(#${id}-brush)"/>
+    <rect class="ss-foot" y="${H - 150}" width="${W}" height="150" fill="url(#${id}-foot)"/>
+    <g class="ss-clouds" filter="url(#${id}-mist)">${clouds}</g>
+    ${marks}
+    <path class="ss-water" d="M40 ${H - 46}Q260 ${H - 54} 500 ${H - 46}T960 ${H - 46}M140 ${H - 34}Q360 ${H - 40} 560 ${H - 34}T880 ${H - 34}"/>
+    <g class="ss-seal is-xieyi" transform="translate(${W - 58} 26)"><rect width="30" height="44" rx="3"/><text x="15" y="19">写</text><text x="15" y="37">意</text></g>
     ${labels}
   </svg>`;
 }

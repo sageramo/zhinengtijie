@@ -64,6 +64,8 @@ test('createSoundscape degrades safely without Web Audio and companionMarkup ren
     suggestion: suggestGapSession(null),
     todayStats: { study: 45, leisure: 20 },
     soundSupported: false,
+    ledgerOpen: true,
+    ledgerHtml: '<section class="xy-ledger is-compact">账卷内容</section>',
   });
   assert.match(html, /study-desk-day\.webp/);
   assert.match(html, /study-desk-night\.webp/);
@@ -71,4 +73,6 @@ test('createSoundscape degrades safely without Web Audio and companionMarkup ren
   assert.match(html, /依隙定香/);
   assert.match(html, /45:00/);
   assert.match(html, /今日砚耕 <b>45<\/b> 分/);
+  assert.match(html, /cmp-ledger-toggle/);
+  assert.match(html, /cmp-ledger-drawer/);
 });

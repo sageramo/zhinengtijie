@@ -18,7 +18,7 @@ function boot(hash) {
   return { window, doc, key, current: () => doc.documentElement.dataset.current, find: selector => doc.querySelector(selector) };
 }
 
-test('side arrows step through 研墨 → 铺纸 → 笔墨 → 画卷 and hide at the ends', () => {
+test('side arrows step through 研墨 → 铺纸 → 画卷 and hide at the ends', () => {
   const app = boot('#/import');
   assert.equal(app.current(), 'import');
   assert.equal(app.find('.page-arrow.is-prev').hidden, true, 'no page before 研墨');
@@ -29,19 +29,22 @@ test('side arrows step through 研墨 → 铺纸 → 笔墨 → 画卷 and hide 
   assert.equal(app.find('.page-arrow.is-prev').getAttribute('aria-label'), '上一页：研墨');
 });
 
-test('the arrow keys turn pages, but not while typing or with a modifier', () => {
+test('the arrow keys turn pages across 3 primary routes, and #/items highlights 研墨', () => {
   const app = boot('#/time');
-  app.key(app.doc.body, 'ArrowRight');
-  assert.equal(app.current(), 'items');
-  app.key(app.find('#noticeText'), 'ArrowLeft');
-  assert.equal(app.current(), 'items', 'inside a text box the arrow keys move the caret');
-  app.doc.body.dispatchEvent(new app.window.KeyboardEvent('keydown', { key: 'ArrowRight', altKey: true, bubbles: true }));
-  assert.equal(app.current(), 'items');
   app.key(app.doc.body, 'ArrowRight');
   assert.equal(app.current(), 'calendar');
   assert.equal(app.find('.page-arrow.is-next').hidden, true, 'no page after 画卷');
-  app.key(app.doc.body, 'ArrowRight');
+  app.key(app.find('#noticeText'), 'ArrowLeft');
+  assert.equal(app.current(), 'calendar', 'inside a text box the arrow keys move the caret');
+  app.doc.body.dispatchEvent(new app.window.KeyboardEvent('keydown', { key: 'ArrowLeft', altKey: true, bubbles: true }));
   assert.equal(app.current(), 'calendar');
+  app.key(app.doc.body, 'ArrowLeft');
+  assert.equal(app.current(), 'time');
+
+  app.window.SixuRouter.go('items');
+  assert.equal(app.current(), 'items');
+  assert.equal(app.find('[data-tab="import"]').getAttribute('aria-current'), 'page', 'items keeps 研墨 highlighted');
+  assert.ok([...app.doc.querySelectorAll('.page-arrow')].every(button => button.hidden), 'subpage hides side arrows');
 });
 
 test('the root URL opens the landing page (home)', () => {

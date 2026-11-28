@@ -144,13 +144,15 @@ test('the task starter uses only the supplied excerpt, never writes back, and cl
   assert.equal(app.find('[data-starter-result]').hidden, true);
 });
 
-test('tabs start at 研墨, the agent entry, with plain glosses, and the workbench links back home', async t => {
+test('tabs start at 研墨 (housing 笔墨 entry), and the 3-step workbench links cleanly', async t => {
   const app = await boot(t);
   assert.deepEqual(app.all('.page-tabs a').map(tab => [tab.dataset.tab, tab.querySelector('.tab-name').textContent, tab.querySelector('.tab-sub').textContent]),
-    [['import', '研墨', '通知与提醒'], ['time', '铺纸', '底色与留白'], ['items', '笔墨', '落笔与点墨'], ['calendar', '画卷', '一周日历']]);
+    [['import', '研墨', '通知与笔墨'], ['time', '铺纸', '底色与留白'], ['calendar', '画卷', '一周日历']]);
+  assert.equal(app.find('#inkItemsEntry').getAttribute('href'), '#/items');
+  assert.equal(app.find('.subpage-back').getAttribute('href'), '#/import');
   assert.equal(app.find('.aux-nav a[href="#/"]').textContent, '项目介绍');
-  assert.deepEqual(app.all('.next-step').map(link => link.getAttribute('href')).sort(), ['#/calendar', '#/items', '#/time']);
-  assert.deepEqual(app.all('.feature-card').map(card => card.getAttribute('href')), ['#/import', '#/time', '#/items', '#/calendar']);
+  assert.deepEqual(app.all('.next-step').map(link => link.getAttribute('href')).sort(), ['#/calendar', '#/calendar', '#/time']);
+  assert.deepEqual(app.all('.feature-card').map(card => card.getAttribute('href')), ['#/import', '#/time', '#/calendar']);
   assert.equal(app.find('.hero-actions .cta').getAttribute('href'), '#/import');
 });
 
@@ -214,7 +216,7 @@ test('笔墨 groups items under counted headings, and a card editor opens only w
   card = app.find(`#item-${first.id}`);
   assert.match(card.querySelector('[data-item-meta]').textContent, /预计 30 分钟/);
   app.click('[data-tab="calendar"]');
-  app.click('[data-tab="items"]');
+  app.click('#inkItemsEntry');
   app.find('#addEvent').click();
   await settle();
   assert.equal(app.find('#eventList').lastElementChild.querySelector('.item-edit').open, true, 'a 点墨 without a time opens its editor');
@@ -1204,13 +1206,37 @@ test('encrypted recovery code seals in-browser snapshot, survives clear, and res
   assert.match(app.find('#vaultStatus').textContent, /已从加密恢复码还原/);
 });
 
-test('xieyi four-slot scroll, 远山志 goals, promote-to-工笔, and 学休账卷 work end-to-end with vault bundle', async t => {
+test('xieyi independent cover & scroll state, 远山志 goals, promote-to-工笔, and side/companion 学休账卷 work end-to-end', async t => {
   const app = await imported(t);
   app.window.location.hash = '#/calendar';
   await settle(200);
+  // Desktop starts rolled on 工笔 本周山水 cover
+  assert.ok(app.find('.scroll.is-rolled'), 'starts rolled on 工笔 cover');
+  assert.match(app.find('#coverHeading').textContent, /峰高是忙/);
+
+  // Switching to 写意 shows 写意's own 写意山水 cover instead of jumping straight into grid
   app.click('[data-cal-mode="xieyi"]');
   await settle(80);
+  assert.ok(app.find('.scroll.is-rolled.is-xieyi'), 'xieyi keeps its own rolled cover');
+  assert.match(app.find('#coverHeading').textContent, /峰随笔意/);
+
+  // Unrolling xieyi opens .xy-grid without 未定作息 or stacked bottom ledger
+  app.click('[data-scroll-open]');
+  await settle(80);
   assert.ok(app.find('.xy-grid'), 'xieyi grid rendered');
+  assert.doesNotMatch(app.find('.xy-board').textContent, /未定作息/);
+  assert.equal(app.find('.xy-board .xy-ledger'), null, 'ledger removed from bottom of xieyi grid');
+
+  // Switching back to 工笔 preserves 工笔's independent rolled state (still on 本周山水 cover!)
+  app.click('[data-cal-mode="gongbi"]');
+  await settle(80);
+  assert.ok(app.find('.scroll.is-rolled'), 'gongbi remained rolled when xieyi was unrolled');
+  assert.match(app.find('#coverHeading').textContent, /峰高是忙/);
+
+  // Switching back to 写意 restores expanded xieyi grid
+  app.click('[data-cal-mode="xieyi"]');
+  await settle(80);
+  assert.ok(app.find('.xy-grid'), 'xieyi preserved its own unrolled state');
 
   // Add 周志 goal and drop onto today's afternoon slot
   const goalForm = app.find('[data-xy-goal-form]');
@@ -1232,14 +1258,17 @@ test('xieyi four-slot scroll, 远山志 goals, promote-to-工笔, and 学休账�
   assert.equal(app.stored().tasks.length, beforeTasks + 1);
   assert.equal(app.stored().tasks.at(-1).title, '整理相机标定公式');
 
-  // Log 45m 砚耕 & 30m 闲暇 into 学休账卷
-  const logForm = app.find('[data-xy-log-form]');
+  // Open 解析画卷 to manage 本周学休账卷 in its side column
+  app.click('[data-cal-analyze]');
+  await settle(80);
+  const logForm = app.find('.side-aside [data-xy-log-form]');
+  assert.ok(logForm, 'ledger rendered inside 解析画卷 side panel');
   logForm.querySelector('select[name="kind"]').value = 'study';
   logForm.querySelector('input[name="title"]').value = '三维视觉阅读';
   logForm.querySelector('input[name="minutes"]').value = '45';
   logForm.dispatchEvent(new app.window.Event('submit', { bubbles: true, cancelable: true }));
   await settle(60);
-  const logForm2 = app.find('[data-xy-log-form]');
+  const logForm2 = app.find('.side-aside [data-xy-log-form]');
   logForm2.querySelector('select[name="kind"]').value = 'leisure';
   logForm2.querySelector('input[name="title"]').value = '操场慢跑';
   logForm2.querySelector('input[name="minutes"]').value = '30';
@@ -1247,6 +1276,15 @@ test('xieyi four-slot scroll, 远山志 goals, promote-to-工笔, and 学休账�
   await settle(60);
   assert.match(app.find('.xy-ledger').textContent, /45分/);
   assert.match(app.find('.xy-ledger').textContent, /30分/);
+
+  // Companion modal also toggles 本周学休账卷 drawer
+  app.click('#openCompanion');
+  await settle(60);
+  app.click('[data-cmp-ledger-toggle]');
+  await settle(60);
+  assert.match(app.find('.cmp-ledger-drawer').textContent, /三维视觉阅读/);
+  app.click('[data-cmp-close]');
+  await settle(40);
 
   // Vault bundle preserves both snapshot and xieyi state
   app.set('#vaultPassphrase', 'bundle-2026', 'input');

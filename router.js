@@ -105,8 +105,10 @@
   }
   window.SixuVeil = { intro: done => (veil && !calm.matches ? playIntro(done) : (done(), () => {})) };
 
-  // The four workbench pages in painting order; arrows and the arrow keys step through them.
-  const ORDER = ['import', 'time', 'items', 'calendar'];
+  // The three primary workbench pages in painting order; arrows and arrow keys step through them.
+  // #/items (笔墨) is entered from 研墨 and shares 研墨 as its parent tab.
+  const ORDER = ['import', 'time', 'calendar'];
+  const WORKBENCH = ['import', 'time', 'items', 'calendar'];
   const NAMES = { time: '铺纸', import: '研墨', items: '笔墨', calendar: '画卷' };
 
   // A link click fires both hashchange and popstate; the veil already on its way absorbs the second.
@@ -121,10 +123,10 @@
       // 墨鱼入砚 (koi.js): the painting fades into 研墨's background as the fish dives into its inkstone.
       if (window.SixuKoi?.supported()) window.SixuKoi.cross(enter);
       else playVeil(enter);
-    } else if (ready && veil && !calm.matches && ORDER.includes(from) && route === 'home') {
+    } else if (ready && veil && !calm.matches && WORKBENCH.includes(from) && route === 'home') {
       pending = route;
       playRecede(() => { pending = null; show(route, options); });
-    } else if (ready && !calm.matches && from !== route && ORDER.includes(from) && ORDER.includes(route) && document.startViewTransition) {
+    } else if (ready && !calm.matches && from !== route && WORKBENCH.includes(from) && WORKBENCH.includes(route) && document.startViewTransition) {
       // 下一页: the page leaves to the left and the next comes in from the right; 上一页 mirrors it.
       // Only the latest turn may clear the direction, so a quick second turn keeps its own.
       const ticket = ++turn;
@@ -167,9 +169,10 @@
     root.dataset.current = route;
     document.title = titles[route];
     updateArrows(route);
+    const activeTab = route === 'items' ? 'import' : route;
     for (const tab of document.querySelectorAll('[data-tab]')) {
       // On phones the tab strip scrolls sideways; bring the current tab into it.
-      if (tab.dataset.tab === route) { tab.setAttribute('aria-current', 'page'); tab.parentElement.scrollLeft = Math.max(0, tab.offsetLeft - (tab.parentElement.clientWidth - tab.offsetWidth) / 2); }
+      if (tab.dataset.tab === activeTab) { tab.setAttribute('aria-current', 'page'); tab.parentElement.scrollLeft = Math.max(0, tab.offsetLeft - (tab.parentElement.clientWidth - tab.offsetWidth) / 2); }
       else tab.removeAttribute('aria-current');
     }
     if (!changed) return;

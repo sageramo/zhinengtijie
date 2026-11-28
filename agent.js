@@ -7,6 +7,7 @@ import {
 } from './time-state.js';
 import { agendaReply, hasPersonalClock, isConversation, parseActivities } from './agenda.js';
 import { calendarMarkup, conflictKey, conflictsInWeek, digestChanges, minutesLabel, resultDigest, weekStart, weekRange } from './calendar.js';
+import { xieyiShanshuiMarkup } from './shanshui.js';
 import { LEADS, dueReminders, icsCalendar, reminderText, upcomingCount } from './reminders.js';
 import { createBellToggle } from './bell-toggle.js';
 import { readMemory, writeMemory, recordActual, suggestEstimate, readCalibration, writeCalibration, recordCalibration, calibrationFor } from './estimate-memory.js';
@@ -80,14 +81,15 @@ let groupMask = null; // my anonymous free mask for the shown week: { code, mask
 let workGroup = null; // which 落笔 group is spread open ('appointment' | 'personal' | 'deadline'); null = pick one
 const weighs = {}; // conflictKey -> { loading, error, pick, reason, note } from 请模型权衡
 const isPhoneViewport = () => typeof window !== 'undefined' && window.innerWidth <= 760;
-let scrollRolled = !isPhoneViewport(); // Desktop enters as 山水 cover; phones open directly on the 7-column week grid
+let rolledByMode = { gongbi: !isPhoneViewport(), xieyi: !isPhoneViewport() }; // Desktop enters each scroll via its own 山水 cover without state conflict
+const isScrollRolled = () => rolledByMode[xieyiState.mode];
 let calendarAnalyzed = false; // 画卷 defaults to full-width solo view; click 解析画卷 to open the left analysis panel
 let calendarListView = false; // Phones default to the WakeUp-style 7-column week grid; toggle for agenda list
 let focusSettings = pruneStates(readFocus(storage), Date.now()); // 专注时段、精力状态与任务标记 (focus.js), this browser only
 let replanState = null; // the 重排卡: { loading, draft } | { error } | { preview, draft, body, range, revision, chosen } | { applied, label, starter }
 let replanClock = null; // the 5-minute start: { left, timer }
 let flipFrom = null; // work-block rectangles before a replan, so the blocks glide to their new places
-let coverPainted = false; // the 山水 brushes in once per cover, not on every recalculation
+let coverPaintedByMode = { gongbi: false, xieyi: false }; // the 山水 brushes in once per cover, not on every recalculation
 let unrollTimer = null;
 let parseSequence = 0;
 let lastTaskId = null;
@@ -388,19 +390,31 @@ function renderCalendar() {
   const showBand = bandUsed(focusSettings, snapshot, pending);
   const card = { ...replanState, timer: replanClock?.left || 0 };
   const waiting = Boolean(replanState?.preview && (replanState.preview.needs_decision || replanState.preview.status === 'infeasible'));
-  $('calendarView').innerHTML = calendarMarkup({ result: calendarResult, start: shownWeek(), now: nowMs, loading: calendarLoading && !calendarResult, error: calendarError, undo: strategyUndo?.replan ? '' : strategyUndo?.label || '', note: strategyUndo?.note || '', changes: strategyUndo?.changes || [], focus: calendarFocus, plans: solveState, weighs, rolled: scrollRolled, unrolling: Boolean(unrollTimer), fresh: !coverPainted, analyzed: calendarAnalyzed, futureRef, listView: calendarListView,
+  const rolled = isScrollRolled();
+  const isXieyi = xieyiState.mode === 'xieyi';
+  const startMs = shownWeek();
+  const xieyiPainting = isXieyi ? xieyiShanshuiMarkup({ state: xieyiState, start: startMs, now: nowMs, id: rolled ? 'ss-xy-cover' : 'ss-xy-board' }) : '';
+  const xieyiNotesInWeek = (xieyiState.notes || []).filter(n => {
+    const t = Date.parse(`${n.date}T00:00:00+08:00`);
+    return Number.isFinite(t) && t >= startMs && t < startMs + 7 * DAY;
+  });
+  const xieyiGoalsInWeek = (xieyiState.goals || []).filter(g => g.horizon === 'week' && g.periodKey === periodKeyFor('week', startMs));
+  const xieyiCoverMeta = [xieyiGoalsInWeek.length ? `${xieyiGoalsInWeek.length} 条周志` : '', xieyiNotesInWeek.length ? `${xieyiNotesInWeek.length} 笔四时` : ''].filter(Boolean).join(' · ');
+  $('calendarView').innerHTML = calendarMarkup({ result: calendarResult, start: startMs, now: nowMs, loading: calendarLoading && !calendarResult, error: calendarError, undo: strategyUndo?.replan ? '' : strategyUndo?.label || '', note: strategyUndo?.note || '', changes: strategyUndo?.changes || [], focus: calendarFocus, plans: solveState, weighs, rolled, unrolling: Boolean(unrollTimer), fresh: !coverPaintedByMode[xieyiState.mode], analyzed: calendarAnalyzed, futureRef, listView: calendarListView,
     scrollMode: xieyiState.mode,
-    xieyiBoard: xieyiState.mode === 'xieyi' ? xieyiBoardMarkup({ state: xieyiState, result: calendarResult, start: shownWeek(), now: nowMs, snapshot }) : '',
-    sideLedger: xieyiState.mode === 'gongbi' ? ledgerMarkup({ state: xieyiState, result: calendarResult, start: shownWeek(), now: nowMs, snapshot, compact: true }) : '',
+    xieyiBoard: isXieyi ? xieyiBoardMarkup({ state: xieyiState, result: calendarResult, start: startMs, now: nowMs, snapshot }) : '',
+    xieyiPainting,
+    xieyiCoverMeta,
+    sideLedger: ledgerMarkup({ state: xieyiState, result: calendarResult, start: startMs, now: nowMs, snapshot, compact: true }),
     band: showBand ? (dayStart, first, last) => bandMarkup(focusSettings, snapshot, dayStart, first, last, pending) : null,
     ribbon: showBand ? (dayStart, first, last) => ribbonMarkup(focusSettings, snapshot, dayStart, first, last, pending) : null,
-    energy: showBand ? Array.from({ length: 7 }, (_, index) => daySegments(focusSettings, snapshot, shownWeek() + index * DAY, pending)).flat() : [],
+    energy: showBand ? Array.from({ length: 7 }, (_, index) => daySegments(focusSettings, snapshot, startMs + index * DAY, pending)).flat() : [],
     bandLegend: showBand ? bandLegend(focusSettings, snapshot, pending) : '',
     banner: replanState ? replanMarkup(card, 'board') : '',
     sideTop: replanState ? replanMarkup(card, 'side') : '',
     sideToday: todayStateMarkup(focusSettings, snapshot, nowMs, pending),
     alertLabel: waiting ? '1 个取舍' : '' });
-  if (scrollRolled && calendarResult) coverPainted = true;
+  if (rolled && (calendarResult || isXieyi)) coverPaintedByMode[xieyiState.mode] = true;
   $('calendarView').querySelector('.cal-remind-slot')?.append(remindBar);
   fitCalendar();
   if (flipFrom && calendarResult && !calendarLoading) glideBlocks();
@@ -471,7 +485,18 @@ function undefinedCount() {
 function renderBadges() {
   renderRollFaces();
   const count = undefinedCount();
-  $('itemsCount').textContent = count ? String(count) : '';
+  const itemsCountEl = $('itemsCount');
+  if (itemsCountEl) itemsCountEl.textContent = count ? String(count) : '';
+  const pillCountEl = $('itemsPillCount');
+  if (pillCountEl) pillCountEl.textContent = count ? ` · ${count}待书` : '';
+  const summaryNote = $('itemsSummaryNote');
+  if (summaryNote) {
+    const activeTasks = snapshot.tasks.filter(t => t.status === 'active').length;
+    const activeEvents = snapshot.events.filter(e => e.status === 'active').length;
+    summaryNote.textContent = (activeTasks + activeEvents) > 0
+      ? `落笔 ${activeTasks} 件 · 点墨 ${activeEvents} 处`
+      : '查看与管理导入事项';
+  }
   const weekClashCount = calendarResult ? conflictsInWeek(calendarResult.conflicts, shownWeek()).length : 0;
   $('conflictCount').textContent = weekClashCount ? String(weekClashCount) : '';
 }
@@ -1612,7 +1637,6 @@ $('calendarView').addEventListener('click', event => {
   if (event.target.closest('[data-open-companion]')) { openCompanionModal(); return; }
   const modeBtn = event.target.closest('[data-cal-mode]');
   if (modeBtn) {
-    if (modeBtn.dataset.calMode === 'xieyi') scrollRolled = false;
     commitXieyi(setScrollMode(xieyiState, modeBtn.dataset.calMode));
     if (xieyiState.mode === 'gongbi') (window.requestAnimationFrame || window.setTimeout)(fitCalendar);
     return;
@@ -1695,7 +1719,7 @@ $('calendarView').addEventListener('click', event => {
     return;
   }
   if (event.target.closest('[data-scroll-open]')) { unrollScroll(); return; }
-  if (event.target.closest('[data-scroll-roll]')) { scrollRolled = true; coverPainted = false; renderCalendar(); return; }
+  if (event.target.closest('[data-scroll-roll]')) { rolledByMode[xieyiState.mode] = true; coverPaintedByMode[xieyiState.mode] = false; renderCalendar(); return; }
   if (event.target.closest('[data-strategy-undo]')) { undoStrategy(); return; }
   const pick = event.target.closest('[data-rp-pick]');
   if (pick && replanState?.preview) { replanState.chosen = pick.dataset.rpPick; renderCalendar(); return; }
@@ -1718,6 +1742,29 @@ $('calendarView').addEventListener('click', event => {
   const element = $(layer === 'routine' ? `routine-${id}` : `item-${id}`);
   if (element) showOnPage(element, 'center');
 });
+
+function handleXieyiLogSubmit(logForm) {
+  try {
+    const el = logForm.elements;
+    const kind = String(el.kind?.value || 'study');
+    const minutes = Number(el.minutes?.value);
+    const date = String(el.date?.value || localDate(Date.now()));
+    const taskId = String(el.taskId?.value || '').trim() || null;
+    const linked = taskId ? snapshot.tasks.find(t => t.id === taskId) : null;
+    const rawTitle = String(el.title?.value || '').trim();
+    const title = rawTitle || linked?.title || (kind === 'study' ? '专注砚耕' : '留白休歇');
+    commitXieyi(addTimeLog(xieyiState, { kind, title, minutes, date, taskId, source: 'manual' }));
+    if (kind === 'study' && linked) {
+      estimateMemory = recordActual(estimateMemory, linked.title, minutes);
+      writeMemory(storage, estimateMemory);
+      if (linked.estimate_minutes) writeCalibration(storage, recordCalibration(readCalibration(storage), linked.title, linked.estimate_minutes, minutes));
+      tell(`已记入砚耕 ${minutes} 分钟，并同步校准「${linked.title}」的耗时记忆。`);
+    } else {
+      tell(`已记入${kind === 'study' ? '砚耕' : '闲暇'} ${minutes} 分钟。`);
+    }
+    if ($('companionStage') && !$('companionStage').hidden) renderCompanion();
+  } catch (error) { tell(error.message, 'warning'); }
+}
 
 $('calendarView').addEventListener('submit', event => {
   const goalForm = event.target.closest('[data-xy-goal-form]');
@@ -1742,25 +1789,7 @@ $('calendarView').addEventListener('submit', event => {
   const logForm = event.target.closest('[data-xy-log-form]');
   if (logForm) {
     event.preventDefault();
-    try {
-      const el = logForm.elements;
-      const kind = String(el.kind?.value || 'study');
-      const minutes = Number(el.minutes?.value);
-      const date = String(el.date?.value || localDate(Date.now()));
-      const taskId = String(el.taskId?.value || '').trim() || null;
-      const linked = taskId ? snapshot.tasks.find(t => t.id === taskId) : null;
-      const rawTitle = String(el.title?.value || '').trim();
-      const title = rawTitle || linked?.title || (kind === 'study' ? '专注砚耕' : '留白休歇');
-      commitXieyi(addTimeLog(xieyiState, { kind, title, minutes, date, taskId, source: 'manual' }));
-      if (kind === 'study' && linked) {
-        estimateMemory = recordActual(estimateMemory, linked.title, minutes);
-        writeMemory(storage, estimateMemory);
-        if (linked.estimate_minutes) writeCalibration(storage, recordCalibration(readCalibration(storage), linked.title, linked.estimate_minutes, minutes));
-        tell(`已记入砚耕 ${minutes} 分钟，并同步校准「${linked.title}」的耗时记忆。`);
-      } else {
-        tell(`已记入${kind === 'study' ? '砚耕' : '闲暇'} ${minutes} 分钟。`);
-      }
-    } catch (error) { tell(error.message, 'warning'); }
+    handleXieyiLogSubmit(logForm);
   }
 });
 /** Apply one rule-based strategy from the calendar result; the previous list is kept for one undo. */
@@ -2372,7 +2401,7 @@ for (const [type, lit] of [['mouseover', true], ['mouseout', false], ['focusin',
 // 展开画卷: the paper widens from the centre while both rods roll outward, an ink wash spreads over it,
 // the 山水 shows through and settles into a faint wash as the week appears (agent.css .is-unrolling).
 function unrollScroll() {
-  scrollRolled = false;
+  rolledByMode[xieyiState.mode] = false;
   const calm = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
   window.clearTimeout(unrollTimer);
   unrollTimer = calm ? null : window.setTimeout(() => {
@@ -2395,10 +2424,14 @@ document.addEventListener('click', event => {
   }
 });
 document.addEventListener('sixu:route', event => {
-  if (event.detail !== 'calendar') { scrollRolled = !isPhoneViewport(); coverPainted = false; return; }
-  if (isPhoneViewport()) scrollRolled = false;
-  coverPainted = false; // paint the 山水 when the page is actually entered, even if it was redrawn off screen
-  if (calendarResult) renderCalendar();
+  if (event.detail !== 'calendar') {
+    rolledByMode = { gongbi: !isPhoneViewport(), xieyi: !isPhoneViewport() };
+    coverPaintedByMode = { gongbi: false, xieyi: false };
+    return;
+  }
+  if (isPhoneViewport()) { rolledByMode.gongbi = false; rolledByMode.xieyi = false; }
+  coverPaintedByMode = { gongbi: false, xieyi: false }; // paint the 山水 when the page is actually entered, even if it was redrawn off screen
+  if (calendarResult || xieyiState.mode === 'xieyi') renderCalendar();
   (window.requestAnimationFrame || window.setTimeout)(fitCalendar);
   if (!calendarResult && !calendarLoading) computeCalendar();
 });
@@ -2875,6 +2908,7 @@ const companion = {
   audioLevels: { rain: 0, wind: 0, hearth: 0 },
   chimeOn: true,
   settlement: null,
+  ledgerOpen: false,
 };
 let companionTimer = null;
 
@@ -2920,6 +2954,8 @@ function renderCompanion() {
     chimeOn: companion.chimeOn,
     soundSupported: soundscape.isSupported(),
     settlement: companion.settlement,
+    ledgerOpen: companion.ledgerOpen,
+    ledgerHtml: companion.ledgerOpen ? ledgerMarkup({ state: xieyiState, result: calendarResult, start: shownWeek(), now: Date.now(), snapshot, compact: true }) : '',
   });
 }
 
@@ -3126,7 +3162,31 @@ $('companionStage')?.addEventListener('click', event => {
     companion.finished = false;
     companion.settlement = null;
     renderCompanion();
+    return;
   }
+  if (event.target.closest('[data-cmp-ledger-toggle]')) {
+    companion.ledgerOpen = !companion.ledgerOpen;
+    renderCompanion();
+    return;
+  }
+  const presetBtn = event.target.closest('[data-xy-log-preset]');
+  if (presetBtn) {
+    const form = presetBtn.closest('[data-xy-log-form]');
+    const input = form?.querySelector('input[name="minutes"]');
+    if (input) input.value = presetBtn.dataset.xyLogPreset;
+    return;
+  }
+  const logDelBtn = event.target.closest('[data-xy-log-del]');
+  if (logDelBtn) {
+    commitXieyi(removeTimeLog(xieyiState, logDelBtn.dataset.xyLogDel));
+    renderCompanion();
+  }
+});
+$('companionStage')?.addEventListener('submit', event => {
+  const logForm = event.target.closest('[data-xy-log-form]');
+  if (!logForm) return;
+  event.preventDefault();
+  handleXieyiLogSubmit(logForm);
 });
 $('companionStage')?.addEventListener('input', event => {
   if (event.target.id === 'cmpTitleInput') companion.customTitle = event.target.value;

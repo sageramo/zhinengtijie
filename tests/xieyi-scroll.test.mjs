@@ -23,6 +23,7 @@ import {
   weeklyLedgerStats,
   xieyiBoardMarkup,
 } from '../xieyi-scroll.js';
+import { xieyiShanshuiMarkup } from '../shanshui.js';
 
 const fixture = JSON.parse(readFileSync(new URL('./fixtures/calendar-v3.json', import.meta.url), 'utf8'));
 const MONDAY = Date.parse('2026-11-09T00:00:00+08:00');
@@ -82,25 +83,36 @@ test('slotSummary projects real free capacity and busy items per classical perio
   const bu = slotSummary(fixture.result, MONDAY + DAY, SLOTS[2]);
   assert.equal(bu.freeMinutes, 270);
   assert.equal(bu.density, 'is-open');
+
+  const undefinedSlot = slotSummary({ ...fixture.result, definition: { free_time: 'undefined' } }, MONDAY, SLOTS[0]);
+  assert.equal(undefinedSlot.label, '');
+  assert.equal(slotSummary(null, MONDAY, SLOTS[0]).label, '');
 });
 
-test('xieyiBoardMarkup and ledgerMarkup render classical Xuan-paper scroll structure', () => {
+test('xieyiBoardMarkup stays cleanly free of 未定作息 and ledger, while ledgerMarkup & xieyiShanshuiMarkup render Song-Yuan surfaces', () => {
   let state = setScrollMode(createXieyiState(), 'xieyi');
   state = addGoal(state, { horizon: 'week', periodKey: periodKeyFor('week', MONDAY), title: '梳理智能体闭环' });
   state = addNote(state, { date: '2026-11-11', slot: 'bu', title: '整理摄影社报名资料' });
   state = addTimeLog(state, { kind: 'study', title: '读控制论论文', minutes: 45, date: '2026-11-11' });
 
-  const html = xieyiBoardMarkup({ state, result: fixture.result, start: MONDAY, now: MONDAY + DAY, snapshot: fixture.snapshot });
+  const html = xieyiBoardMarkup({ state, result: fixture.result, start: MONDAY, now: MONDAY + DAY });
   assert.match(html, /远山志/);
   assert.match(html, /周志/);
   assert.match(html, /整理摄影社报名资料/);
   assert.match(html, /入工笔/);
   assert.match(html, /<strong>晨<\/strong><small>上午<\/small>/);
   assert.match(html, /<strong>暮<\/strong><small>晚间<\/small>/);
-  assert.match(html, /本周学休账卷/);
-  assert.match(html, /45分/);
+  assert.doesNotMatch(html, /未定作息/);
+  assert.doesNotMatch(html, /本周学休账卷/);
 
   const side = ledgerMarkup({ state, result: fixture.result, start: MONDAY, now: MONDAY + DAY, snapshot: fixture.snapshot, compact: true });
   assert.match(side, /xy-ledger is-compact/);
+  assert.match(side, /xy-log-fold/);
   assert.match(side, /读控制论论文/);
+
+  const svg = xieyiShanshuiMarkup({ state, start: MONDAY, now: MONDAY + DAY });
+  assert.match(svg, /class="ss-seal is-xieyi"/);
+  assert.match(svg, />写<\/text>/);
+  assert.match(svg, />意<\/text>/);
+  assert.match(svg, /写意山水/);
 });
