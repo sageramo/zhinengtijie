@@ -3644,3 +3644,64 @@ html[data-current="calendar"] [data-app]::before {
   .cmp-art { object-position: 80% center; }
   .cmp-bind, .cmp-sliders { grid-template-columns: 1fr; }
 }
+
+/* ==== 顶栏极简单行收窄 + 细节修整（.88）=============================================================== */
+select::picker-icon { display: none; }
+.cal-remind select {
+  display: inline-flex; align-items: center; height: 36px; min-height: 36px; max-width: 100%;
+  padding: 5px 32px 5px 12px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+
+html[data-current="items"] .subpage-bar {
+  position: relative; z-index: 5; max-width: 1120px; margin: calc(var(--hdr-h, 58px) + 12px) auto 12px;
+}
+html[data-current="items"]:has(.rolls[data-open]) .subpage-bar { margin-top: 0; }
+
+.cal-bar.is-docked .cal-bar-left { flex: none; }
+.cal-bar.is-docked .cal-bar-actions { flex: 0 1 auto; }
+@media (max-width: 1520px) {
+  .cal-bar.is-docked { flex-wrap: wrap; row-gap: 8px; }
+  .cal-bar.is-docked .cal-remain { order: 3; flex: 0 0 auto; width: 100%; margin-left: 0; grid-template-columns: auto auto 1fr; }
+  .cal-bar.is-docked .cal-remain .cr-meta { display: block; justify-self: end; }
+}
+
+@media (min-width: 761px) {
+  [data-app] .site-header {
+    top: 6px; padding: 5px 14px; gap: 10px; row-gap: 0; flex-wrap: nowrap; border-radius: 14px;
+  }
+  [data-app] .site-header .brand-lockup { flex: none; gap: 7px; }
+  [data-app] .site-header .mk-mark { width: 22px; height: 22px; }
+  [data-app] .site-header .mk-rule { height: 20px; }
+  [data-app] .site-header .mk-en { font-size: .88rem; letter-spacing: .16em; }
+  [data-app] .site-header .mk-cn { font-size: .62rem; letter-spacing: .16em; }
+  [data-app] .site-header .page-tabs { flex: 0 1 auto; min-width: 0; gap: 2px; padding: 2px; flex-wrap: nowrap; }
+  [data-app] .site-header .page-tabs a { padding: 4px 10px; min-height: 30px; gap: 5px; }
+  [data-app] .site-header .page-tabs a[aria-current="page"]::after { bottom: 2px; }
+  [data-app] .site-header .page-status { flex: none; margin: 0 0 0 auto; gap: 6px; flex-wrap: nowrap; }
+  [data-app] .site-header .list-actions { gap: 5px; }
+  [data-app] .site-header .list-actions button { min-height: 30px; height: 30px; padding: 0 10px; font-size: .78rem; }
+  [data-app] .site-header .page-status + .aux-nav { margin-left: 2px; }
+  [data-app] .site-header .aux-nav {
+    flex: none; display: inline-flex; flex-wrap: nowrap; align-items: center; gap: 10px;
+    white-space: nowrap; font-size: .78rem;
+  }
+  [data-app] .site-header .companion-entry {
+    display: inline-flex; align-items: center; min-height: 30px; height: 30px; padding: 0 10px;
+    font-size: .78rem; line-height: 1; white-space: nowrap;
+  }
+  [data-app] .workspace { padding-top: calc(var(--hdr-h, 54px) + 14px); }
+  .ink-rail { top: calc(var(--hdr-h, 54px) + 14px); max-height: calc(100dvh - var(--hdr-h, 54px) - 28px); }
+}
+@media (min-width: 761px) and (max-width: 1580px) {
+  [data-app] .site-header .save-state { display: none; }
+}
+@media (min-width: 761px) and (max-width: 1420px) {
+  [data-app] .site-header .btn-text { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+  [data-app] .site-header .list-actions button { padding: 0 8px; gap: 0; }
+}
+@media (min-width: 761px) and (max-width: 1220px) {
+  [data-app] .site-header .page-tabs .tab-sub { display: none; }
+}
+@media (min-width: 761px) and (max-width: 980px) {
+  [data-app] .site-header .aux-nav a { display: none; }
+}
