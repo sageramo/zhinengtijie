@@ -15,6 +15,7 @@ import { parseChatAction, findTask, starterReply, nextChips, planCardMarkup, pro
 import { readFocus, writeFocus, pruneStates, setMark, setCommonWindows, addStates, removeState, parseStateSentence, draftLabel, previewRequest, confirmRequest, replanRange, lockedRests, daySegments, bandMarkup, ribbonMarkup, bandUsed, bandLegend, todayStateMarkup, replanMarkup, spanText, dayLabel, isoAt } from './focus.js';
 import { parseJwTimetable, termStartFrom } from './jw-timetable.js';
 import { checkPersistentStorage, isVaultCode, openVault, requestPersistentStorage, sealVault, supportsLocalFileSync, writeLocalBackupFile } from './vault.js';
+import { addGoal, addNote, addTimeLog, ledgerMarkup, markNotePromoted, normalizeXieyiState, periodKeyFor, readXieyi, removeGoal, removeNote, removeTimeLog, setGoalTab, setScrollMode, toggleGoal, toggleNote, writeXieyi, xieyiBoardMarkup } from './xieyi-scroll.js';
 
 /*
  * Workbench for the four time layers (backend docs/time_layers_v3.md):
@@ -187,6 +188,12 @@ function busy(button, value, idle, working) {
 
 let autoBackupHandle = null;
 let persistRequestedOnce = false;
+let xieyiState = readXieyi(storage);
+function commitXieyi(next) {
+  xieyiState = normalizeXieyiState(next);
+  writeXieyi(storage, xieyiState);
+  renderCalendar();
+}
 
 async function refreshPersistLabel() {
   const box = $('persistStatus');
@@ -381,6 +388,9 @@ function renderCalendar() {
   const card = { ...replanState, timer: replanClock?.left || 0 };
   const waiting = Boolean(replanState?.preview && (replanState.preview.needs_decision || replanState.preview.status === 'infeasible'));
   $('calendarView').innerHTML = calendarMarkup({ result: calendarResult, start: shownWeek(), now: nowMs, loading: calendarLoading && !calendarResult, error: calendarError, undo: strategyUndo?.replan ? '' : strategyUndo?.label || '', note: strategyUndo?.note || '', changes: strategyUndo?.changes || [], focus: calendarFocus, plans: solveState, weighs, rolled: scrollRolled, unrolling: Boolean(unrollTimer), fresh: !coverPainted, analyzed: calendarAnalyzed, futureRef, listView: calendarListView,
+    scrollMode: xieyiState.mode,
+    xieyiBoard: xieyiState.mode === 'xieyi' ? xieyiBoardMarkup({ state: xieyiState, result: calendarResult, start: shownWeek(), now: nowMs, snapshot }) : '',
+    sideLedger: xieyiState.mode === 'gongbi' ? ledgerMarkup({ state: xieyiState, result: calendarResult, start: shownWeek(), now: nowMs, snapshot, compact: true }) : '',
     band: showBand ? (dayStart, first, last) => bandMarkup(focusSettings, snapshot, dayStart, first, last, pending) : null,
     ribbon: showBand ? (dayStart, first, last) => ribbonMarkup(focusSettings, snapshot, dayStart, first, last, pending) : null,
     energy: showBand ? Array.from({ length: 7 }, (_, index) => daySegments(focusSettings, snapshot, shownWeek() + index * DAY, pending)).flat() : [],
@@ -1598,6 +1608,56 @@ $('timetablePreview').addEventListener('click', event => {
 
 // ---- Calendar interactions ------------------------------------------------
 $('calendarView').addEventListener('click', event => {
+  const modeBtn = event.target.closest('[data-cal-mode]');
+  if (modeBtn) {
+    if (modeBtn.dataset.calMode === 'xieyi') scrollRolled = false;
+    commitXieyi(setScrollMode(xieyiState, modeBtn.dataset.calMode));
+    if (xieyiState.mode === 'gongbi') (window.requestAnimationFrame || window.setTimeout)(fitCalendar);
+    return;
+  }
+  const goalTabBtn = event.target.closest('[data-xy-goal-tab]');
+  if (goalTabBtn) { commitXieyi(setGoalTab(xieyiState, goalTabBtn.dataset.xyGoalTab)); return; }
+  const goalToggleBtn = event.target.closest('[data-xy-goal-toggle]');
+  if (goalToggleBtn) { commitXieyi(toggleGoal(xieyiState, goalToggleBtn.dataset.xyGoalToggle)); return; }
+  const goalDelBtn = event.target.closest('[data-xy-goal-del]');
+  if (goalDelBtn) { commitXieyi(removeGoal(xieyiState, goalDelBtn.dataset.xyGoalDel)); return; }
+  const goalDropBtn = event.target.closest('[data-xy-goal-drop]');
+  if (goalDropBtn) {
+    const goal = xieyiState.goals.find(g => g.id === goalDropBtn.dataset.xyGoalDrop);
+    if (!goal) return;
+    const startMs = shownWeek();
+    const todayYmd = localDate(Date.now());
+    const inWeek = Date.now() >= startMs && Date.now() < startMs + 7 * DAY;
+    const dropDate = inWeek ? todayYmd : localDate(startMs);
+    commitXieyi(addNote(xieyiState, { date: dropDate, slot: 'bu', title: goal.title, goalId: goal.id }));
+    tell(`已把「${goal.title}」落入 ${dropDate} 晡（下午）手卷。`);
+    return;
+  }
+  const noteToggleBtn = event.target.closest('[data-xy-note-toggle]');
+  if (noteToggleBtn) { commitXieyi(toggleNote(xieyiState, noteToggleBtn.dataset.xyNoteToggle)); return; }
+  const noteDelBtn = event.target.closest('[data-xy-note-del]');
+  if (noteDelBtn) { commitXieyi(removeNote(xieyiState, noteDelBtn.dataset.xyNoteDel)); return; }
+  const promoteBtn = event.target.closest('[data-xy-promote]');
+  if (promoteBtn) {
+    const note = xieyiState.notes.find(n => n.id === promoteBtn.dataset.xyPromote);
+    if (!note || note.promotedTaskId) return;
+    const nextSnap = addPersonalTask(snapshot, { title: note.title, day: note.date, estimate_minutes: null });
+    const createdTask = nextSnap.tasks[nextSnap.tasks.length - 1];
+    xieyiState = normalizeXieyiState(markNotePromoted(xieyiState, note.id, createdTask.id));
+    writeXieyi(storage, xieyiState);
+    commit(nextSnap);
+    tell(`已将「${note.title}」转入「笔墨 · 落笔」（${note.date}），补填预计用时后即可在工笔时轴精确排期。`);
+    return;
+  }
+  const presetBtn = event.target.closest('[data-xy-log-preset]');
+  if (presetBtn) {
+    const form = presetBtn.closest('[data-xy-log-form]');
+    const input = form?.querySelector('input[name="minutes"]');
+    if (input) input.value = presetBtn.dataset.xyLogPreset;
+    return;
+  }
+  const logDelBtn = event.target.closest('[data-xy-log-del]');
+  if (logDelBtn) { commitXieyi(removeTimeLog(xieyiState, logDelBtn.dataset.xyLogDel)); return; }
   const week = event.target.closest('[data-cal-week]');
   if (week) {
     const step = Number(week.dataset.calWeek);
@@ -1655,6 +1715,51 @@ $('calendarView').addEventListener('click', event => {
   const { calItem: id, calLayer: layer } = target.dataset;
   const element = $(layer === 'routine' ? `routine-${id}` : `item-${id}`);
   if (element) showOnPage(element, 'center');
+});
+
+$('calendarView').addEventListener('submit', event => {
+  const goalForm = event.target.closest('[data-xy-goal-form]');
+  if (goalForm) {
+    event.preventDefault();
+    try {
+      const { horizon, periodKey, title } = goalForm.elements;
+      commitXieyi(addGoal(xieyiState, { horizon: String(horizon?.value || 'week'), periodKey: String(periodKey?.value || periodKeyFor('week', shownWeek())), title: String(title?.value || '') }));
+      tell('已立下远山志。');
+    } catch (error) { tell(error.message, 'warning'); }
+    return;
+  }
+  const addForm = event.target.closest('[data-xy-add-form]');
+  if (addForm) {
+    event.preventDefault();
+    try {
+      const { date, slot, title } = addForm.elements;
+      commitXieyi(addNote(xieyiState, { date: String(date?.value || ''), slot: String(slot?.value || 'chen'), title: String(title?.value || '') }));
+    } catch (error) { tell(error.message, 'warning'); }
+    return;
+  }
+  const logForm = event.target.closest('[data-xy-log-form]');
+  if (logForm) {
+    event.preventDefault();
+    try {
+      const el = logForm.elements;
+      const kind = String(el.kind?.value || 'study');
+      const minutes = Number(el.minutes?.value);
+      const date = String(el.date?.value || localDate(Date.now()));
+      const taskId = String(el.taskId?.value || '').trim() || null;
+      const linked = taskId ? snapshot.tasks.find(t => t.id === taskId) : null;
+      const rawTitle = String(el.title?.value || '').trim();
+      const title = rawTitle || linked?.title || (kind === 'study' ? '专注砚耕' : '留白休歇');
+      commitXieyi(addTimeLog(xieyiState, { kind, title, minutes, date, taskId, source: 'manual' }));
+      if (kind === 'study' && linked) {
+        estimateMemory = recordActual(estimateMemory, linked.title, minutes);
+        writeMemory(storage, estimateMemory);
+        if (linked.estimate_minutes) writeCalibration(storage, recordCalibration(readCalibration(storage), linked.title, linked.estimate_minutes, minutes));
+        tell(`已记入砚耕 ${minutes} 分钟，并同步校准「${linked.title}」的耗时记忆。`);
+      } else {
+        tell(`已记入${kind === 'study' ? '砚耕' : '闲暇'} ${minutes} 分钟。`);
+      }
+    } catch (error) { tell(error.message, 'warning'); }
+  }
 });
 /** Apply one rule-based strategy from the calendar result; the previous list is kept for one undo. */
 /** One rule-based change (a 叠墨 strategy or a step of a 多方案 plan) applied to a list; null for 'review'. */
@@ -2331,6 +2436,18 @@ $('exportSnapshot').addEventListener('click', () => {
   } catch (error) { tell(error.message, 'error'); }
 });
 $('importSnapshot').addEventListener('click', () => $('importFile').click());
+function unpackVaultPayload(raw) {
+  let parsed = null;
+  try { parsed = JSON.parse(raw); } catch { /* fall through to parseTimeSnapshot for clear error */ }
+  if (parsed && parsed._sixu_bundle === 1 && parsed.snapshot) {
+    return {
+      nextSnapshot: parseTimeSnapshot(JSON.stringify(parsed.snapshot)),
+      nextXieyi: normalizeXieyiState(parsed.xieyi),
+    };
+  }
+  return { nextSnapshot: parseTimeSnapshot(raw), nextXieyi: null };
+}
+
 $('importFile').addEventListener('change', async event => {
   const file = event.target.files[0];
   if (!file) return;
@@ -2342,11 +2459,12 @@ $('importFile').addEventListener('change', async event => {
       if (pass === null) return;
       raw = await openVault(raw, pass);
     }
-    const next = parseTimeSnapshot(raw);
+    const { nextSnapshot, nextXieyi } = unpackVaultPayload(raw);
     const hasData = snapshot.events.length || snapshot.tasks.length || snapshot.routines.length;
     if (hasData && !window.confirm('导入会替换当前清单。请先导出需要保留的内容，是否继续？')) return;
+    if (nextXieyi) { xieyiState = nextXieyi; writeXieyi(storage, xieyiState); }
     calendarWeek = null;
-    commit({ ...next, revision: snapshot.revision + 1 }, { unlock: true });
+    commit({ ...nextSnapshot, revision: snapshot.revision + 1 }, { unlock: true });
     tell('已载入清单。旧版清单会自动转换成四层时间格式。');
   } catch (error) { tell(`导入未完成：${error.message}`, 'error'); }
   finally { event.target.value = ''; }
@@ -2539,10 +2657,11 @@ $('backupLater').addEventListener('click', () => { writeJSON(BACKUP_KEY, { ...ba
 
 $('makeVaultCode')?.addEventListener('click', async () => {
   try {
-    const code = await sealVault(serializeTimeSnapshot(snapshot), $('vaultPassphrase').value);
+    const bundle = JSON.stringify({ _sixu_bundle: 1, snapshot: JSON.parse(serializeTimeSnapshot(snapshot)), xieyi: xieyiState });
+    const code = await sealVault(bundle, $('vaultPassphrase').value);
     $('vaultCodeBox').value = code;
     const clock = new Date(Date.now() + OFFSET).toISOString().slice(11, 16);
-    $('vaultStatus').textContent = `已生成加密恢复码（${code.length} 字符，${clock}），可复制发给微信“文件传输助手”或记事本留存。`;
+    $('vaultStatus').textContent = `已生成加密恢复码（${code.length} 字符，${clock}，含四层清单、远山志与学休账卷），可复制发给微信“文件传输助手”。`;
     markBackedUp();
     tell('已生成本机加密恢复码，可直接复制保存。');
   } catch (error) {
@@ -2559,13 +2678,14 @@ $('copyVaultCode')?.addEventListener('click', async () => {
 $('restoreVaultCode')?.addEventListener('click', async () => {
   try {
     const json = await openVault($('vaultCodeBox').value, $('vaultPassphrase').value);
-    const next = parseTimeSnapshot(json);
-    const hasData = snapshot.events.length || snapshot.tasks.length || snapshot.routines.length;
-    if (hasData && !window.confirm('还原加密恢复码会替换当前清单，是否继续？')) return;
+    const { nextSnapshot, nextXieyi } = unpackVaultPayload(json);
+    const hasData = snapshot.events.length || snapshot.tasks.length || snapshot.routines.length || xieyiState.goals.length || xieyiState.notes.length || xieyiState.logs.length;
+    if (hasData && !window.confirm('还原加密恢复码会替换当前清单与手卷记录，是否继续？')) return;
+    if (nextXieyi) { xieyiState = nextXieyi; writeXieyi(storage, xieyiState); }
     calendarWeek = null;
-    commit({ ...next, revision: snapshot.revision + 1 }, { unlock: true });
+    commit({ ...nextSnapshot, revision: snapshot.revision + 1 }, { unlock: true });
     $('vaultPassphrase').value = '';
-    $('vaultStatus').textContent = '已从加密恢复码还原整份清单，并同步保存在当前浏览器。';
+    $('vaultStatus').textContent = '已从加密恢复码还原整份清单与手卷记录，并同步保存在当前浏览器。';
     tell('已从加密恢复码完整还原清单。');
   } catch (error) {
     $('vaultStatus').textContent = error.message;

@@ -1203,3 +1203,64 @@ test('encrypted recovery code seals in-browser snapshot, survives clear, and res
   assert.equal(app.stored().tasks.length + app.stored().events.length, beforeCount);
   assert.match(app.find('#vaultStatus').textContent, /已从加密恢复码还原/);
 });
+
+test('xieyi four-slot scroll, 远山志 goals, promote-to-工笔, and 学休账卷 work end-to-end with vault bundle', async t => {
+  const app = await imported(t);
+  app.window.location.hash = '#/calendar';
+  await settle(200);
+  app.click('[data-cal-mode="xieyi"]');
+  await settle(80);
+  assert.ok(app.find('.xy-grid'), 'xieyi grid rendered');
+
+  // Add 周志 goal and drop onto today's afternoon slot
+  const goalForm = app.find('[data-xy-goal-form]');
+  goalForm.querySelector('input[name="title"]').value = '完成本周文献精读';
+  goalForm.dispatchEvent(new app.window.Event('submit', { bubbles: true, cancelable: true }));
+  await settle(60);
+  assert.match(app.find('.xy-goals').textContent, /完成本周文献精读/);
+
+  // Add a rough note in first 晨 slot and promote it into 笔墨·落笔
+  const firstAddForm = app.find('[data-xy-add-form]');
+  firstAddForm.querySelector('input[name="title"]').value = '整理相机标定公式';
+  firstAddForm.dispatchEvent(new app.window.Event('submit', { bubbles: true, cancelable: true }));
+  await settle(60);
+  assert.match(app.find('.xy-grid').textContent, /整理相机标定公式/);
+
+  const beforeTasks = app.stored().tasks.length;
+  app.click('[data-xy-promote]');
+  await settle(150);
+  assert.equal(app.stored().tasks.length, beforeTasks + 1);
+  assert.equal(app.stored().tasks.at(-1).title, '整理相机标定公式');
+
+  // Log 45m 砚耕 & 30m 闲暇 into 学休账卷
+  const logForm = app.find('[data-xy-log-form]');
+  logForm.querySelector('select[name="kind"]').value = 'study';
+  logForm.querySelector('input[name="title"]').value = '三维视觉阅读';
+  logForm.querySelector('input[name="minutes"]').value = '45';
+  logForm.dispatchEvent(new app.window.Event('submit', { bubbles: true, cancelable: true }));
+  await settle(60);
+  const logForm2 = app.find('[data-xy-log-form]');
+  logForm2.querySelector('select[name="kind"]').value = 'leisure';
+  logForm2.querySelector('input[name="title"]').value = '操场慢跑';
+  logForm2.querySelector('input[name="minutes"]').value = '30';
+  logForm2.dispatchEvent(new app.window.Event('submit', { bubbles: true, cancelable: true }));
+  await settle(60);
+  assert.match(app.find('.xy-ledger').textContent, /45分/);
+  assert.match(app.find('.xy-ledger').textContent, /30分/);
+
+  // Vault bundle preserves both snapshot and xieyi state
+  app.set('#vaultPassphrase', 'bundle-2026', 'input');
+  app.click('#makeVaultCode');
+  await settle(200);
+  const code = app.find('#vaultCodeBox').value;
+  assert.ok(code.startsWith('SXV1.'));
+
+  app.click('#clearSnapshot');
+  await settle(100);
+  app.set('#vaultPassphrase', 'bundle-2026', 'input');
+  app.set('#vaultCodeBox', code, 'input');
+  app.click('#restoreVaultCode');
+  await settle(250);
+  assert.match(app.find('.xy-goals').textContent, /完成本周文献精读/);
+  assert.match(app.find('.xy-ledger').textContent, /三维视觉阅读/);
+});

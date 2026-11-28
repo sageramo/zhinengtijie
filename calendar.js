@@ -337,7 +337,7 @@ export function weeklyBrief(items, start, now) {
  * inside each day column on the week's time axis, bandLegend explains them,
  * banner is the 重排卡 above the week, sideTop opens 本周解析 (full width), sideToday heads its right column, alertLabel badges the 解析画卷 button.
  */
-export function calendarMarkup({ result, start, now, loading = false, error = '', undo = '', note = '', changes = [], plans = null, weighs = {}, focus = '', rolled = false, unrolling = false, fresh = false, analyzed = true, futureRef = '', listView = false, band = null, ribbon = null, energy = [], bandLegend = '', banner = '', sideTop = '', sideToday = '', alertLabel = '' }) {
+export function calendarMarkup({ result, start, now, loading = false, error = '', undo = '', note = '', changes = [], plans = null, weighs = {}, focus = '', rolled = false, unrolling = false, fresh = false, analyzed = true, futureRef = '', listView = false, scrollMode = 'gongbi', xieyiBoard = '', sideLedger = '', band = null, ribbon = null, energy = [], bandLegend = '', banner = '', sideTop = '', sideToday = '', alertLabel = '' }) {
   const weekConflicts = conflictsInWeek(result?.conflicts || [], start);
   const weekUndefined = undefinedInWeek(result, start);
   const items = calendarItems(result, start);
@@ -468,12 +468,13 @@ export function calendarMarkup({ result, start, now, loading = false, error = ''
       ${remain}
       <div class="cal-bar-actions">
         ${clockPill}
-        ${result && !rolled ? `<button type="button" class="text-button cal-view-toggle" data-cal-view aria-pressed="${listView}">${listView ? '周网格' : '列表'}</button>` : ''}
+        <div class="cal-mode-switch" role="group" aria-label="画卷视图切换"><button type="button" data-cal-mode="gongbi" aria-pressed="${scrollMode === 'gongbi'}">工笔 · 时轴</button><button type="button" data-cal-mode="xieyi" aria-pressed="${scrollMode === 'xieyi'}">写意 · 四时</button></div>
+        ${result && !rolled && scrollMode === 'gongbi' ? `<button type="button" class="text-button cal-view-toggle" data-cal-view aria-pressed="${listView}">${listView ? '周网格' : '列表'}</button>` : ''}
         ${result && !rolled ? '<button type="button" class="text-button cal-roll-up" data-scroll-roll>卷起画卷</button>' : ''}
         ${analyzeBtn}
       </div>
     </header>`;
-  return `<div class="scroll${rolled ? ' is-rolled' : ''}${rolled && fresh ? ' is-fresh' : ''}${unrolling ? ' is-unrolling' : ''}${analyzed ? ' is-analyzed' : ' is-solo'}${listView ? ' is-list' : ''}">
+  return `<div class="scroll${rolled ? ' is-rolled' : ''}${rolled && fresh ? ' is-fresh' : ''}${unrolling ? ' is-unrolling' : ''}${analyzed ? ' is-analyzed' : ' is-solo'}${listView ? ' is-list' : ''}${scrollMode === 'xieyi' ? ' is-xieyi' : ''}">
     ${docked ? '' : bar}
     <div class="scroll-body">
       <aside class="scroll-side" aria-label="本周解析"${analyzed ? '' : ' hidden'}>
@@ -484,18 +485,21 @@ export function calendarMarkup({ result, start, now, loading = false, error = ''
         <div class="side-aside">
           ${sideToday}
           <div class="cal-remind-slot"></div>
+          ${sideLedger}
           ${end > now && result ? (remaining ? `<section class="cal-capacity" aria-label="这周还能接多少"><h3>${start > now ? '这一周还能接' : '这周还能接'}</h3><p><strong>${minutesLabel(remaining.total)}</strong><span>最长连续 ${minutesLabel(remaining.longest)}${remaining.longestSlot ? `：${monthDay(remaining.longestSlot.start)} ${WEEKDAYS[Math.floor((remaining.longestSlot.start - start) / DAY)] || ''} ${clock(remaining.longestSlot.start)}–${clock(remaining.longestSlot.end)}` : ''}</span>${weekUndefined.length ? '<span>待补时间的事项可能占用空档。</span>' : ''}</p><a href="#/import?capacity=1">再接一件事？先试算</a></section>`
             : `<section class="cal-capacity is-unknown" aria-label="这周还能接多少"><h3>这周还能接多少</h3><p><span>还算不出来：每天的作息还没定，系统不知道哪些时间归你支配。</span></p><button type="button" class="text-button" data-cal-goto="time" data-cal-roll="free">去铺纸设置作息 →</button></section>`) : ''}
           ${brief.length ? `<ul class="cal-brief" aria-label="本周提要">${brief.map(line => `<li>${line}</li>`).join('')}</ul>` : ''}
         </div>
       </aside>
-      ${rolled ? cover.replace('<section class="scroll-cover" aria-labelledby="coverHeading">', head => head + bar) : `    <div class="scroll-mount"><div class="cal-board">${backdrop}${docked ? bar : ''}${banner}${layerStrip}${bandLegend}
+      ${rolled ? cover.replace('<section class="scroll-cover" aria-labelledby="coverHeading">', head => head + bar) : (scrollMode === 'xieyi' && xieyiBoard
+        ? `    <div class="scroll-mount"><div class="cal-board">${backdrop}${docked ? bar : ''}${banner}${xieyiBoard}</div></div>`
+        : `    <div class="scroll-mount"><div class="cal-board">${backdrop}${docked ? bar : ''}${banner}${layerStrip}${bandLegend}
         <div class="cal-week${crowded.size ? ' has-crowded' : ''}${band ? ' has-band' : ''}"${focus ? ` data-focus="${escape(focus)}"` : ''} style="--rows:${last - first}${crowded.size ? `;--cols:var(--time-col, 54px) ${days.map((_, index) => crowded.has(index) ? 'minmax(0, 1.5fr)' : 'minmax(0, 1fr)').join(' ')}` : ''}">
           <div class="cal-corner" aria-hidden="true"></div>${heads}
           <div class="cal-hours" aria-hidden="true">${hours}</div>${columns}
         </div>${empty}
         <ol class="cal-agenda">${agenda || '<li class="cal-agenda-day"><p>这一周还没有安排。</p></li>'}</ol>
-      </div></div>`}
+      </div></div>`)}
     </div>
   </div>`;
 }
