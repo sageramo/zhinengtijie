@@ -472,7 +472,7 @@ export function calendarMarkup({ result, start, now, loading = false, error = ''
         <div class="cal-bar-title"><p class="cal-eyebrow">${local(start).getUTCFullYear()} · 第 ${weekNumber(start)} 周</p><h2 class="cal-range" id="calendarHeading">${range}</h2></div>
         <div class="cal-nav"><button type="button" data-cal-week="-1" aria-label="上一周"><svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><path d="M15 5l-7 7 7 7" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></button><button type="button" data-cal-week="0">本周</button><button type="button" data-cal-week="1" aria-label="下一周"><svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><path d="M9 5l7 7-7 7" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></button></div>
       </div>
-      ${remain}
+      ${isXieyi ? '' : remain}
       <div class="cal-bar-actions">
         ${clockPill}
         <div class="cal-mode-switch" role="group" aria-label="画卷视图切换"><button type="button" data-cal-mode="gongbi" aria-pressed="${scrollMode === 'gongbi'}">工笔 · 时轴</button><button type="button" data-cal-mode="xieyi" aria-pressed="${scrollMode === 'xieyi'}">写意 · 四时</button></div>

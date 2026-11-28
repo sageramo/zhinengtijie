@@ -17,7 +17,7 @@ import { readFocus, writeFocus, pruneStates, setMark, setCommonWindows, addState
 import { parseJwTimetable, termStartFrom } from './jw-timetable.js';
 import { checkPersistentStorage, isVaultCode, openVault, requestPersistentStorage, sealVault, supportsLocalFileSync, writeLocalBackupFile } from './vault.js';
 import { addGoal, addNote, addTimeLog, ledgerMarkup, markNotePromoted, normalizeXieyiState, periodKeyFor, readXieyi, removeGoal, removeNote, removeTimeLog, setGoalTab, setScrollMode, toggleGoal, toggleNote, writeXieyi, xieyiBoardMarkup } from './xieyi-scroll.js';
-import { COMPANION_PRESETS, companionMarkup, companionWhisper, createSoundscape, formatClock, resolveScene, suggestGapSession } from './companion.js';
+import { COMPANION_PRESETS, companionMarkup, companionWhisper, createSoundscape, formatClock, resolveScene, sceneMix, suggestGapSession } from './companion.js';
 
 /*
  * Workbench for the four time layers (backend docs/time_layers_v3.md):
@@ -2909,6 +2909,8 @@ const companion = {
   chimeOn: true,
   settlement: null,
   ledgerOpen: false,
+  settingsOpen: false,
+  round: 1,
 };
 let companionTimer = null;
 
@@ -2939,6 +2941,9 @@ function renderCompanion() {
     mode: companion.mode,
     scenePref: companion.scenePref,
     resolvedScene: resolveScene(companion.scenePref, Date.now()),
+    mix: sceneMix(companion.scenePref, Date.now()),
+    round: companion.round,
+    settingsOpen: companion.settingsOpen,
     durationMinutes: companion.durationMinutes,
     remainingSeconds: companion.remainingSeconds,
     running: companion.running,
@@ -2998,6 +3003,7 @@ function completeCompanionSession({ early = false } = {}) {
   renderCalendar();
 
   companion.finished = true;
+  if (companion.mode === 'study') companion.round += 1;
   companion.settlement = {
     mode: companion.mode,
     minutes: loggedMinutes,
@@ -3010,6 +3016,7 @@ function completeCompanionSession({ early = false } = {}) {
 function startCompanionTick() {
   stopCompanionTick();
   companion.running = true;
+  companion.settingsOpen = false;
   companion.finished = false;
   companion.settlement = null;
   companionTimer = window.setInterval(() => {
@@ -3025,6 +3032,12 @@ function startCompanionTick() {
     if (fillEl) fillEl.style.width = `${Math.max(0, Math.min(100, (1 - progress) * 100)).toFixed(2)}%`;
     if (whisperEl) whisperEl.textContent = companionWhisper({ mode: companion.mode, progress, running: true, finished: false });
     if (finishBtn) finishBtn.disabled = false;
+    if (companion.elapsedSeconds % 30 === 0) {
+      const card = $('companionStage')?.querySelector('.cmp-card');
+      const mixNow = sceneMix(companion.scenePref, Date.now());
+      card?.style.setProperty('--night', mixNow.night);
+      card?.style.setProperty('--dusk', mixNow.dusk);
+    }
     if (companion.remainingSeconds <= 0) completeCompanionSession({ early: false });
   }, 1000);
   renderCompanion();
@@ -3056,6 +3069,14 @@ function closeCompanionModal() {
 }
 
 $('openCompanion')?.addEventListener('click', openCompanionModal);
+// 伴读画面随真实天色缓缓流转：打开期间每分钟刷新一次昼夜混合比例。
+window.setInterval(() => {
+  const card = $('companionStage') && !$('companionStage').hidden ? $('companionStage').querySelector('.cmp-card') : null;
+  if (!card) return;
+  const mixNow = sceneMix(companion.scenePref, Date.now());
+  card.style.setProperty('--night', mixNow.night);
+  card.style.setProperty('--dusk', mixNow.dusk);
+}, 60000);
 document.addEventListener('keydown', event => {
   if (event.key === 'Escape' && $('companionStage') && !$('companionStage').hidden) closeCompanionModal();
 });
@@ -3161,6 +3182,11 @@ $('companionStage')?.addEventListener('click', event => {
     companion.elapsedSeconds = 0;
     companion.finished = false;
     companion.settlement = null;
+    renderCompanion();
+    return;
+  }
+  if (event.target.closest('[data-cmp-settings]')) {
+    companion.settingsOpen = !companion.settingsOpen;
     renderCompanion();
     return;
   }

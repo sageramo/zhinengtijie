@@ -231,17 +231,36 @@ export function createSoundscape(win = globalThis.window) {
 }
 
 /**
- * 渲染沉浸式「案头伴读 · 焚香专注台」弹窗画板。
+ * 随天时的连续昼夜混合：返回 night（夜景不透明度 0..1）与 dusk（暮色暖光 0..1），
+ * 让伴读画面像窗外真实天色一样从白昼缓缓过渡到黄昏、夜晚，再回到清晨。
+ */
+export function sceneMix(preference = 'auto', nowMs = Date.now()) {
+  if (preference === 'day') return { night: 0, dusk: 0 };
+  if (preference === 'night') return { night: 1, dusk: 0 };
+  const d = localDateObj(nowMs);
+  const h = d.getUTCHours() + d.getUTCMinutes() / 60;
+  const ramp = (x, a, b) => Math.max(0, Math.min(1, (x - a) / (b - a)));
+  // 16:30 起转暮，19:30 入夜；4:30 起天光渐亮，7:00 全昼。
+  const night = h >= 12 ? ramp(h, 17.5, 19.5) : 1 - ramp(h, 4.5, 7);
+  const dusk = h >= 12 ? Math.max(0, 1 - Math.abs(h - 18) / 1.6) : Math.max(0, 1 - Math.abs(h - 5.8) / 1.2) * 0.6;
+  return { night: Number(night.toFixed(3)), dusk: Number(dusk.toFixed(3)) };
+}
+
+/**
+ * 渲染极简动态「案头伴读」：全幅书房景致随天时流转，左下角只留一枚细字计时与一道香线，
+ * 其余设置收进可折叠的小抽屉，专注时界面自动隐去，只剩画面与时间。
  */
 export function companionMarkup({
   mode = 'study',
   scenePref = 'auto',
   resolvedScene = 'day',
+  mix = null,
   durationMinutes = 45,
   remainingSeconds = 2700,
   running = false,
   finished = false,
   elapsedSeconds = 0,
+  round = 1,
   selectedTaskId = '',
   customTitle = '',
   suggestion = null,
@@ -254,110 +273,111 @@ export function companionMarkup({
   settlement = null,
   ledgerOpen = false,
   ledgerHtml = '',
+  settingsOpen = false,
 } = {}) {
   const totalSec = Math.max(60, durationMinutes * 60);
   const progress = finished ? 1 : Math.max(0, Math.min(1, 1 - remainingSeconds / totalSec));
   const remainPct = Math.max(0, Math.min(100, (1 - progress) * 100));
   const isNight = resolvedScene === 'night';
+  const m = mix || { night: isNight ? 1 : 0, dusk: 0 };
   const whisper = companionWhisper({ mode, progress, running, finished });
   const presets = COMPANION_PRESETS[mode] || COMPANION_PRESETS.study;
+  const raining = (audioLevels.rain || 0) > 0.02 || m.night > 0.6;
+  const phaseLabel = mode === 'study' ? `专注 · 第 ${round} 炷` : '休歇 · 听雨';
+  const startLabel = running ? '暂歇' : (elapsedSeconds > 0 && !finished ? '继续' : '开始');
 
   const taskOptions = [
-    '<option value="">不绑定特定落笔（自由陪伴）</option>',
+    '<option value="">自由陪伴（不绑定事项）</option>',
     ...activeTasks.map(t => `<option value="task:${escapeHTML(t.id)}"${selectedTaskId === `task:${t.id}` ? ' selected' : ''}>落笔 · ${escapeHTML(t.title)}${t.estimate_minutes ? `（${t.estimate_minutes}分）` : ''}</option>`),
     ...todayNotes.map(n => `<option value="note:${escapeHTML(n.id)}"${selectedTaskId === `note:${n.id}` ? ' selected' : ''}>手卷 · ${escapeHTML(n.title)}</option>`),
   ].join('');
 
-  const gapBanner = suggestion
-    ? `<div class="cmp-gap" role="status">
-        <span class="cmp-gap-badge">依隙定香</span>
-        <p>${escapeHTML(suggestion.reason)}</p>
-        ${suggestion.minutes !== durationMinutes ? `<button type="button" class="cmp-gap-adopt" data-cmp-adopt-gap="${suggestion.minutes}">改用 ${suggestion.minutes} 分钟</button>` : ''}
-      </div>`
+  const gapLine = suggestion
+    ? `<p class="cmp-gap" role="status"><span class="cmp-gap-badge">依隙定香</span><span>${escapeHTML(suggestion.reason)}</span>${suggestion.minutes !== durationMinutes ? `<button type="button" class="cmp-link" data-cmp-adopt-gap="${suggestion.minutes}">改用 ${suggestion.minutes} 分</button>` : ''}</p>`
     : '';
 
-  const finishActionLabel = mode === 'study' ? '收香记账' : '结束休歇并记账';
   const settlementBox = settlement
     ? `<div class="cmp-settlement" role="status">
-        <strong>已收入学休账卷</strong>
-        <p>${escapeHTML(settlement.summary)}</p>
-        <div class="cmp-settle-actions">
+        <strong>已收入学休账卷</strong><span>${escapeHTML(settlement.summary)}</span>
+        <span class="cmp-settle-actions">
           ${settlement.mode === 'study'
-            ? '<button type="button" data-cmp-switch-rest="10">转入 10 分钟听雨休歇</button>'
-            : '<button type="button" data-cmp-switch-study="45">切回焚香砚耕</button>'}
-          <button type="button" data-cmp-again>再启一轮</button>
-        </div>
+            ? '<button type="button" class="cmp-link" data-cmp-switch-rest="10">歇 10 分钟</button>'
+            : '<button type="button" class="cmp-link" data-cmp-switch-study="45">回到专注</button>'}
+          <button type="button" class="cmp-link" data-cmp-again>再来一轮</button>
+        </span>
       </div>`
     : '';
 
   const soundMixer = soundSupported
-    ? `<section class="cmp-sound" aria-label="书房声景">
-        <div class="cmp-sound-head">
-          <span>书房声景</span>
-          <label class="cmp-chime-opt"><input type="checkbox" data-cmp-chime${chimeOn ? ' checked' : ''}><span>收香清磬提示</span></label>
-        </div>
-        <div class="cmp-sliders">
-          <label><span>檐雨</span><input type="range" min="0" max="100" value="${Math.round((audioLevels.rain || 0) * 100)}" data-cmp-sound="rain" aria-label="檐雨音量"></label>
-          <label><span>松风</span><input type="range" min="0" max="100" value="${Math.round((audioLevels.wind || 0) * 100)}" data-cmp-sound="wind" aria-label="松风音量"></label>
-          <label><span>炉火</span><input type="range" min="0" max="100" value="${Math.round((audioLevels.hearth || 0) * 100)}" data-cmp-sound="hearth" aria-label="炉火音量"></label>
-        </div>
-      </section>`
-    : `<section class="cmp-sound is-fallback"><p>当前环境暂不支持在线合成白噪音，专注计时与自动记账仍正常生效。</p></section>`;
+    ? `<div class="cmp-sliders" aria-label="书房声景">
+        <label><span>檐雨</span><input type="range" min="0" max="100" value="${Math.round((audioLevels.rain || 0) * 100)}" data-cmp-sound="rain" aria-label="檐雨音量"></label>
+        <label><span>松风</span><input type="range" min="0" max="100" value="${Math.round((audioLevels.wind || 0) * 100)}" data-cmp-sound="wind" aria-label="松风音量"></label>
+        <label><span>炉火</span><input type="range" min="0" max="100" value="${Math.round((audioLevels.hearth || 0) * 100)}" data-cmp-sound="hearth" aria-label="炉火音量"></label>
+      </div>
+      <label class="cmp-chime-opt"><input type="checkbox" data-cmp-chime${chimeOn ? ' checked' : ''}><i aria-hidden="true"></i><span>结束时一声清磬</span></label>`
+    : '<p class="cmp-muted">当前浏览器不支持声景合成，计时与记账照常。</p>';
 
-  return `<div class="cmp-card${isNight ? ' is-night' : ' is-day'}${running ? ' is-running' : ''}" data-active-mode="${mode}">
+  return `<div class="cmp-card${isNight ? ' is-night' : ' is-day'}${running ? ' is-running' : ''}${raining ? ' is-raining' : ''}" data-active-mode="${mode}" style="--night:${m.night};--dusk:${m.dusk}">
     <div class="cmp-backdrop" aria-hidden="true">
-      <img class="cmp-art cmp-art-day" src="./assets/study-desk-day.webp" alt="" width="1024" height="576">
-      <img class="cmp-art cmp-art-night" src="./assets/study-desk-night.webp" alt="" width="1024" height="576">
+      <div class="cmp-scene">
+        <img class="cmp-art cmp-art-day" src="./assets/study-desk-day.webp" alt="" width="1024" height="576">
+        <img class="cmp-art cmp-art-night" src="./assets/study-desk-night.webp" alt="" width="1024" height="576">
+      </div>
+      <div class="cmp-dusk"></div>
+      <div class="cmp-light"></div>
+      <div class="cmp-rain"></div>
       <div class="cmp-lamp-glow"></div>
       <svg class="cmp-smoke" viewBox="0 0 60 120" fill="none">
         <path class="s1" d="M30 112 C22 88, 40 68, 28 42 C20 24, 34 12, 26 2" stroke="currentColor" stroke-width="2.1" stroke-linecap="round"/>
         <path class="s2" d="M32 110 C42 86, 22 62, 35 38 C42 22, 26 10, 34 2" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/>
       </svg>
+      <div class="cmp-vignette"></div>
     </div>
-    <div class="cmp-panel">
-      <header class="cmp-head">
-        <div class="cmp-switch" role="group" aria-label="伴读状态">
-          <button type="button" data-cmp-mode="study" aria-pressed="${mode === 'study'}">焚香砚耕</button>
-          <button type="button" data-cmp-mode="leisure" aria-pressed="${mode === 'leisure'}">听雨休歇</button>
-        </div>
-        <div class="cmp-scene-switch" role="group" aria-label="景致">
+
+    <header class="cmp-top">
+      <div class="cmp-seg" role="group" aria-label="伴读状态">
+        <button type="button" data-cmp-mode="study" aria-pressed="${mode === 'study'}">专注</button>
+        <button type="button" data-cmp-mode="leisure" aria-pressed="${mode === 'leisure'}">休歇</button>
+      </div>
+      <div class="cmp-top-right">
+        <div class="cmp-seg is-quiet" role="group" aria-label="景致">
           <button type="button" data-cmp-scene="auto" aria-pressed="${scenePref === 'auto'}">随天时</button>
-          <button type="button" data-cmp-scene="day" aria-pressed="${scenePref === 'day'}">晴昼</button>
-          <button type="button" data-cmp-scene="night" aria-pressed="${scenePref === 'night'}">夜雨</button>
+          <button type="button" data-cmp-scene="day" aria-pressed="${scenePref === 'day'}">昼</button>
+          <button type="button" data-cmp-scene="night" aria-pressed="${scenePref === 'night'}">夜</button>
         </div>
-        <div class="cmp-win-actions">
-          <button type="button" class="cmp-icon-btn" data-cmp-fullscreen title="全屏沉浸">全屏</button>
-          <button type="button" class="cmp-icon-btn" data-cmp-close aria-label="关闭案头伴读">收卷</button>
-        </div>
-      </header>
-      ${gapBanner}
+        <button type="button" class="cmp-icon" data-cmp-settings aria-expanded="${settingsOpen}" title="事项与声景">设置</button>
+        <button type="button" class="cmp-icon" data-cmp-fullscreen title="全屏沉浸">全屏</button>
+        <button type="button" class="cmp-icon" data-cmp-close aria-label="关闭案头伴读">收起</button>
+      </div>
+    </header>
+
+    <aside class="cmp-drawer${settingsOpen ? ' is-open' : ''}" aria-label="事项与声景">
+      ${gapLine}
       <div class="cmp-bind">
         <select id="cmpTaskSelect" aria-label="关联当前事项">${taskOptions}</select>
-        <input id="cmpTitleInput" type="text" maxlength="80" value="${escapeHTML(customTitle)}" placeholder="${mode === 'study' ? '手写此刻专注之事（可选）' : '休歇消遣（如：听曲 / 散步 / 小憩）'}">
+        <input id="cmpTitleInput" type="text" maxlength="80" value="${escapeHTML(customTitle)}" placeholder="${mode === 'study' ? '此刻专注之事（可选）' : '休歇做什么（可选）'}">
       </div>
-      <div class="cmp-timer-stage">
-        <div class="cmp-clock" id="cmpClock" aria-live="off">${formatClock(remainingSeconds)}</div>
-        <div class="cmp-incense" aria-label="一炷香进度">
-          <span class="cmp-incense-tip"></span>
-          <div class="cmp-incense-track"><i id="cmpIncenseFill" style="width:${remainPct.toFixed(2)}%"></i></div>
-        </div>
-        <p class="cmp-whisper" id="cmpWhisper">${escapeHTML(whisper)}</p>
-      </div>
-      <div class="cmp-presets" role="group" aria-label="时长选择">
-        ${presets.map(m => `<button type="button" data-cmp-minutes="${m}" aria-pressed="${durationMinutes === m}">${m} 分钟</button>`).join('')}
-      </div>
+      ${soundMixer}
+    </aside>
+
+    <section class="cmp-hud">
+      <p class="cmp-phase">${phaseLabel}</p>
+      <div class="cmp-clock" id="cmpClock" aria-live="off">${formatClock(remainingSeconds)}</div>
+      <div class="cmp-incense" aria-label="一炷香进度"><div class="cmp-incense-track"><i id="cmpIncenseFill" style="width:${remainPct.toFixed(2)}%"></i></div></div>
+      <p class="cmp-whisper" id="cmpWhisper">${escapeHTML(whisper)}</p>
       <div class="cmp-controls">
-        <button type="button" class="primary-button cmp-start" data-cmp-toggle>${running ? '暂歇一会' : (elapsedSeconds > 0 && !finished ? '继续燃香' : (mode === 'study' ? '燃香开始' : '开始休歇'))}</button>
-        <button type="button" data-cmp-finish${elapsedSeconds > 0 || finished ? '' : ' disabled'}>${finishActionLabel}</button>
-        <button type="button" class="text-button" data-cmp-reset>重整</button>
+        <button type="button" class="cmp-primary" data-cmp-toggle>${startLabel}</button>
+        <button type="button" class="cmp-link" data-cmp-finish${elapsedSeconds > 0 || finished ? '' : ' disabled'}>${mode === 'study' ? '收香记账' : '结束记账'}</button>
+        <button type="button" class="cmp-link" data-cmp-reset>重来</button>
+        <span class="cmp-presets" role="group" aria-label="时长">${presets.map(min => `<button type="button" data-cmp-minutes="${min}" aria-pressed="${durationMinutes === min}">${min}</button>`).join('')}<em>分</em></span>
       </div>
       ${settlementBox}
-      ${soundMixer}
-      <footer class="cmp-foot">
-        <span>今日砚耕 <b>${todayStats.study}</b> 分 · 今日闲暇 <b>${todayStats.leisure}</b> 分</span>
-        <button type="button" class="cmp-ledger-toggle" data-cmp-ledger-toggle aria-expanded="${ledgerOpen}">${ledgerOpen ? '收起本周账卷' : '查看本周学休账卷'}</button>
-      </footer>
-      ${ledgerOpen && ledgerHtml ? `<div class="cmp-ledger-drawer">${ledgerHtml}</div>` : ''}
-    </div>
+    </section>
+
+    <footer class="cmp-foot">
+      <span>今日砚耕 <b>${todayStats.study}</b> 分 · 今日闲暇 <b>${todayStats.leisure}</b> 分</span>
+      <button type="button" class="cmp-link cmp-ledger-toggle" data-cmp-ledger-toggle aria-expanded="${ledgerOpen}">${ledgerOpen ? '收起账卷' : '本周学休账卷'}</button>
+    </footer>
+    ${ledgerOpen && ledgerHtml ? `<div class="cmp-ledger-drawer">${ledgerHtml}</div>` : ''}
   </div>`;
 }

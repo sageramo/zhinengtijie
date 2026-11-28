@@ -416,14 +416,14 @@ export function xieyiBoardMarkup({ state, result, start, now = Date.now() } = {}
       return `<div class="xy-slot xy-slot-${slot.key}">
         <div class="xy-slot-head">
           <span class="xy-slot-name"><strong>${slot.name}</strong><small>${slot.gloss}</small></span>
-          ${info.label ? `<span class="xy-slot-cap ${info.density}">${escapeHTML(info.label)}</span>` : ''}
+          ${info.label && (info.density === 'is-tight' || info.density === 'is-full') ? `<span class="xy-slot-cap ${info.density}">${escapeHTML(info.label)}</span>` : ''}
         </div>
         ${fixedTags ? `<div class="xy-refs" aria-label="已有底色与点墨">${fixedTags}${moreFixed}</div>` : ''}
         ${noteItems ? `<ul class="xy-notes">${noteItems}</ul>` : ''}
         <form class="xy-add-form" data-xy-add-form>
           <input type="hidden" name="date" value="${ymd}">
           <input type="hidden" name="slot" value="${slot.key}">
-          <input name="title" type="text" maxlength="120" aria-label="${WEEKDAYS[idx]} ${slot.name}（${slot.gloss}）新增安排" placeholder="+ ${slot.name}记一笔">
+          <input name="title" type="text" maxlength="120" aria-label="${WEEKDAYS[idx]} ${slot.name}（${slot.gloss}）新增安排" placeholder="＋ 记一笔">
         </form>
       </div>`;
     }).join('');
