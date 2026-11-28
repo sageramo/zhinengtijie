@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="description" content="把校园通知整理成可核对的事项，用真实空闲生成经过校验的个人安排。">
-  <meta name="sixu-ui-version" content="2026.11.22.83">
+  <meta name="sixu-ui-version" content="2026.11.22.84">
   <title>司序 Marshal · 知所先后</title>
   <link rel="icon" href="./assets/sixu-mark.svg" type="image/svg+xml">
   <link rel="manifest" href="./manifest.webmanifest">
@@ -12,9 +12,9 @@
   <link rel="apple-touch-icon" href="./assets/icon-192.png">
   <script>{ const h = location.hash; document.documentElement.dataset.current = h.startsWith('#/') && ['import', 'items', 'time', 'calendar', 'review', 'plan'].includes(h.slice(2).split('?')[0]) ? ({ review: 'items', plan: 'calendar' }[h.slice(2).split('?')[0]] || h.slice(2).split('?')[0]) : 'home'; if (document.documentElement.dataset.current === 'home' && !matchMedia('(prefers-reduced-motion: reduce)').matches) document.documentElement.classList.add('intro'); }</script>
   <link rel="preload" as="image" href="./assets/hero-poster.webp">
-  <link rel="stylesheet" href="./agent.css?v=2026.11.22.83">
+  <link rel="stylesheet" href="./agent.css?v=2026.11.22.84">
   <!-- The workbench's whole module graph at once: without this the browser finds it four imports deep, one round trip per level. -->
-  <link rel="modulepreload" href="./agent.js?v=2026.11.22.83"><link rel="modulepreload" href="./task-state.js?v=2026.11.22.83"><link rel="modulepreload" href="./snapshot-store.js?v=2026.11.22.83"><link rel="modulepreload" href="./agenda.js?v=2026.11.22.83"><link rel="modulepreload" href="./calendar.js?v=2026.11.22.83"><link rel="modulepreload" href="./shanshui.js?v=2026.11.22.83"><link rel="modulepreload" href="./reminders.js?v=2026.11.22.83"><link rel="modulepreload" href="./bell-toggle.js?v=2026.11.22.83"><link rel="modulepreload" href="./estimate-memory.js?v=2026.11.22.83"><link rel="modulepreload" href="./screenshot-ocr.js?v=2026.11.22.83"><link rel="modulepreload" href="./chat-actions.js?v=2026.11.22.83"><link rel="modulepreload" href="./focus.js?v=2026.11.22.83"><link rel="modulepreload" href="./jw-timetable.js?v=2026.11.22.83"><link rel="modulepreload" href="./time-state.js?v=2026.11.22.83">
+  <link rel="modulepreload" href="./agent.js?v=2026.11.22.84"><link rel="modulepreload" href="./task-state.js?v=2026.11.22.84"><link rel="modulepreload" href="./snapshot-store.js?v=2026.11.22.84"><link rel="modulepreload" href="./vault.js?v=2026.11.22.84"><link rel="modulepreload" href="./agenda.js?v=2026.11.22.84"><link rel="modulepreload" href="./calendar.js?v=2026.11.22.84"><link rel="modulepreload" href="./shanshui.js?v=2026.11.22.84"><link rel="modulepreload" href="./reminders.js?v=2026.11.22.84"><link rel="modulepreload" href="./bell-toggle.js?v=2026.11.22.84"><link rel="modulepreload" href="./estimate-memory.js?v=2026.11.22.84"><link rel="modulepreload" href="./screenshot-ocr.js?v=2026.11.22.84"><link rel="modulepreload" href="./chat-actions.js?v=2026.11.22.84"><link rel="modulepreload" href="./focus.js?v=2026.11.22.84"><link rel="modulepreload" href="./jw-timetable.js?v=2026.11.22.84"><link rel="modulepreload" href="./time-state.js?v=2026.11.22.84">
 </head>
 <body>
   <div class="intro" id="intro" aria-hidden="true">
@@ -71,7 +71,7 @@
   <main class="workspace">
     <h1 class="sr-only" id="workbenchHeading" tabindex="-1">司序工作台</h1>
     <div id="appMessage" class="message toast" role="status" aria-live="polite" hidden></div>
-    <div id="backupNudge" class="message backup-nudge" role="status" hidden><p>清单只保存在这个浏览器里，换手机或清理浏览器数据就会丢。导出一份备份，需要时在“服务与备份”里载入。</p><div class="inline-actions"><button type="button" class="primary-button" id="backupNow">导出备份</button><button type="button" class="text-button" id="backupLater">今天先不</button></div></div>
+    <div id="backupNudge" class="message backup-nudge" role="status" hidden><p>清单默认只保存在这个浏览器里，清理记录或换手机会丢失。建议生成一段本机加密恢复码发到微信“文件传输助手”，或导出 JSON / 绑定本地自动备份。</p><div class="inline-actions"><button type="button" class="primary-button" id="backupNow">导出备份</button><button type="button" id="backupVaultOpen">加密恢复码</button><button type="button" class="text-button" id="backupLater">今天先不</button></div></div>
     <div id="storageConflict" class="message warning" hidden><p>清单在另一个标签页发生了变化。为避免覆盖，请先导出当前内容，再载入最新清单。</p><button type="button" id="reloadLatest">载入最新清单</button></div>
     <div class="page page-import" data-page="import">
         <aside class="ink-rail" id="inkRail" aria-label="砚池记录与工具">
@@ -279,9 +279,26 @@
     </div>
     <details class="settings" id="settingsPanel"><summary>服务与备份</summary>
       <form id="apiForm"><label for="apiBase">解析与计算服务地址</label><input id="apiBase" type="url" inputmode="url" required><button type="submit">保存地址并检查连接</button><p class="field-help" id="connectionStatus" role="status">尚未检查连接</p></form>
-      <div class="backup-actions"><button type="button" id="importSnapshot">导入清单</button><input type="file" id="importFile" accept="application/json,.json" hidden></div>
+      <div class="backup-actions"><button type="button" id="importSnapshot">导入清单</button><input type="file" id="importFile" accept="application/json,.json,.sixu,.txt" hidden></div>
+      <section class="vault-box" id="vaultSection" aria-labelledby="vaultHeading">
+        <h3 id="vaultHeading">防丢与跨端恢复 <span class="layer-gloss">本机加密 · 零明文上传</span></h3>
+        <div class="vault-row">
+          <input id="vaultPassphrase" type="password" autocomplete="off" maxlength="64" aria-label="恢复口令" placeholder="设置或输入恢复口令（至少4位）">
+          <button type="button" class="primary-button" id="makeVaultCode">生成加密恢复码</button>
+          <button type="button" id="copyVaultCode">复制恢复码</button>
+          <button type="button" id="restoreVaultCode">从恢复码还原</button>
+        </div>
+        <textarea id="vaultCodeBox" rows="3" aria-label="加密恢复码内容" placeholder="生成的 SXV1. 加密恢复码会显示在这里，可直接发到微信“文件传输助手”；换设备或清缓存后粘回并输入同一口令即可还原。"></textarea>
+        <p class="field-help" id="vaultStatus" role="status">采用本机 AES-256-GCM + PBKDF2 加密，服务器与聊天记录均看不到明文。</p>
+        <div class="vault-sync-row">
+          <button type="button" id="bindAutoBackup">绑定本地自动备份文件</button>
+          <button type="button" id="requestPersist">申请浏览器防清理保护</button>
+        </div>
+        <p class="field-help" id="autoBackupStatus" role="status">本地自动双写：未绑定（修改仅存于浏览器）。</p>
+        <p class="field-help" id="persistStatus" role="status">浏览器防清理保护：检查中…</p>
+      </section>
       <p class="field-help">导出文件包含原文与个人安排，请妥善保存。</p>
-      <p class="field-help" id="uiVersion">界面版本 2026.11.22.83</p>
+      <p class="field-help" id="uiVersion">界面版本 2026.11.22.84</p>
     </details>
     <footer class="page-footer"><span>以确认后的信息计算，把取舍留给你。</span></footer>
   </main>
@@ -290,7 +307,7 @@
   <div class="access-ask" id="accessAsk" role="dialog" aria-modal="true" aria-labelledby="accessTitle" hidden><form class="access-card" id="accessForm"><h2 id="accessTitle">访问口令</h2><p class="field-help" id="accessHint"></p><label for="accessCode">口令</label><input id="accessCode" type="password" autocomplete="off" maxlength="200" required><div class="inline-actions"><button type="submit" class="primary-button">确定</button><button type="button" class="text-button" id="accessCancel">取消</button></div></form></div>
   <div class="route-veil" id="routeVeil" aria-hidden="true"><i class="ink ink-1"></i><i class="ink ink-2"></i><i class="ink ink-3"></i><svg class="veil-mark" viewBox="0 0 100 100"><path class="mark-ring" d="M22 86V28H30.56L50 63.64L69.44 28H78V86H70V43.69L54.56 72H45.44L30 43.69V86Z" fill="currentColor"/><g class="veil-needle"><path d="M50 14L53.2 40.4H46.8Z" fill="currentColor"/><path d="M46.8 40.4L50 62L53.2 40.4" fill="none" stroke="currentColor" stroke-width="1.8"/></g></svg><p class="veil-word"><span>司序</span><span>知所先后</span></p></div>
   <noscript>此页面需要启用JavaScript才能编辑和计算任务。</noscript>
-  <script type="importmap">{"imports":{"./task-state.js":"./task-state.js?v=2026.11.22.83","./snapshot-store.js":"./snapshot-store.js?v=2026.11.22.83","./model-candidates.js":"./model-candidates.js?v=2026.11.22.83","./time-review.js":"./time-review.js?v=2026.11.22.83","./planning-result.js":"./planning-result.js?v=2026.11.22.83","./agenda.js":"./agenda.js?v=2026.11.22.83","./calendar.js":"./calendar.js?v=2026.11.22.83","./shanshui.js":"./shanshui.js?v=2026.11.22.83","./reminders.js":"./reminders.js?v=2026.11.22.83","./bell-toggle.js":"./bell-toggle.js?v=2026.11.22.83","./estimate-memory.js":"./estimate-memory.js?v=2026.11.22.83","./time-state.js":"./time-state.js?v=2026.11.22.83","./scenario.js":"./scenario.js?v=2026.11.22.83","./screenshot-ocr.js":"./screenshot-ocr.js?v=2026.11.22.83","./jw-timetable.js":"./jw-timetable.js?v=2026.11.22.83","./focus.js":"./focus.js?v=2026.11.22.83","./chat-actions.js":"./chat-actions.js?v=2026.11.22.83"}}</script>
-  <script src="./koi.js?v=2026.11.22.83"></script><script src="./router.js?v=2026.11.22.83"></script><script src="./about-sky.js?v=2026.11.22.83"></script><script src="./landing.js?v=2026.11.22.83"></script><script src="./api-config.js?v=2026.11.22.83"></script><script type="module" src="./agent.js?v=2026.11.22.83"></script>
+  <script type="importmap">{"imports":{"./task-state.js":"./task-state.js?v=2026.11.22.84","./snapshot-store.js":"./snapshot-store.js?v=2026.11.22.84","./vault.js":"./vault.js?v=2026.11.22.84","./model-candidates.js":"./model-candidates.js?v=2026.11.22.84","./time-review.js":"./time-review.js?v=2026.11.22.84","./planning-result.js":"./planning-result.js?v=2026.11.22.84","./agenda.js":"./agenda.js?v=2026.11.22.84","./calendar.js":"./calendar.js?v=2026.11.22.84","./shanshui.js":"./shanshui.js?v=2026.11.22.84","./reminders.js":"./reminders.js?v=2026.11.22.84","./bell-toggle.js":"./bell-toggle.js?v=2026.11.22.84","./estimate-memory.js":"./estimate-memory.js?v=2026.11.22.84","./time-state.js":"./time-state.js?v=2026.11.22.84","./scenario.js":"./scenario.js?v=2026.11.22.84","./screenshot-ocr.js":"./screenshot-ocr.js?v=2026.11.22.84","./jw-timetable.js":"./jw-timetable.js?v=2026.11.22.84","./focus.js":"./focus.js?v=2026.11.22.84","./chat-actions.js":"./chat-actions.js?v=2026.11.22.84"}}</script>
+  <script src="./koi.js?v=2026.11.22.84"></script><script src="./router.js?v=2026.11.22.84"></script><script src="./about-sky.js?v=2026.11.22.84"></script><script src="./landing.js?v=2026.11.22.84"></script><script src="./api-config.js?v=2026.11.22.84"></script><script type="module" src="./agent.js?v=2026.11.22.84"></script>
 </body>
 </html>

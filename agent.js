@@ -14,6 +14,7 @@ import { createRecognizer, imageProblem } from './screenshot-ocr.js';
 import { parseChatAction, findTask, starterReply, nextChips, planCardMarkup, proposalCardMarkup, PROPOSAL_KIND_LABEL } from './chat-actions.js';
 import { readFocus, writeFocus, pruneStates, setMark, setCommonWindows, addStates, removeState, parseStateSentence, draftLabel, previewRequest, confirmRequest, replanRange, lockedRests, daySegments, bandMarkup, ribbonMarkup, bandUsed, bandLegend, todayStateMarkup, replanMarkup, spanText, dayLabel, isoAt } from './focus.js';
 import { parseJwTimetable, termStartFrom } from './jw-timetable.js';
+import { checkPersistentStorage, isVaultCode, openVault, requestPersistentStorage, sealVault, supportsLocalFileSync, writeLocalBackupFile } from './vault.js';
 
 /*
  * Workbench for the four time layers (backend docs/time_layers_v3.md):
@@ -184,6 +185,17 @@ function busy(button, value, idle, working) {
   button.textContent = value ? working : idle;
 }
 
+let autoBackupHandle = null;
+let persistRequestedOnce = false;
+
+async function refreshPersistLabel() {
+  const box = $('persistStatus');
+  if (!box) return;
+  const status = await checkPersistentStorage();
+  if (!status.supported) box.textContent = '浏览器防清理保护：当前浏览器未开放持久存储接口，建议定期复制加密恢复码。';
+  else box.textContent = status.persisted ? '浏览器防清理保护：已开启（浏览器不会轻易自动清空本地清单）。' : '浏览器防清理保护：未授权，可点击上方按钮申请；若手动清理缓存仍需加密恢复码还原。';
+}
+
 async function save() {
   if (storageLocked || externalConflict) {
     $('saveState').textContent = '当前修改尚未保存，请先导出备份';
@@ -199,7 +211,27 @@ async function save() {
     return;
   }
   $('saveState').textContent = saved.saved ? '已保存在当前浏览器' : '浏览器保存失败，请导出清单备份';
-  if (!saved.saved) $('saveState').title = saved.error;
+  if (!saved.saved) {
+    $('saveState').title = saved.error;
+    return;
+  }
+  if (!persistRequestedOnce && (snapshot.tasks.length + snapshot.events.length + snapshot.routines.length > 0)) {
+    persistRequestedOnce = true;
+    requestPersistentStorage().then(refreshPersistLabel).catch(() => {});
+  }
+  if (autoBackupHandle && saved.raw) {
+    writeLocalBackupFile(autoBackupHandle, saved.raw).then(written => {
+      const box = $('autoBackupStatus');
+      if (!box) return;
+      if (written.ok) {
+        const clock = new Date(Date.now() + OFFSET).toISOString().slice(11, 16);
+        box.textContent = `本地自动双写：已同步到 ${autoBackupHandle.name || '本地备份文件'}（${clock}）。`;
+        markBackedUp();
+      } else {
+        box.textContent = `本地自动双写未成功（${written.error}），清单仍安全保存在浏览器中。`;
+      }
+    });
+  }
 }
 /** render: 'all' re-draws every list; 'none' keeps the inputs the user is typing in. */
 function commit(next, { render = 'all', unlock = false } = {}) {
@@ -2304,7 +2336,13 @@ $('importFile').addEventListener('change', async event => {
   if (!file) return;
   try {
     if (file.size > 15000000) throw new Error('导入文件超过15MB，请缩小清单。');
-    const next = parseTimeSnapshot(await file.text());
+    let raw = await file.text();
+    if (isVaultCode(raw)) {
+      const pass = window.prompt('这是司序加密恢复文件，请输入恢复口令：');
+      if (pass === null) return;
+      raw = await openVault(raw, pass);
+    }
+    const next = parseTimeSnapshot(raw);
     const hasData = snapshot.events.length || snapshot.tasks.length || snapshot.routines.length;
     if (hasData && !window.confirm('导入会替换当前清单。请先导出需要保留的内容，是否继续？')) return;
     calendarWeek = null;
@@ -2492,7 +2530,78 @@ function checkBackup() {
   $('backupNudge').hidden = !(items >= 3 && stale && state.snoozed !== today && !storageLocked);
 }
 $('backupNow').addEventListener('click', () => $('exportSnapshot').click());
+$('backupVaultOpen')?.addEventListener('click', () => {
+  $('settingsPanel').open = true;
+  $('vaultSection')?.scrollIntoView({ behavior: scrollBehavior(), block: 'nearest' });
+  $('vaultPassphrase')?.focus();
+});
 $('backupLater').addEventListener('click', () => { writeJSON(BACKUP_KEY, { ...backupState(), snoozed: localDate(Date.now()) }); $('backupNudge').hidden = true; });
+
+$('makeVaultCode')?.addEventListener('click', async () => {
+  try {
+    const code = await sealVault(serializeTimeSnapshot(snapshot), $('vaultPassphrase').value);
+    $('vaultCodeBox').value = code;
+    const clock = new Date(Date.now() + OFFSET).toISOString().slice(11, 16);
+    $('vaultStatus').textContent = `已生成加密恢复码（${code.length} 字符，${clock}），可复制发给微信“文件传输助手”或记事本留存。`;
+    markBackedUp();
+    tell('已生成本机加密恢复码，可直接复制保存。');
+  } catch (error) {
+    $('vaultStatus').textContent = error.message;
+    tell(error.message, 'error');
+  }
+});
+$('copyVaultCode')?.addEventListener('click', async () => {
+  const code = $('vaultCodeBox').value.trim();
+  if (!code) return tell('请先生成或粘贴加密恢复码。', 'warning');
+  try { await navigator.clipboard.writeText(code); tell('加密恢复码已复制，可直接发给微信“文件传输助手”。'); }
+  catch { $('vaultCodeBox').select(); tell('请用快捷键复制已选中的恢复码。', 'warning'); }
+});
+$('restoreVaultCode')?.addEventListener('click', async () => {
+  try {
+    const json = await openVault($('vaultCodeBox').value, $('vaultPassphrase').value);
+    const next = parseTimeSnapshot(json);
+    const hasData = snapshot.events.length || snapshot.tasks.length || snapshot.routines.length;
+    if (hasData && !window.confirm('还原加密恢复码会替换当前清单，是否继续？')) return;
+    calendarWeek = null;
+    commit({ ...next, revision: snapshot.revision + 1 }, { unlock: true });
+    $('vaultPassphrase').value = '';
+    $('vaultStatus').textContent = '已从加密恢复码还原整份清单，并同步保存在当前浏览器。';
+    tell('已从加密恢复码完整还原清单。');
+  } catch (error) {
+    $('vaultStatus').textContent = error.message;
+    tell(`未能还原：${error.message}`, 'error');
+  }
+});
+$('bindAutoBackup')?.addEventListener('click', async () => {
+  if (!supportsLocalFileSync()) {
+    const hint = '当前浏览器暂不支持目录文件直写，请使用上方的加密恢复码或“导出清单”。';
+    $('autoBackupStatus').textContent = hint;
+    return tell(hint, 'warning');
+  }
+  try {
+    const handle = await window.showSaveFilePicker({
+      suggestedName: '司序-自动备份.json',
+      types: [{ description: '司序清单 JSON', accept: { 'application/json': ['.json'] } }],
+    });
+    const raw = serializeTimeSnapshot(snapshot);
+    const written = await writeLocalBackupFile(handle, raw);
+    if (!written.ok) throw new Error(written.error);
+    autoBackupHandle = handle;
+    $('autoBackupStatus').textContent = `本地自动双写：已绑定 ${handle.name || '本地备份文件'}，之后每次改动都会自动同步写入。`;
+    markBackedUp();
+    tell('已绑定本地自动备份文件，此后每次修改都会双写保留。');
+  } catch (error) {
+    if (error?.name === 'AbortError') return;
+    $('autoBackupStatus').textContent = `绑定未完成：${error.message}`;
+    tell(`绑定本地自动备份未完成：${error.message}`, 'error');
+  }
+});
+$('requestPersist')?.addEventListener('click', async () => {
+  const status = await requestPersistentStorage();
+  await refreshPersistLabel();
+  if (!status.supported) return tell('当前浏览器不支持主动申请持久存储，请使用加密恢复码备份。', 'warning');
+  tell(status.persisted ? '已开启浏览器防清理保护。' : '浏览器暂未授予持久存储权限，建议结合加密恢复码保存。', status.persisted ? '' : 'warning');
+});
 
 // ---- 提醒 ---------------------------------------------------------------
 // While the page is open, a reminder pops up `lead` minutes before each 截止 and each 点墨 / 约定
@@ -2514,10 +2623,14 @@ leadPick.setAttribute('aria-label', '提前多久提醒');
 leadPick.innerHTML = LEADS.map(minutes => `<option value="${minutes}">提前${minutes === 60 ? '1小时' : `${minutes}分钟`}</option>`).join('');
 leadPick.value = String(remind.lead);
 leadPick.addEventListener('change', () => { remind.lead = Number(leadPick.value); writeJSON(REMIND_KEY, remind); remindTick(); });
-const icsButton = Object.assign(document.createElement('button'), { type: 'button', className: 'text-button', textContent: '加到手机日历' });
+const icsScope = document.createElement('select');
+icsScope.id = 'icsScope';
+icsScope.setAttribute('aria-label', '导出日历范围');
+icsScope.innerHTML = '<option value="full">完整日程（课表+落笔+点墨与截止）</option><option value="alerts">仅点墨与截止提醒</option>';
+const icsButton = Object.assign(document.createElement('button'), { type: 'button', className: 'text-button', id: 'exportIcsBtn', textContent: '加到手机日历' });
 icsButton.addEventListener('click', downloadCalendar);
-const remindNote = Object.assign(document.createElement('p'), { className: 'cal-remind-note', textContent: '页面开着时到点弹出提醒；关掉页面也要提醒，就“加到手机日历”，由手机日历按同样的提前量响铃。' });
-remindBar.append(bell.element, leadPick, icsButton, remindNote);
+const remindNote = Object.assign(document.createElement('p'), { className: 'cal-remind-note', textContent: '页面开着时到点弹出提醒；关掉页面也要提醒，选“完整日程”或“仅点墨与截止”后点“加到手机日历”，即可把课表重复规律与排期一起导入手机日历。' });
+remindBar.append(bell.element, leadPick, icsScope, icsButton, remindNote);
 
 async function toggleRemind(on) {
   remind.on = on;
@@ -2550,15 +2663,27 @@ function remindTick() {
   writeJSON(FIRED_KEY, [...fired].slice(-300));
 }
 function downloadCalendar() {
-  const { text, count } = icsCalendar(snapshot, { now: Date.now(), lead: remind.lead });
-  if (!count) return tell('接下来60天里没有截止或点墨，暂时不用加。', 'warning');
+  const full = icsScope.value === 'full';
+  const { text, count, breakdown } = icsCalendar(snapshot, {
+    now: Date.now(),
+    lead: remind.lead,
+    calendarResult,
+    includeRoutines: full,
+    includeWork: full,
+  });
+  if (!count) return tell(full ? '当前没有可导出的课表、排期、截止或点墨，暂时不用加。' : '接下来60天里没有截止或点墨，暂时不用加。', 'warning');
   const url = window.URL.createObjectURL(new window.Blob([text], { type: 'text/calendar;charset=utf-8' }));
-  const link = Object.assign(document.createElement('a'), { href: url, download: '司序-截止与点墨.ics' });
+  const link = Object.assign(document.createElement('a'), { href: url, download: full ? '司序-完整日程.ics' : '司序-截止与点墨.ics' });
   document.body.append(link);
   link.click();
   link.remove();
   window.setTimeout(() => window.URL.revokeObjectURL(url), 10000);
-  tell(`已生成 ${count} 项（各带提前${remind.lead === 60 ? '1小时' : `${remind.lead}分钟`}的闹钟）。打开这个文件，选“全部添加”到手机日历。`);
+  const parts = [];
+  if (breakdown?.routines) parts.push(`${breakdown.routines} 门底色课表`);
+  if (breakdown?.work) parts.push(`${breakdown.work} 块落笔排期`);
+  if (breakdown?.events) parts.push(`${breakdown.events} 处点墨/约定`);
+  if (breakdown?.deadlines) parts.push(`${breakdown.deadlines} 项截止`);
+  tell(`已生成 ${count} 项日历事件（${parts.join('、')}，各带提前${remind.lead === 60 ? '1小时' : `${remind.lead}分钟`}提醒）。打开该 .ics 文件选“全部添加”即可写入手机系统日历。`);
 }
 window.setInterval(remindTick, 30000);
 document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') remindTick(); });
@@ -2604,6 +2729,7 @@ renderAll();
 takeHashText();
 remindTick();
 checkBackup();
+refreshPersistLabel();
 if (recovered.error) tell(`本地清单未能读取：${recovered.error}。为保护原数据，当前修改暂不覆盖保存；请导入备份或明确清空后重建。`, 'warning');
 else if (recovered.migrated) { tell('已把旧版清单转换成四层时间格式；旧数据仍保留在浏览器中，没有删除。'); save(); }
 if (location.protocol === 'file:') tell('请通过本地HTTP服务打开此页面，直接打开文件无法完整加载编辑模块。', 'warning');

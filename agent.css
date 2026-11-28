@@ -3210,3 +3210,18 @@ html[data-current="calendar"] [data-app]::before {
 .cal-issue:hover .cal-issue-go { text-decoration: underline; text-underline-offset: 3px; }
 .cal-capacity.is-unknown p span { color: var(--muted); line-height: 1.6; }
 .cal-capacity.is-unknown .text-button { margin-top: 8px; padding: 0; font-weight: 600; }
+
+/* ==== 防丢与完整日历导出（.84）======================================================================= */
+.vault-box {
+  margin-top: 16px; padding: 16px 18px; border-radius: 6px;
+  background: rgba(251, 249, 245, .86); border: 1px solid rgba(30, 42, 53, .14);
+  display: grid; gap: 10px;
+}
+.vault-box h3 { margin: 0; font-size: 1rem; font-family: var(--font-serif); color: #1e2a35; }
+.vault-row, .vault-sync-row { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+.vault-row input { flex: 1 1 220px; min-width: 0; }
+.vault-box textarea {
+  width: 100%; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: .78rem;
+  line-height: 1.5; word-break: break-all; background: rgba(255, 255, 255, .85);
+}
+#icsScope { max-width: 100%; }

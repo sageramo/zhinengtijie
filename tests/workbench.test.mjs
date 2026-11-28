@@ -1181,3 +1181,25 @@ test('a complex weekly poster screenshot can be sent to multimodal vision extrac
   assert.equal(app.stored().tasks.some(tk => tk.title === 'AI万象比赛报名截止'), true);
   assert.equal(app.find('#ocrPreview').hidden, true);
 });
+
+test('encrypted recovery code seals in-browser snapshot, survives clear, and restores cleanly', async t => {
+  const app = await imported(t);
+  app.set('#vaultPassphrase', 'sixu-test-key', 'input');
+  app.click('#makeVaultCode');
+  await settle(250);
+  const code = app.find('#vaultCodeBox').value;
+  assert.ok(code.startsWith('SXV1.'), 'vault recovery code generated');
+  const beforeCount = app.stored().tasks.length + app.stored().events.length;
+  assert.ok(beforeCount >= 2);
+
+  app.click('#clearSnapshot');
+  await settle(100);
+  assert.equal(app.stored().tasks.length + app.stored().events.length, 0);
+
+  app.set('#vaultPassphrase', 'sixu-test-key', 'input');
+  app.set('#vaultCodeBox', code, 'input');
+  app.click('#restoreVaultCode');
+  await settle(250);
+  assert.equal(app.stored().tasks.length + app.stored().events.length, beforeCount);
+  assert.match(app.find('#vaultStatus').textContent, /已从加密恢复码还原/);
+});

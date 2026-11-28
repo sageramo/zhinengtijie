@@ -113,3 +113,39 @@ test('each 叠墨 offers 请模型权衡, then shows the model view and marks it
   assert.match(html, /<textarea id="leaveNote"[^>]*>老师您好，&lt;我&gt;<\/textarea>/);
   assert.match(html, /data-copy-note/);
 });
+
+test('full .ics export adds VTIMEZONE, recurring routines with EXDATE, and solved work blocks folded to 75 octets', () => {
+  const richSnapshot = {
+    routines: [{
+      id: 'r1',
+      title: '高等数学',
+      weekdays: [1, 3],
+      start: '08:00',
+      end: '09:40',
+      from: '2026-11-09',
+      until: '2026-12-20',
+      week_interval: 2,
+      skip_dates: ['2026-11-23'],
+      location: '主楼301',
+    }],
+    tasks: snapshot.tasks,
+    events: snapshot.events,
+  };
+  const { text, count, breakdown } = icsCalendar(richSnapshot, {
+    now: T('2026-11-09T07:00:00+08:00'),
+    lead: 30,
+    calendarResult: result,
+    includeRoutines: true,
+    includeWork: true,
+  });
+  assert.deepEqual(breakdown, { deadlines: 1, events: 2, routines: 1, work: 1 });
+  assert.equal(count, 5);
+  assert.match(text, /X-WR-CALNAME:司序 · 完整日程/);
+  assert.match(text, /BEGIN:VTIMEZONE\r\nTZID:Asia\/Shanghai/);
+  assert.match(text, /DTSTART;TZID=Asia\/Shanghai:20261109T080000\r\nDTEND;TZID=Asia\/Shanghai:20261109T094000/);
+  assert.match(text, /RRULE:FREQ=WEEKLY;INTERVAL=2;BYDAY=MO,WE;WKST=MO;UNTIL=20261220T155959Z/);
+  assert.match(text, /EXDATE;TZID=Asia\/Shanghai:20261123T080000/);
+  assert.match(text, /SUMMARY:底色｜高等数学/);
+  assert.match(text, /SUMMARY:落笔｜课程报告/);
+  for (const line of text.split('\r\n')) assert.ok(new TextEncoder().encode(line).length <= 75, line);
+});
