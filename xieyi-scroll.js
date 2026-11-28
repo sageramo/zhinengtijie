@@ -1,7 +1,9 @@
 /**
- * 写意 · 四时手卷（周/月/学期志 + 晨/午/晡/暮粗规划）与学休账卷（砚耕 / 闲暇）。
+ * 写意 · 四时手卷（周/月/学期志 + 晨/午/晡/暮轻待办）与学休账卷（砚耕 / 闲暇）。
  * 纯状态变换 + 宣纸水墨 HTML 片段渲染，不绑定 DOM，可独立单测。
  */
+import { isRoughPersonalBounds } from './time-state.js';
+
 const DAY = 86400000;
 const HOUR = 3600000;
 const MINUTE = 60000;
@@ -62,9 +64,21 @@ export function inferSlotFromText(text) {
   return null;
 }
 
+/** Map a Beijing ISO timestamp into the four classical periods: 晨 / 午 / 晡 / 暮. */
+export function slotFromTimestamp(iso) {
+  const ms = Date.parse(iso || '');
+  if (!Number.isFinite(ms)) return null;
+  const d = localDateObj(ms);
+  const h = d.getUTCHours() + d.getUTCMinutes() / 60;
+  if (h < 12) return 'chen';
+  if (h < 14) return 'wu';
+  if (h < 18.5) return 'bu';
+  return 'mu';
+}
+
 const isPersonalTask = task => Array.isArray(task?.notes) && task.notes.includes('个人任务');
 const hasTaskClock = task => isPersonalTask(task) && Boolean(task?.deadline_at)
-  && (!task.earliest_start_at || !task.deadline_at.includes('T23:59:'));
+  && !isRoughPersonalBounds(task);
 const taskDay = task => {
   const iso = task?.earliest_start_at || task?.deadline_at;
   if (!iso || !/^\d{4}-\d{2}-\d{2}/.test(iso)) return '';
@@ -317,7 +331,7 @@ export function slotSummary(result, dayStartMs, slot) {
       const is = Date.parse(item.start);
       const ie = Date.parse(item.end);
       if (Number.isFinite(is) && Number.isFinite(ie) && ie > s && is < e) {
-        busyItems.push({ layer, title: item.title || '事项', start: is, end: ie });
+        busyItems.push({ id: item.task_id || item.id || '', layer, title: item.title || '事项', start: is, end: ie });
       }
     }
   };
@@ -583,7 +597,8 @@ export function focusCurveMarkup({ state, result, start, now = Date.now(), snaps
 }
 
 /**
- * 将统一事项池投影到写意四时格与左侧远山志的待定队列。
+ * 将统一事项池投影到待办卷四时格与左侧远山志的待定队列。
+ * 互为表里：个人任务无论是否填预计用时都留在待办卷对应时段中，有预计用时则同步排入时序卷。
  */
 export function weekDayItems(snapshot, state, weekStartMs) {
   const days = Array.from({ length: 7 }, (_, idx) => dateStr(weekStartMs + idx * DAY));
@@ -597,15 +612,19 @@ export function weekDayItems(snapshot, state, weekStartMs) {
       pendingTasks.push(task);
       continue;
     }
-    if (tier !== 'day') continue;
+    if (!isPersonalTask(task)) continue;
     const ymd = taskDay(task);
     if (!daySet.has(ymd)) continue;
-    const slotKey = SLOT_KEYS.has(state?.slots?.[task.id]) ? state.slots[task.id] : 'bu';
+    const slotKey = SLOT_KEYS.has(state?.slots?.[task.id])
+      ? state.slots[task.id]
+      : (inferSlotFromText(task.title) || slotFromTimestamp(task.earliest_start_at || task.deadline_at) || 'bu');
     byDay.get(ymd).get(slotKey).push({
       id: task.id,
       title: task.title,
       done: task.status === 'completed',
       fromTask: true,
+      estimateMinutes: task.estimate_minutes ?? null,
+      scheduled: task.estimate_minutes !== null,
     });
   }
   for (const note of state?.notes || []) {
@@ -622,10 +641,19 @@ export function weekDayItems(snapshot, state, weekStartMs) {
   return { byDay, pendingTasks };
 }
 
+const DUR_PRESETS = [
+  [15, '15分'],
+  [30, '30分'],
+  [45, '45分'],
+  [60, '1小时'],
+  [90, '1.5小时'],
+  [120, '2小时'],
+];
+
 /**
- * 渲染「写意 · 四时手卷」：左侧窄竖向「远山志」题跋 + 七日四时格 + 每日底部学休账条。
+ * 渲染「待办 · 四时手卷」：左侧窄竖向「远山志」题跋 + 七日四时格 + 每日底部学休账条。
  */
-export function xieyiBoardMarkup({ state, result, start, now = Date.now(), snapshot = null, openLogDate = '' } = {}) {
+export function xieyiBoardMarkup({ state, result, start, now = Date.now(), snapshot = null, openLogDate = '', openDurTaskId = '' } = {}) {
   const days = Array.from({ length: 7 }, (_, idx) => start + idx * DAY);
   const todayYmd = dateStr(now);
   const weekStartYmd = dateStr(start);
@@ -677,17 +705,36 @@ export function xieyiBoardMarkup({ state, result, start, now = Date.now(), snaps
     const slotCards = SLOTS.map(slot => {
       const info = slotSummary(result, dayMs, slot);
       const entries = byDay.get(ymd)?.get(slot.key) || [];
-      const fixedTags = info.busyItems.slice(0, 3).map(item => `<span class="xy-ref-tag is-${item.layer}">${escapeHTML(item.title)}</span>`).join('');
-      const moreFixed = info.busyItems.length > 3 ? `<span class="xy-ref-more">+${info.busyItems.length - 3}</span>` : '';
+      const entryIds = new Set(entries.map(e => e.id));
+      const busyOnly = info.busyItems.filter(item => !item.id || !entryIds.has(item.id));
+      const fixedTags = busyOnly.slice(0, 3).map(item => `<span class="xy-ref-tag is-${item.layer}">${escapeHTML(item.title)}</span>`).join('');
+      const moreFixed = busyOnly.length > 3 ? `<span class="xy-ref-more">+${busyOnly.length - 3}</span>` : '';
       const itemRows = entries.map(entry => {
         const toggleAttr = entry.fromTask ? `data-xy-task-toggle="${escapeHTML(entry.id)}"` : `data-xy-note-toggle="${escapeHTML(entry.id)}"`;
         const delAttr = entry.fromTask ? `data-xy-task-del="${escapeHTML(entry.id)}"` : `data-xy-note-del="${escapeHTML(entry.id)}"`;
-        const ops = entry.fromTask
-          ? (entry.done ? '' : `<button type="button" class="xy-promote" data-xy-upgrade="${escapeHTML(entry.id)}:30" title="填30分用时，排进时序卷">30分</button><button type="button" class="xy-promote" data-xy-upgrade="${escapeHTML(entry.id)}:60" title="填1小时用时，排进时序卷">1小时</button>`)
-          : (entry.promotedTaskId ? '<em class="xy-promoted">已入时序卷</em>' : `<button type="button" class="xy-promote" data-xy-promote="${escapeHTML(entry.id)}">入时序卷</button>`);
-        return `<li class="xy-note${entry.done ? ' is-done' : ''}">
-          <button type="button" class="xy-note-check" ${toggleAttr} aria-pressed="${entry.done}"><i class="xy-seal">${entry.done ? '成' : ''}</i><span>${escapeHTML(entry.title)}</span></button>
-          <span class="xy-note-ops">${ops}<button type="button" class="xy-del" ${delAttr} aria-label="删去此项">×</button></span>
+        const isDurOpen = entry.fromTask && !entry.done && openDurTaskId === entry.id;
+        let ops = '';
+        if (entry.fromTask && !entry.done) {
+          ops = entry.estimateMinutes !== null
+            ? `<button type="button" class="xy-time-badge${isDurOpen ? ' is-open' : ''}" data-xy-dur-toggle="${escapeHTML(entry.id)}" aria-expanded="${isDurOpen}" title="已同步排入时序卷，点此调整用时或撤回">${minutesLabel(entry.estimateMinutes)}</button>`
+            : `<button type="button" class="xy-time-btn${isDurOpen ? ' is-open' : ''}" data-xy-dur-toggle="${escapeHTML(entry.id)}" aria-expanded="${isDurOpen}" aria-label="选填用时并排入时序卷" title="选填用时排入时序卷（可不填）"><svg viewBox="0 0 16 16" width="13" height="13" aria-hidden="true"><circle cx="8" cy="8" r="6" fill="none" stroke="currentColor" stroke-width="1.4"/><path d="M8 4.6V8l2.2 1.4" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/></svg></button>`;
+        } else if (!entry.fromTask) {
+          ops = entry.promotedTaskId ? '<em class="xy-promoted">已入时序卷</em>' : `<button type="button" class="xy-promote" data-xy-promote="${escapeHTML(entry.id)}">入时序卷</button>`;
+        }
+        const durPop = isDurOpen
+          ? `<div class="xy-dur-pop">
+              <p class="xy-dur-hint">排入时序卷「${slot.name}·${slot.gloss}」时段</p>
+              <div class="xy-dur-presets" role="group" aria-label="快捷时长">${DUR_PRESETS.map(([mins, label]) => `<button type="button" data-xy-upgrade="${escapeHTML(entry.id)}:${mins}" aria-pressed="${entry.estimateMinutes === mins}">${label}</button>`).join('')}</div>
+              <form class="xy-dur-custom" data-xy-dur-form="${escapeHTML(entry.id)}"><input name="minutes" type="number" min="5" max="720" step="5" value="${entry.estimateMinutes ?? 45}" aria-label="自定义分钟数" required><span>分</span><button type="submit">排入</button></form>
+              ${entry.estimateMinutes !== null ? `<button type="button" class="xy-dur-clear" data-xy-upgrade="${escapeHTML(entry.id)}:0">撤回轻待办（仅留待办卷）</button>` : ''}
+            </div>`
+          : '';
+        return `<li class="xy-note${entry.done ? ' is-done' : ''}${entry.estimateMinutes !== null ? ' is-scheduled' : ''}">
+          <div class="xy-note-main">
+            <button type="button" class="xy-note-check" ${toggleAttr} aria-pressed="${entry.done}"><i class="xy-seal">${entry.done ? '成' : ''}</i><span>${escapeHTML(entry.title)}</span></button>
+            <span class="xy-note-ops">${ops}<button type="button" class="xy-del" ${delAttr} aria-label="删去此项">×</button></span>
+          </div>
+          ${durPop}
         </li>`;
       }).join('');
       return `<div class="xy-slot xy-slot-${slot.key}">
@@ -749,6 +796,6 @@ export function xieyiBoardMarkup({ state, result, start, now = Date.now(), snaps
 
   return `<div class="xy-layout">
     ${colophon}
-    <div class="xy-grid" aria-label="日课卷 · 每日待办">${dayColumns}</div>
+    <div class="xy-grid" aria-label="待办卷 · 四时轻记">${dayColumns}</div>
   </div>`;
 }

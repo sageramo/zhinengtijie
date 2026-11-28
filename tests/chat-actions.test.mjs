@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { parseChatAction, findTask, starterReply, nextChips } from '../chat-actions.js';
+import { parseChatAction, parseRoughSchedule, findTask, starterReply, nextChips } from '../chat-actions.js';
 
 const task = (id, title, deadline) => ({ id, title, status: 'active', deadline_at: deadline, estimate_minutes: null });
 const snapshot = { tasks: [task('t1', '交实验报告', '2026-11-27T23:59:00+08:00'), task('t2', '提交社团报名表', '2026-11-25T18:00:00+08:00'), { ...task('t3', '旧作业', null), status: 'completed' }] };
@@ -114,4 +114,38 @@ test('proposalCardMarkup renders confirmable cards for add_items, update_item, f
   const fwHtml = proposalCardMarkup({ kind: 'focus_window', weekend: { start: '14:00', end: '18:00' } }, 'prop-3');
   assert.match(fwHtml, /保存为常用专注时段/);
   assert.match(fwHtml, /14:00–18:00/);
+});
+
+test('parseRoughSchedule turns 研墨 natural-language slot requests into slotted 待办 items without touching clock/notice inputs', () => {
+  const nowMs = Date.parse('2026-11-28T10:00:00+08:00');
+  assert.deepEqual(
+    parseRoughSchedule('请帮我在待办中安排明天上午学英语，下午写实验报告45分钟，晚上跑步', nowMs),
+    {
+      kind: 'rough-schedule',
+      items: [
+        { date: '2026-11-29', slot: 'chen', title: '学英语', minutes: null },
+        { date: '2026-11-29', slot: 'bu', title: '写实验报告', minutes: 45 },
+        { date: '2026-11-29', slot: 'mu', title: '跑步', minutes: null },
+      ],
+    },
+  );
+  assert.deepEqual(
+    parseRoughSchedule('今天上午预习高数，下午写论文半小时', nowMs),
+    {
+      kind: 'rough-schedule',
+      items: [
+        { date: '2026-11-28', slot: 'chen', title: '预习高数', minutes: null },
+        { date: '2026-11-28', slot: 'bu', title: '写论文', minutes: 30 },
+      ],
+    },
+  );
+  for (const skip of [
+    '提醒我今天晚上9点前交实验报告',
+    '明天下午三点半开会',
+    '周末我有空',
+    '我工作日晚上7点到9点最专注',
+    '周三上午还有空吗？',
+  ]) {
+    assert.equal(parseRoughSchedule(skip, nowMs), null, skip);
+  }
 });

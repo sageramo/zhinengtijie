@@ -3398,9 +3398,49 @@ html[data-current="calendar"] [data-app]::before {
 .xy-ref-more { font-size: .7rem; color: #6a6358; font-family: var(--font-ui); }
 
 .xy-notes { list-style: none; margin: 0; padding: 0; display: grid; gap: 5px; }
-.xy-note { display: grid; gap: 3px; padding: 5px 6px; border-radius: 4px; background: rgba(255, 255, 255, .82); border: 1px solid rgba(30, 42, 53, .08); font-size: .8rem; font-family: var(--font-ui); }
+.xy-note { display: grid; gap: 6px; padding: 6px 7px; border-radius: 5px; background: rgba(255, 255, 255, .86); border: 1px solid rgba(30, 42, 53, .08); font-size: .8rem; font-family: var(--font-ui); }
+.xy-note.is-scheduled { border-left: 2px solid #2b4a5e; }
 .xy-note.is-done span { text-decoration: line-through; opacity: .62; }
-.xy-note-ops { display: flex; justify-content: flex-end; align-items: center; gap: 6px; }
+.xy-note-main { display: flex; align-items: flex-start; justify-content: space-between; gap: 6px; min-width: 0; }
+.xy-note-check { flex: 1 1 auto; min-width: 0; align-items: flex-start; }
+.xy-note-check span { word-break: break-word; line-height: 1.4; }
+.xy-note-ops { flex: none; display: inline-flex; align-items: center; gap: 3px; white-space: nowrap; }
+.xy-time-btn {
+  display: inline-grid; place-items: center; width: 22px; height: 22px; border-radius: 4px;
+  border: 0; background: transparent; color: #7b848e; cursor: pointer; padding: 0;
+}
+.xy-time-btn:hover, .xy-time-btn.is-open { background: rgba(43, 74, 94, .11); color: #2b4a5e; }
+.xy-time-badge {
+  border: 0; border-radius: 999px; padding: 2px 7px; font-size: .68rem; font-weight: 600;
+  font-family: var(--font-ui); background: rgba(43, 74, 94, .12); color: #2b4a5e;
+  cursor: pointer; white-space: nowrap; line-height: 1.3;
+}
+.xy-time-badge:hover, .xy-time-badge.is-open { background: #2b4a5e; color: #f8f4ec; }
+.xy-dur-pop {
+  display: grid; gap: 6px; padding: 7px 8px; border-radius: 5px;
+  background: rgba(246, 241, 231, .95); border: 1px solid rgba(43, 74, 94, .16);
+}
+.xy-dur-hint { margin: 0; font-size: .68rem; color: #5b636a; font-family: var(--font-ui); }
+.xy-dur-presets { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 4px; }
+.xy-dur-presets button {
+  border: 1px solid rgba(30, 42, 53, .14); background: #fff; color: #1e2a35;
+  border-radius: 4px; padding: 3px 4px; font-size: .7rem; font-family: var(--font-ui);
+  cursor: pointer; white-space: nowrap;
+}
+.xy-dur-presets button[aria-pressed="true"] { background: #2b4a5e; color: #f8f4ec; border-color: #2b4a5e; }
+.xy-dur-custom { display: flex; align-items: center; gap: 4px; font-size: .72rem; color: #5b636a; }
+.xy-dur-custom input {
+  width: 56px; padding: 2px 5px; border-radius: 4px; border: 1px solid rgba(30, 42, 53, .18);
+  font-size: .72rem; min-height: 24px; background: #fff; font-family: var(--font-ui);
+}
+.xy-dur-custom button {
+  margin-left: auto; border: 0; border-radius: 4px; background: #2b4a5e; color: #f8f4ec;
+  padding: 3px 8px; font-size: .7rem; font-family: var(--font-ui); cursor: pointer; white-space: nowrap;
+}
+.xy-dur-clear {
+  border: 0; background: none; padding: 2px 0 0; text-align: left; font-size: .68rem;
+  color: #8c2d23; font-family: var(--font-ui); cursor: pointer; text-decoration: underline;
+}
 .xy-promoted { font-style: normal; font-size: .68rem; color: #4f6f5a; }
 .xy-add-form input {
   width: 100%; font-family: var(--font-ui); font-size: .76rem; padding: 5px 7px; border-radius: 4px;

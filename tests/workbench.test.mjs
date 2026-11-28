@@ -144,12 +144,12 @@ test('the task starter uses only the supplied excerpt, never writes back, and cl
   assert.equal(app.find('[data-starter-result]').hidden, true);
 });
 
-test('tabs start at 研墨 (with bottom-left 笔墨 entry linking to #/items), 时序｜日课 sits in header, and 计算说明 is removed', async t => {
+test('tabs start at 研墨 (with bottom-left 笔墨 entry linking to #/items), 时序｜待办 sits in header, and 计算说明 is removed', async t => {
   const app = await boot(t);
   assert.deepEqual(app.all('.page-tabs a').map(tab => [tab.dataset.tab, tab.querySelector('.tab-name').textContent, tab.querySelector('.tab-sub').textContent]),
     [['import', '研墨', '通知与笔墨'], ['time', '铺纸', '底色与留白'], ['calendar', '画卷', '一周日历']]);
   assert.equal(app.find('[data-nav-scroll="gongbi"]').textContent, '时序');
-  assert.equal(app.find('[data-nav-scroll="xieyi"]').textContent, '日课');
+  assert.equal(app.find('[data-nav-scroll="xieyi"]').textContent, '待办');
   assert.equal(app.find('a[href="./algorithm.html"]'), null, '计算说明 removed from navigation');
   assert.equal(app.find('#inkRail .rail-foot #inkItemsEntry').getAttribute('href'), '#/items');
   assert.equal(app.find('[data-page="items"] .subpage-back').getAttribute('href'), '#/import');
@@ -1220,16 +1220,16 @@ test('book-flip 画卷 (工笔 ↔ 写意), once-per-day cover, vertical 远山�
   // Desktop starts rolled on 时序卷 cover on first entry of the day
   assert.ok(app.find('.scroll.is-rolled'), 'starts rolled on 时序卷 cover');
   assert.match(app.find('#coverHeading').textContent, /峰高是忙/);
-  assert.equal(app.window.SixuCalendarFlip.arrows().next.label, '日课卷 · 每日待办');
-  assert.ok(app.find('.page-dogear.is-next'), 'dogear corner points to 日课卷');
+  assert.equal(app.window.SixuCalendarFlip.arrows().next.label, '待办卷 · 四时轻记');
+  assert.ok(app.find('.page-dogear.is-next'), 'dogear corner points to 待办卷');
 
-  // Flipping via book-flip hook switches to 日课卷's own cover
+  // Flipping via book-flip hook switches to 待办卷's own cover
   assert.equal(app.window.SixuCalendarFlip.step(1), true);
   await settle(80);
   assert.ok(app.find('.scroll.is-rolled.is-xieyi'), 'xieyi keeps its own rolled cover');
   assert.ok(app.find('.shanshui-xieyi'), 'xieyi renders distinct bamboo-skiff painting');
   assert.match(app.find('#coverHeading').textContent, /竹影随心/);
-  assert.equal(app.window.SixuCalendarFlip.arrows().next, null, 'no page after 日课卷');
+  assert.equal(app.window.SixuCalendarFlip.arrows().next, null, 'no page after 待办卷');
   assert.equal(app.window.SixuCalendarFlip.arrows().prev.label, '时序卷 · 精确排期');
   assert.ok(app.find('.page-dogear.is-prev'), 'dogear corner flips back to 时序卷');
 
@@ -1273,7 +1273,7 @@ test('book-flip 画卷 (工笔 ↔ 写意), once-per-day cover, vertical 远山�
   await settle(60);
   assert.match(app.find('.xy-colophon').textContent, /完成本周文献精读/);
 
-  // Add a unified 定日 item in 写意 — immediately creates a unified task in snapshot & #inkPool
+  // Add a unified 定日 item in 待办卷 — creates task with slot-specific bounds (NOT 23:59 for 晨/午/晡)
   const beforeTasks = app.stored().tasks.length;
   const firstAddForm = app.find('[data-xy-add-form]');
   firstAddForm.querySelector('input[name="title"]').value = '整理相机标定公式';
@@ -1282,13 +1282,45 @@ test('book-flip 画卷 (工笔 ↔ 写意), once-per-day cover, vertical 远山�
   assert.equal(app.stored().tasks.length, beforeTasks + 1);
   const created = app.stored().tasks.at(-1);
   assert.equal(created.title, '整理相机标定公式');
+  assert.match(created.earliest_start_at, /T06:00:00\+08:00$/);
+  assert.match(created.deadline_at, /T12:00:00\+08:00$/);
   assert.equal(app.find(`#item-${created.id}`).dataset.tier, 'day');
 
-  // Inline duration upgrade fills estimate_minutes on the SAME task (no duplicate created)
-  app.click(`[data-xy-upgrade="${created.id}:30"]`);
+  // Opening the minimalist clock popover & upgrading to 45m keeps the task visible in 待办卷 AND keeps 06:00–12:00 bounds
+  app.click(`[data-xy-dur-toggle="${created.id}"]`);
+  await settle(40);
+  assert.ok(app.find('.xy-dur-pop'), 'duration popover opens cleanly');
+  app.click(`[data-xy-upgrade="${created.id}:45"]`);
   await settle(100);
   assert.equal(app.stored().tasks.length, beforeTasks + 1);
-  assert.equal(app.stored().tasks.find(item => item.id === created.id).estimate_minutes, 30);
+  const upgraded = app.stored().tasks.find(item => item.id === created.id);
+  assert.equal(upgraded.estimate_minutes, 45);
+  assert.match(upgraded.deadline_at, /T12:00:00\+08:00$/);
+  assert.equal(app.find(`[data-xy-dur-toggle="${created.id}"]`).textContent, '45分', 'task stays visible in 待办卷 after entering 时序卷');
+
+  // Clearing duration reverts cleanly back to timeless light to-do
+  app.click(`[data-xy-dur-toggle="${created.id}"]`);
+  await settle(40);
+  app.click(`[data-xy-upgrade="${created.id}:0"]`);
+  await settle(80);
+  assert.equal(app.stored().tasks.find(item => item.id === created.id).estimate_minutes, null);
+
+  // Sending natural-language rough scheduling in 研墨 inserts slotted tasks directly into 待办卷
+  app.window.location.hash = '#/import';
+  await settle(60);
+  app.set('#noticeText', '请帮我在待办中安排明天上午学英语，下午写实验报告45分钟');
+  await app.submit('#noticeForm');
+  await settle(100);
+  const enTask = app.stored().tasks.find(item => item.title === '学英语');
+  const repTask = app.stored().tasks.find(item => item.title === '写实验报告');
+  assert.ok(enTask && repTask, '研墨 created both 待办 items');
+  assert.match(enTask.deadline_at, /T12:00:00\+08:00$/);
+  assert.equal(repTask.estimate_minutes, 45);
+  assert.match(repTask.earliest_start_at, /T14:00:00\+08:00$/);
+  assert.match(repTask.deadline_at, /T18:30:00\+08:00$/);
+  assert.ok(app.find('[data-open-scroll="xieyi"]'), 'reply includes direct jump to 待办卷');
+  app.click('[data-open-scroll="xieyi"]');
+  await settle(60);
 
   // Open per-day ledger strip inside 写意 and log study + leisure sessions
   app.click('[data-xy-day-log-toggle]');

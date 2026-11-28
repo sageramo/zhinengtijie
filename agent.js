@@ -3,7 +3,7 @@ import { SnapshotStore } from './snapshot-store.js';
 import {
   TIME_STORAGE_KEY, ESTIMATE_PRESETS, createTimeSnapshot, serializeTimeSnapshot, parseTimeSnapshot, readTimeSnapshot,
   addImported, updateTask, updateEvent, addTask, addEvent, removeItem, setDailyWindow, addRoutine,
-  addAdjustment, addTimetable, setReferenceTime, setRoutinesConfirmed, skipRoutineDate, isPersonal, personalDay, addPersonalTask, setPersonalDay, setTaskDeadline,
+  addAdjustment, addTimetable, setReferenceTime, setRoutinesConfirmed, skipRoutineDate, isPersonal, isRoughPersonalBounds, personalDay, addPersonalTask, setPersonalDay, setTaskDeadline, slotBounds,
 } from './time-state.js';
 import { agendaReply, hasPersonalClock, isConversation, parseActivities } from './agenda.js';
 import { calendarMarkup, conflictKey, conflictsInWeek, digestChanges, minutesLabel, resultDigest, weekStart, weekRange } from './calendar.js';
@@ -16,7 +16,7 @@ import { parseChatAction, findTask, starterReply, nextChips, planCardMarkup, pro
 import { readFocus, writeFocus, pruneStates, setMark, setCommonWindows, addStates, removeState, parseStateSentence, draftLabel, previewRequest, confirmRequest, replanRange, lockedRests, daySegments, bandMarkup, ribbonMarkup, bandUsed, bandLegend, todayStateMarkup, replanMarkup, spanText, dayLabel, isoAt } from './focus.js';
 import { parseJwTimetable, termStartFrom } from './jw-timetable.js';
 import { checkPersistentStorage, isVaultCode, openVault, requestPersistentStorage, sealVault, supportsLocalFileSync, writeLocalBackupFile } from './vault.js';
-import { addGoal, addNote, addTimeLog, focusCurveMarkup, inferSlotFromText, itemTier, ledgerMarkup, markNotePromoted, migrateLegacyNotes, normalizeXieyiState, periodKeyFor, readXieyi, removeGoal, removeNote, removeTaskSlot, removeTimeLog, setGoalTab, setScrollMode, setTaskSlot, SLOT_NAMES, toggleGoal, toggleNote, weekDayItems, weeklyLedgerBrief, writeXieyi, xieyiBoardMarkup } from './xieyi-scroll.js';
+import { addGoal, addNote, addTimeLog, focusCurveMarkup, inferSlotFromText, itemTier, ledgerMarkup, markNotePromoted, migrateLegacyNotes, normalizeXieyiState, periodKeyFor, readXieyi, removeGoal, removeNote, removeTaskSlot, removeTimeLog, setGoalTab, setScrollMode, setTaskSlot, slotFromTimestamp, SLOT_NAMES, toggleGoal, toggleNote, weekDayItems, weeklyLedgerBrief, writeXieyi, xieyiBoardMarkup } from './xieyi-scroll.js';
 import { COMPANION_PRESETS, companionMarkup, companionWhisper, createSoundscape, formatClock, resolveScene, sceneMix, suggestGapSession } from './companion.js';
 
 /*
@@ -90,6 +90,7 @@ const initialCoverRolled = () => !isPhoneViewport() && !hasSeenCoverToday();
 let rolledByMode = { gongbi: initialCoverRolled(), xieyi: initialCoverRolled() };
 const isScrollRolled = () => rolledByMode[xieyiState.mode];
 let openLogDate = '';
+let openDurTaskId = '';
 let scrollFlipDir = '';
 let calendarAnalyzed = false; // 画卷 defaults to full-width solo view; click 解析 to open the left analysis panel
 let calendarCurveOpen = false;
@@ -422,14 +423,22 @@ function renderCalendar() {
   }, 0) : 0;
   const xieyiGoalsInWeek = (xieyiState.goals || []).filter(g => g.horizon === 'week' && g.periodKey === periodKeyFor('week', startMs));
   const xieyiPainting = isXieyi ? xieyiShanshuiMarkup({ state: xieyiState, snapshot, start: startMs, now: nowMs, id: rolled ? 'ss-xy-cover' : 'ss-xy-board', weekGoals: xieyiGoalsInWeek.map(g => g.title) }) : '';
-  const xieyiCoverMeta = [xieyiGoalsInWeek.length ? `${xieyiGoalsInWeek.length} 条周志` : '', xieyiCount ? `${xieyiCount} 笔定日` : ''].filter(Boolean).join(' · ');
+  const xieyiCoverMeta = [xieyiGoalsInWeek.length ? `${xieyiGoalsInWeek.length} 条周志` : '', xieyiCount ? `${xieyiCount} 笔待办` : ''].filter(Boolean).join(' · ');
+  const hiddenDeadlineIds = new Set();
+  const scheduledWorkIds = new Set((calendarResult?.layers?.work || []).map(w => w.task_id).filter(Boolean));
+  for (const t of snapshot.tasks || []) {
+    if (isPersonal(t) && isRoughPersonalBounds(t) && (t.estimate_minutes === null || scheduledWorkIds.has(t.id))) {
+      hiddenDeadlineIds.add(t.id);
+    }
+  }
   $('calendarView').innerHTML = calendarMarkup({ result: calendarResult, start: startMs, now: nowMs, loading: calendarLoading && !calendarResult, error: calendarError, undo: strategyUndo?.replan ? '' : strategyUndo?.label || '', note: strategyUndo?.note || '', changes: strategyUndo?.changes || [], focus: calendarFocus, plans: solveState, weighs, rolled, unrolling: Boolean(unrollTimer), fresh: !coverPaintedByMode[xieyiState.mode], analyzed: calendarAnalyzed, curveOpen: calendarCurveOpen, futureRef, listView: calendarListView,
     scrollMode: xieyiState.mode,
-    xieyiBoard: isXieyi ? xieyiBoardMarkup({ state: xieyiState, result: calendarResult, start: startMs, now: nowMs, snapshot, openLogDate }) : '',
+    xieyiBoard: isXieyi ? xieyiBoardMarkup({ state: xieyiState, result: calendarResult, start: startMs, now: nowMs, snapshot, openLogDate, openDurTaskId }) : '',
     xieyiPainting,
     xieyiCoverMeta,
     weekLedgerBrief: weeklyLedgerBrief(xieyiState, startMs),
     focusCurve: focusCurveMarkup({ state: xieyiState, result: calendarResult, start: startMs, now: nowMs, snapshot }),
+    hiddenDeadlineIds,
     band: showBand ? (dayStart, first, last) => bandMarkup(focusSettings, snapshot, dayStart, first, last, pending) : null,
     ribbon: showBand ? (dayStart, first, last) => ribbonMarkup(focusSettings, snapshot, dayStart, first, last, pending) : null,
     energy: showBand ? Array.from({ length: 7 }, (_, index) => daySegments(focusSettings, snapshot, startMs + index * DAY, pending)).flat() : [],
@@ -584,9 +593,10 @@ function taskMarkup(task) {
     + ESTIMATE_PRESETS.map(preset => `<button type="button" class="chip" data-estimate="${preset.minutes}" aria-pressed="${task.estimate_minutes === preset.minutes}">${preset.label}</button>`).join('');
   const kind = isPersonal(task) ? ['work', '个人任务'] : ['deadline', '截止'];
   const tier = itemTier(task, 'task');
-  const slot = xieyiState.slots?.[task.id] || inferSlotFromText(task.title);
-  const slotLabel = tier === 'day' ? `定日 · ${SLOT_NAMES[slot] || '晡'}` : TIER_LABEL[tier];
-  const slotField = tier === 'day' ? `<label>时段<select data-field="xieyi_slot"><option value="chen"${slot === 'chen' ? ' selected' : ''}>晨 · 上午</option><option value="wu"${slot === 'wu' ? ' selected' : ''}>午 · 中午</option><option value="bu"${slot === 'bu' ? ' selected' : ''}>晡 · 下午</option><option value="mu"${slot === 'mu' ? ' selected' : ''}>暮 · 晚间</option></select></label>` : '';
+  const isRoughPersonal = isPersonal(task) && !hasPersonalClock(task);
+  const slot = xieyiState.slots?.[task.id] || inferSlotFromText(task.title) || slotFromTimestamp(task.earliest_start_at || task.deadline_at) || 'bu';
+  const slotLabel = tier === 'day' ? `定日 · ${SLOT_NAMES[slot] || '晡'}` : (isRoughPersonal && tier !== 'pending' ? `已排时序 · ${SLOT_NAMES[slot] || '晡'}` : TIER_LABEL[tier]);
+  const slotField = isRoughPersonal && tier !== 'pending' ? `<label>时段<select data-field="xieyi_slot"><option value="chen"${slot === 'chen' ? ' selected' : ''}>晨 · 上午</option><option value="wu"${slot === 'wu' ? ' selected' : ''}>午 · 中午</option><option value="bu"${slot === 'bu' ? ' selected' : ''}>晡 · 下午</option><option value="mu"${slot === 'mu' ? ' selected' : ''}>暮 · 晚间</option></select></label>` : '';
   return `<article class="item-card is-${kind[0]}${active ? '' : ' is-inactive'}" data-item-id="${escapeHTML(task.id)}" data-kind="task" data-tier="${tier}" id="item-${escapeHTML(task.id)}">
     <div class="item-top"><i class="item-glyph" aria-hidden="true"></i><span class="item-kind">${kind[1]}</span><div class="item-heading"><input class="item-title" data-field="title" value="${escapeHTML(task.title)}" aria-label="工作名称" maxlength="200"><div class="item-meta-row"><span class="pool-tier-badge is-${tier}">${escapeHTML(slotLabel)}</span><p class="item-meta" data-item-meta>${escapeHTML(itemMeta(task))}</p></div></div>${stateBadge(taskState(task))}</div>
     <details class="item-edit"${editorOpen(task) ? ' open' : ''}><summary>修改${isPersonal(task) && !hasPersonalClock(task) ? '日期' : '截止'}、用时与拆分</summary>
@@ -637,7 +647,7 @@ function renderItems() {
   $('appointmentList').innerHTML = appointments.length ? appointments.map(eventMarkup).join('') : '<p class="empty-note">还没有约定。和别人约好的事可以加在这里。</p>';
   const personal = snapshot.tasks.filter(isPersonal);
   const deadlines = snapshot.tasks.filter(task => !isPersonal(task));
-  $('personalList').innerHTML = personal.length ? personal.map(taskMarkup).join('') : '<p class="empty-note">还没有个人任务。点“添加个人任务”，或在日课卷里随笔记下。</p>';
+  $('personalList').innerHTML = personal.length ? personal.map(taskMarkup).join('') : '<p class="empty-note">还没有个人任务。点“添加个人任务”，或在待办卷里随笔记下。</p>';
   $('taskList').innerHTML = deadlines.length ? deadlines.map(taskMarkup).join('') : '<p class="empty-note">还没有截止之事。导入通知或手动添加。</p>';
   for (const [id, list] of [['eventCount', points], ['appointmentCount', appointments], ['personalCount', personal], ['deadlineCount', deadlines]]) $(id).textContent = String(list.length);
   const sizes = { appointment: appointments.length, personal: personal.length, deadline: deadlines.length };
@@ -933,7 +943,7 @@ $('noticeForm').addEventListener('submit', async event => {
       if (isPersonal(t) && !hasPersonalClock(t)) {
         const added = next.tasks.find(item => item.title === t.title && item.source_id === imported.source.id);
         if (added && !xieyiState.slots?.[added.id]) {
-          xieyiState = normalizeXieyiState(setTaskSlot(xieyiState, added.id, inferSlotFromText(`${t.title} ${text}`)));
+          xieyiState = normalizeXieyiState(setTaskSlot(xieyiState, added.id, inferSlotFromText(`${t.title} ${text}`) || slotFromTimestamp(added.earliest_start_at || added.deadline_at) || 'bu'));
         }
       }
     }
@@ -1287,15 +1297,23 @@ function onItemChange(event) {
   if (!input || !card) return;
   try {
     if (input.dataset.field === 'xieyi_slot') {
-      xieyiState = normalizeXieyiState(setTaskSlot(xieyiState, card.dataset.itemId, input.value || 'bu'));
+      const nextSlot = input.value || 'bu';
+      xieyiState = normalizeXieyiState(setTaskSlot(xieyiState, card.dataset.itemId, nextSlot));
       writeXieyi(storage, xieyiState);
       itemError(card, '');
-      renderItems();
-      renderCalendar();
+      const target = snapshot.tasks.find(t => t.id === card.dataset.itemId);
+      const day = target ? personalDay(target) : '';
+      if (target && day && !hasPersonalClock(target)) {
+        commit(setPersonalDay(snapshot, target.id, day, nextSlot));
+      } else {
+        renderItems();
+        renderCalendar();
+      }
       return;
     }
     const beforeTier = card.dataset.tier;
-    const next = input.dataset.field === 'personal_day' ? setPersonalDay(snapshot, card.dataset.itemId, input.value || null)
+    const curSlot = xieyiState.slots?.[card.dataset.itemId] || null;
+    const next = input.dataset.field === 'personal_day' ? setPersonalDay(snapshot, card.dataset.itemId, input.value || null, curSlot)
       : editItem(card, { [input.dataset.field]: fieldValue(input) });
     input.setAttribute('aria-invalid', 'false');
     itemError(card, '');
@@ -1480,7 +1498,7 @@ $('taskSection').addEventListener('click', event => {
   strip.closest('[data-group]').querySelector('.group-head button')?.focus({ preventScroll: true });
 });
 $('addPersonal').addEventListener('click', () => {
-  let next = addPersonalTask(snapshot, { day: localDate(Date.now()) });
+  let next = addPersonalTask(snapshot, { day: localDate(Date.now()), slot: 'bu' });
   const created = next.tasks[next.tasks.length - 1];
   if (created) {
     xieyiState = normalizeXieyiState(setTaskSlot(xieyiState, created.id, 'bu'));
@@ -1728,7 +1746,7 @@ window.SixuCalendarFlip = {
     }
     return {
       prev: { label: '铺纸 · 底色与留白', route: 'time' },
-      next: { label: '日课卷 · 每日待办', flip: 'xieyi', route: 'calendar' },
+      next: { label: '待办卷 · 四时轻记', flip: 'xieyi', route: 'calendar' },
     };
   },
   step(step) {
@@ -1765,7 +1783,7 @@ $('calendarView').addEventListener('click', event => {
     const todayYmd = localDate(Date.now());
     const inWeek = Date.now() >= startMs && Date.now() < startMs + 7 * DAY;
     const dropDate = inWeek ? todayYmd : localDate(startMs);
-    const next = addPersonalTask(snapshot, { title: goal.title, day: dropDate, estimate_minutes: null });
+    const next = addPersonalTask(snapshot, { title: goal.title, day: dropDate, slot: 'bu', estimate_minutes: null });
     const created = next.tasks[next.tasks.length - 1];
     if (created) {
       xieyiState = normalizeXieyiState(setTaskSlot(xieyiState, created.id, 'bu'));
@@ -1786,7 +1804,7 @@ $('calendarView').addEventListener('click', event => {
     const dropDate = inWeek ? todayYmd : localDate(startMs);
     xieyiState = normalizeXieyiState(setTaskSlot(xieyiState, taskId, 'bu'));
     writeXieyi(storage, xieyiState);
-    commit(setPersonalDay(snapshot, taskId, dropDate));
+    commit(setPersonalDay(snapshot, taskId, dropDate, 'bu'));
     tell(`已把「${task.title}」落到 ${dropDate} 晡（下午）。`);
     return;
   }
@@ -1801,6 +1819,7 @@ $('calendarView').addEventListener('click', event => {
   const taskDelBtn = event.target.closest('[data-xy-task-del]');
   if (taskDelBtn) {
     const taskId = taskDelBtn.dataset.xyTaskDel;
+    if (openDurTaskId === taskId) openDurTaskId = '';
     if (xieyiState.slots?.[taskId]) {
       xieyiState = normalizeXieyiState(removeTaskSlot(xieyiState, taskId));
       writeXieyi(storage, xieyiState);
@@ -1808,14 +1827,17 @@ $('calendarView').addEventListener('click', event => {
     commit(removeItem(snapshot, taskId));
     return;
   }
+  const durToggleBtn = event.target.closest('[data-xy-dur-toggle]');
+  if (durToggleBtn) {
+    const id = durToggleBtn.dataset.xyDurToggle;
+    openDurTaskId = openDurTaskId === id ? '' : id;
+    renderCalendar();
+    return;
+  }
   const upgradeBtn = event.target.closest('[data-xy-upgrade]');
   if (upgradeBtn) {
     const [taskId, minRaw] = upgradeBtn.dataset.xyUpgrade.split(':');
-    const minutes = Number(minRaw);
-    const task = snapshot.tasks.find(t => t.id === taskId);
-    if (!task || !Number.isFinite(minutes)) return;
-    commit(updateTask(snapshot, taskId, { estimate_minutes: minutes }));
-    tell(`已为「${task.title}」补填预计 ${minutes} 分钟，已同步排入时序卷。`);
+    applyXieyiDuration(taskId, Number(minRaw));
     return;
   }
   const noteToggleBtn = event.target.closest('[data-xy-note-toggle]');
@@ -1932,6 +1954,23 @@ function handleXieyiLogSubmit(logForm) {
   } catch (error) { tell(error.message, 'warning'); }
 }
 
+function applyXieyiDuration(taskId, minutes) {
+  const task = snapshot.tasks.find(t => t.id === taskId);
+  if (!task || !Number.isFinite(minutes)) return;
+  openDurTaskId = '';
+  if (minutes <= 0) {
+    commit(updateTask(snapshot, taskId, { estimate_minutes: null }));
+    tell(`已把「${task.title}」恢复为轻待办（仅留在待办卷）。`);
+    return;
+  }
+  const mins = Math.min(720, Math.max(5, Math.round(minutes)));
+  const day = personalDay(task);
+  const slot = xieyiState.slots?.[taskId] || inferSlotFromText(task.title) || slotFromTimestamp(task.earliest_start_at || task.deadline_at) || 'bu';
+  const patch = { estimate_minutes: mins, ...(day && !hasPersonalClock(task) ? slotBounds(day, slot) : {}) };
+  commit(updateTask(snapshot, taskId, patch));
+  tell(`已为「${task.title}」填上预计 ${minutesLabel(mins)}，留在待办卷并同步排入时序卷（${SLOT_NAMES[slot] || '本时段'}）。`);
+}
+
 $('calendarView').addEventListener('submit', event => {
   const goalForm = event.target.closest('[data-xy-goal-form]');
   if (goalForm) {
@@ -1952,7 +1991,7 @@ $('calendarView').addEventListener('submit', event => {
       const targetDate = String(date?.value || '');
       const targetSlot = String(slot?.value || 'chen');
       if (!cleanTitle || !targetDate) return;
-      const next = addPersonalTask(snapshot, { title: cleanTitle, day: targetDate, estimate_minutes: null });
+      const next = addPersonalTask(snapshot, { title: cleanTitle, day: targetDate, slot: targetSlot, estimate_minutes: null });
       const created = next.tasks[next.tasks.length - 1];
       if (created) {
         xieyiState = normalizeXieyiState(setTaskSlot(xieyiState, created.id, targetSlot));
@@ -1960,6 +1999,14 @@ $('calendarView').addEventListener('submit', event => {
       }
       commit(next);
     } catch (error) { tell(error.message, 'warning'); }
+    return;
+  }
+  const durForm = event.target.closest('[data-xy-dur-form]');
+  if (durForm) {
+    event.preventDefault();
+    const raw = Number(durForm.elements.minutes?.value);
+    if (!Number.isFinite(raw) || raw < 5 || raw > 720) { tell('请输入 5 到 720 之间的分钟数。', 'warning'); return; }
+    applyXieyiDuration(durForm.dataset.xyDurForm, raw);
     return;
   }
   const logForm = event.target.closest('[data-xy-log-form]');
@@ -2155,6 +2202,29 @@ async function runChatAction(text, action) {
     const guess = action.guessed ? `没说具体几点，先按${action.guessed} 记下，可以在铺纸 · 留白里微调。` : '';
     return reply(replyMarkup({ text: `记下了：${said} 是你的常用专注时段。${guess}计划被打断时，标了“需要专注”的事会优先排进这里；平时不打扰你。` }), titles.length ? [`${titles[0]}需要专注`] : []);
   }
+  if (action.kind === 'rough-schedule' && Array.isArray(action.items) && action.items.length) {
+    let next = snapshot;
+    const defaulted = !next.daily_window;
+    if (defaulted) next = setDailyWindow(next, DEFAULT_WINDOW);
+    const createdRows = [];
+    for (const item of action.items) {
+      next = addPersonalTask(next, { title: item.title, day: item.date, slot: item.slot, estimate_minutes: item.minutes ?? null });
+      const added = next.tasks[next.tasks.length - 1];
+      if (added) {
+        xieyiState = normalizeXieyiState(setTaskSlot(xieyiState, added.id, item.slot));
+        createdRows.push({ ...item, id: added.id });
+      }
+    }
+    writeXieyi(storage, xieyiState);
+    commit(next);
+    const firstMs = Date.parse(`${action.items[0].date}T00:00:00+08:00`);
+    agendaWeek = Number.isFinite(firstMs) ? weekStart(firstMs) : null;
+    lastTaskId = createdRows.length === 1 ? createdRows[0].id : null;
+    const hasTimed = createdRows.some(r => r.minutes !== null);
+    const rowsHtml = createdRows.map(r => `<li class="turn-item is-work"><i class="turn-glyph" aria-hidden="true"></i><span class="turn-kind">待办</span><strong>${escapeHTML(r.title)}</strong><span class="turn-when"><b>${escapeHTML(r.date.slice(5).replace('-', '月'))}日 · ${escapeHTML(SLOT_NAMES[r.slot] || r.slot)}</b><small>${r.minutes !== null ? `预计 ${minutesLabel(r.minutes)} · 已同步排入时序卷` : '轻待办 · 留在待办卷，可选填用时'}</small></span></li>`).join('');
+    const html = `<div class="turn-result" data-turn-result><section class="turn-group is-due"><h4>已收入待办卷<small>${hasTimed ? '有预计用时的已同步排入时序卷' : '纯轻待办不占用时序卷精密时段'}</small></h4><ul class="turn-items">${rowsHtml}</ul></section><p class="turn-tally"><strong>共记入 ${createdRows.length} 项。</strong>在待办卷点右侧小钟即可按 15分/30分/45分/1小时或自定义时长随时同步进时序卷。</p></div><p class="inline-links"><a href="#/calendar" data-open-scroll="xieyi">去待办卷查看</a>${hasTimed ? '<a href="#/calendar" data-open-scroll="gongbi">看时序卷</a>' : ''}<a href="#/items">去笔墨修改</a></p>`;
+    return reply(html, ['这周还剩多少时间？']);
+  }
   const { task, byName } = findTask(snapshot, action.phrase, lastTaskId);
   if (action.kind === 'complete' || action.kind === 'estimate') {
     if (!byName) return false; // "做完了" without a name: agenda.js answers for the task just talked about
@@ -2289,6 +2359,12 @@ async function adoptProposal(id, button) {
       if (!next.daily_window) next = setDailyWindow(next, DEFAULT_WINDOW);
       const addedEvents = next.events.filter(ev => !prevEventIds.has(ev.id));
       const addedTasks = next.tasks.filter(tk => !prevTaskIds.has(tk.id));
+      for (const tk of addedTasks) {
+        if (isPersonal(tk) && !hasPersonalClock(tk) && !xieyiState.slots?.[tk.id]) {
+          xieyiState = normalizeXieyiState(setTaskSlot(xieyiState, tk.id, inferSlotFromText(tk.title) || slotFromTimestamp(tk.earliest_start_at || tk.deadline_at) || 'bu'));
+        }
+      }
+      writeXieyi(storage, xieyiState);
       commit(next);
       shownProposals.delete(id);
       lockPills();
@@ -2330,6 +2406,12 @@ async function adoptProposal(id, button) {
       if (!next.daily_window) next = setDailyWindow(next, DEFAULT_WINDOW);
       addedEvents = next.events.filter(ev => !prevEventIds.has(ev.id));
       addedTasks = next.tasks.filter(tk => !prevTaskIds.has(tk.id));
+      for (const tk of addedTasks) {
+        if (isPersonal(tk) && !hasPersonalClock(tk) && !xieyiState.slots?.[tk.id]) {
+          xieyiState = normalizeXieyiState(setTaskSlot(xieyiState, tk.id, inferSlotFromText(tk.title) || slotFromTimestamp(tk.earliest_start_at || tk.deadline_at) || 'bu'));
+        }
+      }
+      writeXieyi(storage, xieyiState);
       commit(next);
     }
     shownProposals.delete(id);
@@ -2390,6 +2472,22 @@ async function adoptProposal(id, button) {
 }
 // The chips send their sentence; a 起步卡 has its own 5-minute timer and copy button.
 $('inkThread').addEventListener('click', event => {
+  const openScroll = event.target.closest('[data-open-scroll]');
+  if (openScroll) {
+    event.preventDefault();
+    const mode = openScroll.dataset.openScroll === 'xieyi' ? 'xieyi' : 'gongbi';
+    if (agendaWeek !== null && agendaWeek !== shownWeek()) {
+      calendarWeek = agendaWeek;
+      calendarResult = null;
+      scheduleCalendar();
+    }
+    if (xieyiState.mode !== mode) {
+      scrollFlipDir = mode === 'xieyi' ? 'is-flip-next' : 'is-flip-prev';
+      commitXieyi(setScrollMode(xieyiState, mode));
+    }
+    window.SixuRouter?.go('calendar');
+    return;
+  }
   const adopt = event.target.closest('[data-plan-adopt]');
   if (adopt && !adopt.disabled) { adoptPlan(adopt.dataset.planAdopt, adopt); return; }
   const propKind = event.target.closest('[data-prop-kind]');

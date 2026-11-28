@@ -1,6 +1,6 @@
 // Shared by 研墨 and 画卷 on the web and in the mini program.
 import { minutesLabel, remainingCapacity, weekStart, weekRange } from './calendar.js';
-import { isPersonal, setPersonalDay, setReferenceTime, updateTask } from './time-state.js';
+import { isPersonal, isRoughPersonalBounds, setPersonalDay, setReferenceTime, updateTask } from './time-state.js';
 
 const MINUTE = 60000;
 const DAY = 1440 * MINUTE;
@@ -269,5 +269,5 @@ export function isConversation(text) {
 }
 
 // Timed personal tasks should expose the original clock time when users edit the list.
-export const hasPersonalClock = task => isPersonal(task) && task.deadline_at
-  && (!task.earliest_start_at || !task.deadline_at.includes('T23:59:'));
+export const hasPersonalClock = task => isPersonal(task) && Boolean(task.deadline_at)
+  && !isRoughPersonalBounds(task);

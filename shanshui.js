@@ -293,7 +293,7 @@ export function xieyiShanshuiMarkup({ state, snapshot = null, start, now, id = '
     : '四时清闲 · 随意落笔';
   const inscription = `<text x="58" y="54" class="xy-inscribe">${escapeXML(goalText.slice(0, 38))}</text>`;
   const labels = NAMES.map((name, index) => `<text x="${fixed(LEFT + index * STEP)}" y="${H - 12}" class="ss-day xy-day-lbl${index === today ? ' is-today' : ''}">${name}</text>`).join('');
-  const summary = `日课烟水：${days.map((d, index) => `周${NAMES[index]}${d.notes.length}笔`).join('，')}。`;
+  const summary = `待办烟水：${days.map((d, index) => `周${NAMES[index]}${d.notes.length}笔`).join('，')}。`;
 
   return `<svg class="shanshui shanshui-xieyi" viewBox="0 0 ${W} ${H}" preserveAspectRatio="xMidYMid slice" role="img" aria-label="${summary}">
     <defs>
@@ -314,7 +314,7 @@ export function xieyiShanshuiMarkup({ state, snapshot = null, start, now, id = '
     ${groves}
     ${skiff}
     ${inscription}
-    <g class="ss-seal is-xieyi" transform="translate(${W - 58} 26)"><rect width="30" height="44" rx="3"/><text x="15" y="19">日</text><text x="15" y="37">课</text></g>
+    <g class="ss-seal is-xieyi" transform="translate(${W - 58} 26)"><rect width="30" height="44" rx="3"/><text x="15" y="19">待</text><text x="15" y="37">办</text></g>
     ${labels}
   </svg>`;
 }

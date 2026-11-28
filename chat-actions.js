@@ -113,14 +113,14 @@ export function parseMark(text) {
   return null;
 }
 
-const DURATION = String.raw`(\d+(?:\.\d+)?|[半一二两三四五六七八九十]+)\s*(?:个)?\s*(小时|钟头|分钟|min|h)(半)?`;
+const DURATION = String.raw`(半\s*(?:个\s*)?小时|(?:\d+(?:\.\d+)?|[半一二两三四五六七八九十]+)\s*(?:个)?\s*(小时|钟头|分钟|min|h)(半)?)`;
 /** "实验报告做完了" / "报名表要20分钟" → named complete / estimate (agenda.js handles the unnamed "做完了"). */
 export function parseNamedUpdate(text) {
   const line = String(text || '').trim().replace(/[。！!]+$/, '');
   if (NOT_ACTION.test(line) || /[，,]/.test(line)) return null;
   const done = line.match(/^(?:我)?(?:把)?(.{2,30}?)(?:已经|刚刚)?(?:做完了|完成了|搞定了|交了|交上去了|写完了)$/);
   if (done && !/^(?:我|刚刚|已经|都)$/.test(done[1])) return { kind: 'complete', phrase: done[1] };
-  const est = line.match(new RegExp(`^(.{2,30}?)(?:大概|大约|预计|要|需要|得)\\s*${DURATION}(?:左右|吧)?$`, 'i'));
+  const est = line.match(new RegExp(`^(.{2,30}?)(?:大概|大约|预计|要|需要|得)\\s*(\\d+(?:\\.\\d+)?|[半一二两三四五六七八九十]+)\\s*(?:个)?\\s*(小时|钟头|分钟|min|h)(半)?(?:左右|吧)?$`, 'i'));
   if (est) {
     const n = num(est[2]) || (est[2] === '半' ? 0.5 : Number(est[2]));
     const minutes = Math.round((/小时|钟头|h/i.test(est[3]) ? n * 60 : n) + (est[4] ? 30 : 0));
@@ -129,9 +129,110 @@ export function parseNamedUpdate(text) {
   return null;
 }
 
+const ROUGH_WD = '一二三四五六日天';
+const SLOT_TOKEN_MAP = [
+  [/^(?:今早|明早|早上|早晨|清晨|上午|早间|晨)$/, 'chen'],
+  [/^(?:中午|正午|午间|午饭后|午)$/, 'wu'],
+  [/^(?:下午|午后|晡)$/, 'bu'],
+  [/^(?:今晚|明晚|晚上|晚间|夜间|夜里|睡前|傍晚|暮)$/, 'mu'],
+];
+function resolveRoughDay(dateWord, fallbackYmd, nowMs) {
+  const OFFSET = 8 * 3600000;
+  const todayStart = Math.floor((nowMs + OFFSET) / DAY) * DAY - OFFSET;
+  const ymdAt = ms => new Date(ms + OFFSET).toISOString().slice(0, 10);
+  const word = String(dateWord || '').trim();
+  if (!word) return fallbackYmd || ymdAt(todayStart);
+  if (/^(?:今天|今日|今早|今晚)$/.test(word)) return ymdAt(todayStart);
+  if (/^(?:明天|明日|明早|明晚)$/.test(word)) return ymdAt(todayStart + DAY);
+  if (/^后天$/.test(word)) return ymdAt(todayStart + 2 * DAY);
+  const wdMatch = word.match(/^(本|这|下)?(?:周|星期|礼拜)([一二三四五六日天])$/);
+  if (wdMatch) {
+    const todayIdx = (new Date(todayStart + OFFSET).getUTCDay() + 6) % 7;
+    const mondayStart = todayStart - todayIdx * DAY;
+    let targetIdx = ROUGH_WD.indexOf(wdMatch[2]);
+    if (targetIdx === 7) targetIdx = 6;
+    const nextWeek = wdMatch[1] === '下' || (!wdMatch[1] && targetIdx < todayIdx);
+    return ymdAt(mondayStart + (nextWeek ? 7 : 0) * DAY + targetIdx * DAY);
+  }
+  return fallbackYmd || ymdAt(todayStart);
+}
+function matchSlotKey(token) {
+  for (const [re, key] of SLOT_TOKEN_MAP) if (re.test(token)) return key;
+  return null;
+}
+function extractOptionalMinutes(seg) {
+  const durRe = /(?:（|\()?\s*(?:大概|大约|预计|用时|约)?\s*(?:半\s*(?:个\s*)?小时|(\d+(?:\.\d+)?|[半一二两三四五六七八九十]+)\s*(?:个)?\s*(小时|钟头|分钟|min|h)(半)?)\s*(?:左右)?(?:）|\))?/i;
+  const m = seg.match(durRe);
+  if (!m) return { clean: seg, minutes: null };
+  let minutes = null;
+  if (!m[1] && !m[2]) {
+    minutes = 30;
+  } else {
+    const rawNum = m[1] === '半' ? 0.5 : num(m[1]);
+    const val = Number.isNaN(rawNum) ? Number(m[1]) : rawNum;
+    const computed = Math.round((/小时|钟头|h/i.test(m[2]) ? val * 60 : val) + (m[3] ? 30 : 0));
+    if (Number.isFinite(computed) && computed >= 1 && computed <= 720) minutes = computed;
+  }
+  const clean = (seg.slice(0, m.index) + ' ' + seg.slice(m.index + m[0].length)).trim();
+  return { clean, minutes };
+}
+
+/**
+ * Parse natural-language rough daily scheduling in 研墨 into slotted 待办卷 items:
+ * e.g. "请帮我在待办中安排明天上午学英语，下午写实验报告45分钟，晚上跑步".
+ */
+export function parseRoughSchedule(text, nowMs = Date.now()) {
+  const raw = String(text || '').trim();
+  if (!raw || raw.includes('\n') || /[【]|通知|各位同学/.test(raw)) return null;
+  if (/[？?]\s*$|吗\s*$|呢\s*$/.test(raw)) return null;
+  if (/(?:还有.*(?:空|时间|留白)|有没有空|有空(?:吗|没)|够不够|排得开|排不开|试算)/.test(raw)) return null;
+  if (/(?:最专注|效率最高|最清醒|脑子最好使|状态最好|最能静下心)/.test(raw)) return null;
+  if (/\d{1,2}[:：]\d{2}|(?:\d{1,2}|[一二两三四五六七八九十]{1,2})点(?:半|\d{1,2}分)?/.test(raw)) return null;
+
+  const explicitRoughIntent = /(?:(?:在|进|放进?|加到|写进?)\s*(?:待办|待办卷|四时|手账|日笺|日课)(?:里|中|上|内)?)|(?:(?:待办|待办卷|四时|手账|日笺|日课)(?:里|中|上|内)\s*(?:帮我)?(?:安排|记|加|排|写))/.test(raw);
+  const ANCHOR_RE = /(?:(今天|今日|明天|明日|后天|(?:本|这|下)?(?:周|星期|礼拜)[一二三四五六日天])\s*(?:的)?\s*)?(今早|明早|早上|早晨|清晨|上午|早间|中午|正午|午间|午饭后|下午|午后|今晚|明晚|晚上|晚间|夜间|夜里|睡前|傍晚|(?<![电清早])晨|(?<![上下正])午|(?<![日])晡|(?<![朝岁])暮)/g;
+  const matches = [...raw.matchAll(ANCHOR_RE)];
+  if (!matches.length) return null;
+  if (!explicitRoughIntent && matches.length < 2) return null;
+
+  const OFFSET = 8 * 3600000;
+  const todayYmd = new Date(Math.floor((nowMs + OFFSET) / DAY) * DAY).toISOString().slice(0, 10);
+  const lead = raw.slice(0, matches[0].index);
+  const leadDateMatch = lead.match(/(今天|今日|明天|明日|后天|(?:本|这|下)?(?:周|星期|礼拜)[一二三四五六日天])/);
+  let activeDay = resolveRoughDay(leadDateMatch?.[1], todayYmd, nowMs);
+  const items = [];
+
+  for (let i = 0; i < matches.length; i += 1) {
+    const match = matches[i];
+    const dateWord = match[1] || (/^(?:明早|明晚)$/.test(match[2]) ? '明天' : /^(?:今早|今晚)$/.test(match[2]) ? '今天' : '');
+    if (dateWord) activeDay = resolveRoughDay(dateWord, activeDay, nowMs);
+    const slotKey = matchSlotKey(match[2]);
+    if (!slotKey) continue;
+    const segStart = match.index + match[0].length;
+    const segEnd = i + 1 < matches.length ? matches[i + 1].index : raw.length;
+    let seg = raw.slice(segStart, segEnd)
+      .replace(/^[，,、；;。！!：:\s的]+/, '')
+      .replace(/^(?:帮我|给我|替我)?(?:安排|记一下|记下|加上|写下|添加|去做|去|要)?\s*/, '')
+      .replace(/[，,、；;。！!\s]+$/, '')
+      .replace(/(?:然后|接着|以及|还有|和|并|再)$/, '')
+      .replace(/[，,、；;。！!\s]+$/, '');
+    const { clean, minutes } = extractOptionalMinutes(seg);
+    const title = clean
+      .replace(/^[，,、；;：:\s]+/, '')
+      .replace(/[，,、；;。！!\s]+$/, '')
+      .trim()
+      .slice(0, 120);
+    if (!title) continue;
+    items.push({ date: activeDay, slot: slotKey, title, minutes });
+  }
+
+  if (!items.length || (!explicitRoughIntent && items.length < 2)) return null;
+  return { kind: 'rough-schedule', items };
+}
+
 /** First match of all the sentence actions above, in a fixed order. */
-export function parseChatAction(text, { afterAsk = null } = {}) {
-  return parseStarter(text) || parseFocusWindow(text, { afterAsk }) || parseMark(text) || parseNamedUpdate(text);
+export function parseChatAction(text, { afterAsk = null, now = Date.now() } = {}) {
+  return parseStarter(text) || parseFocusWindow(text, { afterAsk }) || parseMark(text) || parseNamedUpdate(text) || parseRoughSchedule(text, now);
 }
 
 // ---- Markup in the 研墨 thread ------------------------------------------------------

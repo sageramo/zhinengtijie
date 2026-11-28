@@ -337,7 +337,7 @@ export function weeklyBrief(items, start, now) {
  * inside each day column on the week's time axis, bandLegend explains them,
  * banner is the 重排卡 above the week, sideTop opens 本周解析 (full width), sideToday heads its right column, alertLabel badges the 解析画卷 button.
  */
-export function calendarMarkup({ result, start, now, loading = false, error = '', undo = '', note = '', changes = [], plans = null, weighs = {}, focus = '', rolled = false, unrolling = false, fresh = false, analyzed = true, curveOpen = false, futureRef = '', listView = false, scrollMode = 'gongbi', xieyiBoard = '', xieyiPainting = '', xieyiCoverMeta = '', weekLedgerBrief = '', focusCurve = '', band = null, ribbon = null, energy = [], bandLegend = '', banner = '', sideTop = '', sideToday = '', alertLabel = '' }) {
+export function calendarMarkup({ result, start, now, loading = false, error = '', undo = '', note = '', changes = [], plans = null, weighs = {}, focus = '', rolled = false, unrolling = false, fresh = false, analyzed = true, curveOpen = false, futureRef = '', listView = false, scrollMode = 'gongbi', xieyiBoard = '', xieyiPainting = '', xieyiCoverMeta = '', weekLedgerBrief = '', focusCurve = '', hiddenDeadlineIds = null, band = null, ribbon = null, energy = [], bandLegend = '', banner = '', sideTop = '', sideToday = '', alertLabel = '' }) {
   const weekConflicts = conflictsInWeek(result?.conflicts || [], start);
   const weekUndefined = undefinedInWeek(result, start);
   const items = calendarItems(result, start);
@@ -373,7 +373,7 @@ export function calendarMarkup({ result, start, now, loading = false, error = ''
       .map(item => ({ ...item, start: Math.max(item.start, top), end: Math.min(item.end, top + span) })).filter(item => item.end > item.start);
     const blocks = lanes(inWeek.filter(item => ['routine', 'temporary', 'appointment', 'work'].includes(item.type) && item.end > dayStart && item.start < dayEnd).map(segment));
     if (blocks.some(block => block.lanes > 1)) crowded.add(index);
-    const marks = inWeek.filter(item => isLine(item) && item.start >= dayStart && item.start < dayEnd);
+    const marks = inWeek.filter(item => isLine(item) && item.start >= dayStart && item.start < dayEnd && !(item.type === 'deadline' && hiddenDeadlineIds?.has(item.id)));
     const bands = free.map(item => `<button type="button" class="cal-free" data-cal-goto="time" style="top:${pct(item.start - top)};height:${pct(item.end - item.start)}" aria-label="留白 ${clock(item.start)} 至 ${item.end === dayEnd ? '24:00' : clock(item.end)}"><span>留白</span></button>`).join('');
     const body = blocks.map(item => {
       const finish = item.end === dayEnd ? '24:00' : clock(item.end);
@@ -406,7 +406,7 @@ export function calendarMarkup({ result, start, now, loading = false, error = ''
 
   const agenda = days.map((dayStart, index) => {
     const dayEnd = dayStart + DAY;
-    const rows = inWeek.filter(item => (isLine(item) ? item.start >= dayStart && item.start < dayEnd : item.end > dayStart && item.start < dayEnd)).sort((a, b) => a.start - b.start);
+    const rows = inWeek.filter(item => !(item.type === 'deadline' && hiddenDeadlineIds?.has(item.id)) && (isLine(item) ? item.start >= dayStart && item.start < dayEnd : item.end > dayStart && item.start < dayEnd)).sort((a, b) => a.start - b.start);
     if (!rows.length && index !== today) return '';
     const clash = weekConflicts.filter(conflict => conflict.start && conflict.end && conflict.items.length === 2 && Date.parse(conflict.start) >= dayStart && Date.parse(conflict.start) < dayEnd)
       .map(conflict => `<li><p class="cal-row cal-row-overlap"><time>${clock(Date.parse(conflict.start))}–${clock(Date.parse(conflict.end))}</time><span>「${escape(conflict.items[0].title)}」与「${escape(conflict.items[1].title)}」重叠 ${minutesText(conflict.minutes || 0)}</span><em>叠墨</em></p></li>`).join('');
@@ -453,15 +453,15 @@ export function calendarMarkup({ result, start, now, loading = false, error = ''
   const viewBtn = result && !rolled && !isXieyi ? `<button type="button" class="cal-view-btn" data-cal-view aria-pressed="${listView}">${listView ? '周网格' : '列表'}</button>` : '';
   const rollUpBtn = !rolled && !analyzed && !curveOpen && (result || isXieyi) ? '<button type="button" class="text-button cal-roll-up" data-scroll-roll>卷起画卷</button>' : '';
   const curveBtn = !analyzed ? `<button type="button" class="cal-curve-btn${curveOpen ? ' is-open' : ''}" data-cal-curve aria-expanded="${curveOpen}">${curveOpen ? '收起曲线' : '专注曲线'}</button>` : '';
-  const coverEyebrow = isXieyi ? (xieyiCoverMeta ? `日课烟水 · ${escape(xieyiCoverMeta)}` : '日课烟水') : '时序山水';
+  const coverEyebrow = isXieyi ? (xieyiCoverMeta ? `待办烟水 · ${escape(xieyiCoverMeta)}` : '待办烟水') : '时序山水';
   const coverTitle = isXieyi ? '竹影随心，烟波留白' : '峰高是忙，云白是留白';
   const coverLegend = isXieyi
-    ? '<ul class="cover-legend is-xieyi" aria-label="日课烟水图例"><li class="lg-bamboo">墨竹 · 本日定日待办</li><li class="lg-blossom">点朱 · 已印「成」</li><li class="lg-skiff">扁舟 · 今日所在</li><li class="lg-mist">烟波 · 无事留白</li></ul>'
+    ? '<ul class="cover-legend is-xieyi" aria-label="待办烟水图例"><li class="lg-bamboo">墨竹 · 本日待办</li><li class="lg-blossom">点朱 · 已印「成」</li><li class="lg-skiff">扁舟 · 今日所在</li><li class="lg-mist">烟波 · 无事留白</li></ul>'
     : `<ul class="cover-legend" aria-label="山水图例"><li class="lg-peak">近处深色的峰 · 这天排了多少</li><li class="lg-cloud">云 · 留白</li><li class="lg-dot">墨点 · 点墨</li><li class="lg-star">金星 · 截止</li><li class="lg-bleed">朱晕 · 叠墨</li><li class="lg-moon">朱日 · 今天</li><li class="lg-far">淡远山 · 远景，不计时</li>${energy.length ? '<li class="lg-glow">暖光 · 专注时段</li><li class="lg-haze">灰雾 · 精力偏低</li>' : ''}</ul>`;
-  const folioPageText = isXieyi ? '第 2 / 2 页 · 日课卷（每日待办）' : '第 1 / 2 页 · 时序卷（精确排期）';
+  const folioPageText = isXieyi ? '第 2 / 2 页 · 待办卷（四时轻记）' : '第 1 / 2 页 · 时序卷（精确排期）';
   const dogear = isXieyi
     ? `<button type="button" class="page-dogear is-prev" data-scroll-flip="gongbi" aria-label="翻回上一页：时序卷（精确排期）"><i class="dogear-peel" aria-hidden="true"></i><span class="dogear-label"><small>翻回上页</small><strong>时序卷 · 精确排期</strong></span></button>`
-    : `<button type="button" class="page-dogear is-next" data-scroll-flip="xieyi" aria-label="翻至下一页：日课卷（每日待办）"><span class="dogear-label"><small>翻至下页</small><strong>日课卷 · 每日待办</strong></span><i class="dogear-peel" aria-hidden="true"></i></button>`;
+    : `<button type="button" class="page-dogear is-next" data-scroll-flip="xieyi" aria-label="翻至下一页：待办卷（四时轻记）"><span class="dogear-label"><small>翻至下页</small><strong>待办卷 · 四时轻记</strong></span><i class="dogear-peel" aria-hidden="true"></i></button>`;
   const folio = `<footer class="cal-folio" aria-label="画卷页码">
     <span class="cal-folio-index">${folioPageText}</span>
     ${weekLedgerBrief ? `<span class="cal-folio-ledger">${escape(weekLedgerBrief)}</span>` : ''}
@@ -472,7 +472,7 @@ export function calendarMarkup({ result, start, now, loading = false, error = ''
       <div class="cover-painting">${activePainting || (error ? `<p class="cover-wait is-error" role="status">${escape(error)}</p>` : '<p class="cover-wait">正在铺开这一周…</p>')}</div>
       ${coverLegend}
       <div class="cover-actions">
-        <button type="button" class="primary-button cover-open" data-scroll-open${!isXieyi && !result ? ' disabled' : ''}><svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><path d="M4 5v14M20 5v14M8 12h8M11 9l-3 3 3 3M13 9l3 3-3 3" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>${isXieyi ? '展开日课卷' : '展开时序卷'}</button>
+        <button type="button" class="primary-button cover-open" data-scroll-open${!isXieyi && !result ? ' disabled' : ''}><svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><path d="M4 5v14M20 5v14M8 12h8M11 9l-3 3 3 3M13 9l3 3-3 3" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>${isXieyi ? '展开待办卷' : '展开时序卷'}</button>
         <button type="button" class="cover-analyze" data-cal-analyze aria-expanded="${analyzed}">${analyzed ? '收起本周解析' : `解析画卷${weekConflicts.length ? `（${weekConflicts.length} 处叠墨）` : ''}`}</button>
       </div>
       ${folio}

@@ -31,6 +31,7 @@ import {
   xieyiBoardMarkup,
 } from '../xieyi-scroll.js';
 import { createTimeSnapshot, addPersonalTask, updateTask } from '../time-state.js';
+import { calendarMarkup } from '../calendar.js';
 import { xieyiShanshuiMarkup } from '../shanshui.js';
 
 const fixture = JSON.parse(readFileSync(new URL('./fixtures/calendar-v3.json', import.meta.url), 'utf8'));
@@ -97,17 +98,24 @@ test('slotSummary projects real free capacity and busy items per classical perio
   assert.equal(slotSummary(null, MONDAY, SLOTS[0]).label, '');
 });
 
-test('xieyiBoardMarkup renders vertical colophon, unified day tasks with inline upgrade, and per-day ledger strips', () => {
+test('xieyiBoardMarkup renders vertical colophon, unified day tasks with duration popover, and per-day ledger strips', () => {
   let state = setScrollMode(createXieyiState(), 'xieyi');
   state = addGoal(state, { horizon: 'week', periodKey: periodKeyFor('week', MONDAY), title: '梳理智能体闭环' });
   state = addTimeLog(state, { kind: 'study', title: '读控制论论文', minutes: 45, date: '2026-11-11' });
 
   let snap = createTimeSnapshot({ referenceTime: '2026-11-09T09:00:00Z' });
-  snap = addPersonalTask(snap, { title: '整理摄影社报名资料', day: '2026-11-11', estimate_minutes: null });
+  snap = addPersonalTask(snap, { title: '整理摄影社报名资料', day: '2026-11-11', slot: 'bu', estimate_minutes: null });
   const dayTask = snap.tasks.at(-1);
+  assert.equal(dayTask.earliest_start_at, '2026-11-11T14:00:00+08:00');
+  assert.equal(dayTask.deadline_at, '2026-11-11T18:30:00+08:00');
+  snap = addPersonalTask(snap, { title: '午间背单词', day: '2026-11-11', slot: 'wu', estimate_minutes: 45 });
+  const wuTask = snap.tasks.at(-1);
+  assert.equal(wuTask.earliest_start_at, '2026-11-11T12:00:00+08:00');
+  assert.equal(wuTask.deadline_at, '2026-11-11T14:00:00+08:00');
   snap = addPersonalTask(snap, { title: '待定文献整理', day: '', estimate_minutes: null });
   const pendingTask = snap.tasks.at(-1);
   state = setTaskSlot(state, dayTask.id, 'bu');
+  state = setTaskSlot(state, wuTask.id, 'wu');
 
   assert.equal(itemTier(dayTask, 'task'), 'day');
   assert.equal(itemTier(pendingTask, 'task'), 'pending');
@@ -117,19 +125,38 @@ test('xieyiBoardMarkup renders vertical colophon, unified day tasks with inline 
   assert.equal(inferSlotFromText('今晚整理笔记'), 'mu');
   assert.match(weeklyLedgerBrief(state, MONDAY), /本周 砚耕 45分/);
 
-  const html = xieyiBoardMarkup({ state, result: fixture.result, start: MONDAY, now: MONDAY + DAY, snapshot: snap, openLogDate: '2026-11-11' });
+  const html = xieyiBoardMarkup({ state, result: fixture.result, start: MONDAY, now: MONDAY + DAY, snapshot: snap, openLogDate: '2026-11-11', openDurTaskId: dayTask.id });
   assert.match(html, /xy-colophon/);
   assert.match(html, /远山志/);
   assert.match(html, /xy-pending/);
   assert.match(html, /待定文献整理/);
   assert.match(html, /整理摄影社报名资料/);
-  assert.match(html, /data-xy-upgrade="[^"]+:30"/);
+  // Scheduled personal task stays visible in 待办卷 with a compact duration pill instead of vanishing!
+  assert.match(html, /午间背单词/);
+  assert.match(html, new RegExp(`data-xy-dur-toggle="${wuTask.id}"[^>]*>45分<`));
+  assert.match(html, /xy-dur-pop/);
+  assert.match(html, /data-xy-upgrade="[^"]+:15"/);
+  assert.match(html, /data-xy-dur-form="/);
   assert.match(html, /xy-day-ledger/);
   assert.match(html, /data-xy-day-log-toggle="2026-11-11"/);
   assert.match(html, /读控制论论文/);
   assert.match(html, /<strong>晨<\/strong><small>上午<\/small>/);
   assert.match(html, /<strong>暮<\/strong><small>晚间<\/small>/);
   assert.doesNotMatch(html, /未定作息/);
+
+  // Dedupe: scheduled personal task already in entryIds does not duplicate as an .xy-ref-tag
+  const withWork = structuredClone(fixture.result);
+  withWork.layers.work.push({ task_id: wuTask.id, title: '午间背单词', start: '2026-11-11T12:10:00+08:00', end: '2026-11-11T12:55:00+08:00' });
+  const deduped = xieyiBoardMarkup({ state, result: withWork, start: MONDAY, now: MONDAY + DAY, snapshot: snap });
+  assert.equal((deduped.match(/午间背单词/g) || []).length, 1);
+
+  // calendarMarkup respects hiddenDeadlineIds so timeless light to-dos don't draw 23:59 markers in 时序卷
+  const calWithLine = {
+    ...fixture.result,
+    markers: [...fixture.result.markers, { id: dayTask.id, type: 'deadline', title: '整理摄影社报名资料', at: '2026-11-11T18:30:00+08:00', state: 'estimate_undefined' }],
+  };
+  const hiddenHtml = calendarMarkup({ result: calWithLine, start: MONDAY, now: MONDAY + DAY, hiddenDeadlineIds: new Set([dayTask.id]) });
+  assert.doesNotMatch(hiddenHtml, /整理摄影社报名资料/);
 
   state = removeTaskSlot(state, dayTask.id);
   assert.equal(state.slots[dayTask.id], undefined);
@@ -159,7 +186,7 @@ test('xieyiBoardMarkup renders vertical colophon, unified day tasks with inline 
   assert.match(svg, /xy-skiff/);
   assert.match(svg, /远山志 · 梳理智能体闭环/);
   assert.match(svg, /class="ss-seal is-xieyi"/);
-  assert.match(svg, />日<\/text>/);
-  assert.match(svg, />课<\/text>/);
-  assert.match(svg, /日课烟水/);
+  assert.match(svg, />待<\/text>/);
+  assert.match(svg, />办<\/text>/);
+  assert.match(svg, /待办烟水/);
 });

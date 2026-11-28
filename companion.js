@@ -337,9 +337,9 @@ export function companionMarkup({
   return `<div class="cmp-card${sceneClass}${running ? ' is-running' : ''}${raining ? ' is-raining' : ''}" data-active-mode="${mode}" style="--night:${m.night};--dusk:${m.dusk}">
     <div class="cmp-backdrop" aria-hidden="true">
       <div class="cmp-scene">
-        <img class="cmp-art cmp-art-day" src="./assets/study-desk-day.webp?v=2026.11.22.96" alt="" width="1024" height="576">
-        <img class="cmp-art cmp-art-dusk" src="./assets/study-desk-dusk.webp?v=2026.11.22.96" alt="" width="1024" height="576">
-        <img class="cmp-art cmp-art-night" src="./assets/study-desk-night.webp?v=2026.11.22.96" alt="" width="1024" height="576">
+        <img class="cmp-art cmp-art-day" src="./assets/study-desk-day.webp?v=2026.11.22.97" alt="" width="1024" height="576">
+        <img class="cmp-art cmp-art-dusk" src="./assets/study-desk-dusk.webp?v=2026.11.22.97" alt="" width="1024" height="576">
+        <img class="cmp-art cmp-art-night" src="./assets/study-desk-night.webp?v=2026.11.22.97" alt="" width="1024" height="576">
       </div>
       <div class="cmp-light"></div>
       <div class="cmp-lamp-glow"></div>

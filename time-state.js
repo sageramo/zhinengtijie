@@ -262,20 +262,48 @@ export function skipRoutineDate(snapshot, id, date) {
 // 23:59, so the calendar places it inside that day's 留白 rather than anywhere before a deadline.
 export const PERSONAL_NOTE = '个人任务';
 export const isPersonal = task => Array.isArray(task.notes) && task.notes.includes(PERSONAL_NOTE);
+export const SLOT_WINDOWS = {
+  chen: { start: '06:00:00', end: '12:00:00' },
+  wu: { start: '12:00:00', end: '14:00:00' },
+  bu: { start: '14:00:00', end: '18:30:00' },
+  mu: { start: '18:30:00', end: '23:59:00' },
+};
 const dayBounds = day => {
   if (!/^\d{4}-\d{2}-\d{2}$/.test(day || '')) fail('请选一天');
   return { earliest_start_at: `${day}T00:00:00+08:00`, deadline_at: `${day}T23:59:00+08:00` };
 };
+/** Beijing [earliest_start_at, deadline_at] bounded to a classical four-period slot when provided, else the whole day. */
+export function slotBounds(day, slot = null) {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(day || '')) fail('请选一天');
+  const win = slot && SLOT_WINDOWS[slot];
+  if (!win) return dayBounds(day);
+  return { earliest_start_at: `${day}T${win.start}+08:00`, deadline_at: `${day}T${win.end}+08:00` };
+}
+const hhmmInBeijing = iso => {
+  const ms = Date.parse(iso || '');
+  return Number.isFinite(ms) ? new Date(ms + 8 * 3600000).toISOString().slice(11, 16) : '';
+};
+/** True when a personal task still uses an automatic whole-day or 4-slot rough window rather than a custom clock deadline. */
+export function isRoughPersonalBounds(task) {
+  if (!isPersonal(task) || !task?.deadline_at || !task?.earliest_start_at) return false;
+  const sDay = personalDay({ earliest_start_at: task.earliest_start_at });
+  const eDay = personalDay({ deadline_at: task.deadline_at });
+  if (!sDay || sDay !== eDay) return false;
+  const sTime = hhmmInBeijing(task.earliest_start_at);
+  const eTime = hhmmInBeijing(task.deadline_at);
+  if (sTime === '00:00' && eTime === '23:59') return true;
+  return Object.values(SLOT_WINDOWS).some(w => w.start.slice(0, 5) === sTime && w.end.slice(0, 5) === eTime);
+}
 /** The Beijing day a personal task is set for: its 最早开始, else its 截止; '' when none. */
 export function personalDay(task) {
   const iso = task.earliest_start_at || task.deadline_at;
   return isTimestamp(iso) ? new Date(Date.parse(iso) + 8 * 3600000).toISOString().slice(0, 10) : '';
 }
-export function addPersonalTask(snapshot, { title = '新的个人任务', day, estimate_minutes = null } = {}) {
-  return addTask(snapshot, { title, estimate_minutes, notes: [PERSONAL_NOTE], ...(day ? dayBounds(day) : {}) });
+export function addPersonalTask(snapshot, { title = '新的个人任务', day, slot = null, estimate_minutes = null } = {}) {
+  return addTask(snapshot, { title, estimate_minutes, notes: [PERSONAL_NOTE], ...(day ? slotBounds(day, slot) : {}) });
 }
-export function setPersonalDay(snapshot, id, day) {
-  return updateTask(snapshot, id, day ? dayBounds(day) : { earliest_start_at: null, deadline_at: null });
+export function setPersonalDay(snapshot, id, day, slot = null) {
+  return updateTask(snapshot, id, day ? slotBounds(day, slot) : { earliest_start_at: null, deadline_at: null });
 }
 
 /** Edit a deadline and keep a personal task's day restriction aligned to the chosen date. */
