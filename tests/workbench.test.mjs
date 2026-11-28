@@ -1328,6 +1328,11 @@ test('study companion modal opens with gap advice, switches 3 West Lake phases (
   assert.equal(stage.hidden, false);
   assert.match(stage.textContent, /依隙定香/);
 
+  const fsCalledOn = [];
+  stage.requestFullscreen = async () => { fsCalledOn.push('stage'); };
+  app.click('[data-cmp-fullscreen]');
+  assert.deepEqual(fsCalledOn, ['stage'], 'fullscreen targets outer #companionStage so inner re-renders never detach fullscreen');
+
   app.click('[data-cmp-scene="dusk"]');
   assert.equal(app.find('.cmp-card').style.getPropertyValue('--dusk'), '1');
   app.click('[data-cmp-scene="night"]');

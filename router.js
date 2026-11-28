@@ -170,6 +170,8 @@
   });
   document.addEventListener('keydown', event => {
     if (!['ArrowLeft', 'ArrowRight'].includes(event.key) || event.altKey || event.ctrlKey || event.metaKey || event.shiftKey || event.defaultPrevented) return;
+    const companion = document.getElementById('companionStage');
+    if (companion && !companion.hidden) return;
     const target = event.target;
     if (target instanceof Element && target.closest('input, textarea, select, [contenteditable]')) return;
     const step = event.key === 'ArrowRight' ? 1 : -1;

@@ -3514,6 +3514,8 @@ html[data-current="calendar"] [data-app]::before {
   background: #e9e2d4; box-shadow: 0 40px 90px -30px rgba(0, 0, 0, .7);
 }
 .cmp-card.is-night { --ink: #f3ede2; --ink-soft: rgba(243, 237, 226, .66); background: #121a24; }
+.cmp-overlay:fullscreen { padding: 0; background: #0d1218; }
+.cmp-overlay:fullscreen .cmp-card,
 .cmp-card:fullscreen { width: 100vw; max-height: none; height: 100vh; aspect-ratio: auto; border-radius: 0; }
 
 /* 画面层 */

@@ -3174,6 +3174,11 @@ function renderCompanion() {
     ledgerOpen: companion.ledgerOpen,
     ledgerHtml: companion.ledgerOpen ? ledgerMarkup({ state: xieyiState, result: calendarResult, start: shownWeek(), now: Date.now(), snapshot, compact: true }) : '',
   });
+  syncCompanionFsLabel();
+}
+function syncCompanionFsLabel() {
+  const btn = $('companionStage')?.querySelector('[data-cmp-fullscreen]');
+  if (btn) btn.textContent = document.fullscreenElement ? '退出全屏' : '全屏';
 }
 
 function resolveCompanionTitleAndTask() {
@@ -3289,15 +3294,16 @@ window.setInterval(() => {
   card.style.setProperty('--night', mixNow.night);
   card.style.setProperty('--dusk', mixNow.dusk);
 }, 60000);
+document.addEventListener('fullscreenchange', syncCompanionFsLabel);
 document.addEventListener('keydown', event => {
-  if (event.key === 'Escape' && $('companionStage') && !$('companionStage').hidden) closeCompanionModal();
+  if (event.key === 'Escape' && !document.fullscreenElement && $('companionStage') && !$('companionStage').hidden) closeCompanionModal();
 });
 $('companionStage')?.addEventListener('click', event => {
   if (event.target === $('companionStage') || event.target.closest('[data-cmp-close]')) { closeCompanionModal(); return; }
   if (event.target.closest('[data-cmp-fullscreen]')) {
-    const card = $('companionStage').querySelector('.cmp-card');
+    const stage = $('companionStage');
     if (document.fullscreenElement) document.exitFullscreen?.().catch(() => {});
-    else card?.requestFullscreen?.().catch(() => {});
+    else stage?.requestFullscreen?.().catch(() => {});
     return;
   }
   const modeBtn = event.target.closest('button[data-cmp-mode]');
