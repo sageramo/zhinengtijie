@@ -22,6 +22,16 @@ export const GOAL_HORIZONS = [
   { key: 'term', name: '学期志', gloss: '本学期目标' },
 ];
 
+export const TIERS = [
+  { key: 'all', name: '全部' },
+  { key: 'timed', name: '定时' },
+  { key: 'deadline', name: '定期限' },
+  { key: 'day', name: '定日' },
+  { key: 'pending', name: '待定' },
+];
+
+export const SLOT_NAMES = Object.fromEntries(SLOTS.map(s => [s.key, `${s.name} · ${s.gloss}`]));
+
 const SLOT_KEYS = new Set(SLOTS.map(s => s.key));
 const HORIZON_KEYS = new Set(GOAL_HORIZONS.map(h => h.key));
 const WEEKDAYS = ['周一', '周二', '周三', '周四', '周五', '周六', '周日'];
@@ -43,8 +53,42 @@ const minutesLabel = value => {
 };
 const newId = prefix => `${prefix}-${globalThis.crypto?.randomUUID?.().replace(/-/g, '').slice(0, 10) || `${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`}`;
 
+export function inferSlotFromText(text) {
+  const s = String(text || '');
+  if (/早上|清晨|今早|明早|上午|早间|早起/.test(s)) return 'chen';
+  if (/中午|正午|午间|午饭后/.test(s)) return 'wu';
+  if (/下午|午后|傍晚前/.test(s)) return 'bu';
+  if (/今晚|明晚|晚上|夜间|晚间|夜里|睡前|傍晚/.test(s)) return 'mu';
+  return null;
+}
+
+const isPersonalTask = task => Array.isArray(task?.notes) && task.notes.includes('个人任务');
+const hasTaskClock = task => isPersonalTask(task) && Boolean(task?.deadline_at)
+  && (!task.earliest_start_at || !task.deadline_at.includes('T23:59:'));
+const taskDay = task => {
+  const iso = task?.earliest_start_at || task?.deadline_at;
+  if (!iso || !/^\d{4}-\d{2}-\d{2}/.test(iso)) return '';
+  const ms = Date.parse(iso);
+  return Number.isFinite(ms) ? dateStr(ms) : iso.slice(0, 10);
+};
+
+/**
+ * 统一事项池的四档精度判定：定时 / 定期限 / 定日 / 待定。
+ * 工笔与写意从此一处各自取数，再无双份清单歧义。
+ */
+export function itemTier(item, kind = 'task') {
+  if (!item) return 'pending';
+  if (kind === 'event' || item.deadline_at === undefined) {
+    return item.start_at && item.end_at ? 'timed' : 'pending';
+  }
+  if (!item.deadline_at && !item.earliest_start_at) return 'pending';
+  if (hasTaskClock(item)) return 'timed';
+  if (isPersonalTask(item) && item.estimate_minutes === null) return 'day';
+  return 'deadline';
+}
+
 export function createXieyiState() {
-  return { version: 1, mode: 'gongbi', goalTab: 'week', goals: [], notes: [], logs: [] };
+  return { version: 2, mode: 'gongbi', goalTab: 'week', goals: [], slots: {}, notes: [], logs: [] };
 }
 
 export function normalizeXieyiState(raw) {
@@ -52,6 +96,13 @@ export function normalizeXieyiState(raw) {
   if (!raw || typeof raw !== 'object') return base;
   if (raw.mode === 'gongbi' || raw.mode === 'xieyi') base.mode = raw.mode;
   if (HORIZON_KEYS.has(raw.goalTab)) base.goalTab = raw.goalTab;
+  if (raw.slots && typeof raw.slots === 'object' && !Array.isArray(raw.slots)) {
+    const cleanSlots = {};
+    for (const [tid, slot] of Object.entries(raw.slots).slice(-600)) {
+      if (tid && SLOT_KEYS.has(slot)) cleanSlots[String(tid)] = slot;
+    }
+    base.slots = cleanSlots;
+  }
   if (Array.isArray(raw.goals)) {
     base.goals = raw.goals
       .filter(g => g && typeof g.title === 'string' && g.title.trim() && HORIZON_KEYS.has(g.horizon) && typeof g.periodKey === 'string')
@@ -94,6 +145,45 @@ export function normalizeXieyiState(raw) {
       }));
   }
   return base;
+}
+
+export function setTaskSlot(state, taskId, slot) {
+  if (!taskId || !SLOT_KEYS.has(slot)) return state;
+  return { ...state, slots: { ...(state.slots || {}), [String(taskId)]: slot } };
+}
+
+export function removeTaskSlot(state, taskId) {
+  if (!taskId || !state.slots?.[taskId]) return state;
+  const nextSlots = { ...state.slots };
+  delete nextSlots[taskId];
+  return { ...state, slots: nextSlots };
+}
+
+/**
+ * 一次性把旧版独立存储的写意四时笔记迁移成「定日」个人任务，保留晨/午/晡/暮时段并清空旧 notes。
+ */
+export function migrateLegacyNotes(xieyiState, snapshot, addPersonalTaskFn, updateTaskFn) {
+  const legacy = xieyiState?.notes || [];
+  if (!legacy.length) return { xieyi: xieyiState, snapshot, migrated: false };
+  let nextSnap = snapshot;
+  let nextXieyi = { ...xieyiState, slots: { ...(xieyiState.slots || {}) } };
+  const existingIds = new Set((nextSnap?.tasks || []).map(t => t.id));
+  for (const note of legacy) {
+    if (note.promotedTaskId && existingIds.has(note.promotedTaskId)) {
+      nextXieyi.slots[note.promotedTaskId] = note.slot;
+      continue;
+    }
+    if (typeof addPersonalTaskFn !== 'function') continue;
+    nextSnap = addPersonalTaskFn(nextSnap, { title: note.title, day: note.date, estimate_minutes: null });
+    const created = nextSnap.tasks[nextSnap.tasks.length - 1];
+    if (note.done && typeof updateTaskFn === 'function') {
+      nextSnap = updateTaskFn(nextSnap, created.id, { status: 'completed' });
+    }
+    nextXieyi.slots[created.id] = note.slot;
+    existingIds.add(created.id);
+  }
+  nextXieyi.notes = [];
+  return { xieyi: normalizeXieyiState(nextXieyi), snapshot: nextSnap, migrated: true };
 }
 
 export function readXieyi(storage) {
@@ -358,68 +448,128 @@ export function ledgerMarkup({ state, result, start, now = Date.now(), snapshot 
   </section>`;
 }
 
+/** 返回本周学休合计的一句简短摘要，放在画卷底部页码旁。 */
+export function weeklyLedgerBrief(state, weekStartMs) {
+  const stats = weeklyLedgerStats(state, null, weekStartMs);
+  if (!stats.studyMinutes && !stats.leisureMinutes) return '';
+  return `本周 砚耕 ${minutesLabel(stats.studyMinutes)} · 闲暇 ${minutesLabel(stats.leisureMinutes)}`;
+}
+
 /**
- * 渲染「写意 · 四时手卷」主画板：顶部「远山志」 + 七日四时（晨/午/晡/暮）。
+ * 将统一事项池投影到写意四时格与左侧远山志的待定队列。
  */
-export function xieyiBoardMarkup({ state, result, start, now = Date.now() } = {}) {
+export function weekDayItems(snapshot, state, weekStartMs) {
+  const days = Array.from({ length: 7 }, (_, idx) => dateStr(weekStartMs + idx * DAY));
+  const daySet = new Set(days);
+  const byDay = new Map(days.map(d => [d, new Map(SLOTS.map(s => [s.key, []]))]));
+  const pendingTasks = [];
+  for (const task of snapshot?.tasks || []) {
+    if (task.status === 'cancelled') continue;
+    const tier = itemTier(task, 'task');
+    if (tier === 'pending' && task.status === 'active') {
+      pendingTasks.push(task);
+      continue;
+    }
+    if (tier !== 'day') continue;
+    const ymd = taskDay(task);
+    if (!daySet.has(ymd)) continue;
+    const slotKey = SLOT_KEYS.has(state?.slots?.[task.id]) ? state.slots[task.id] : 'bu';
+    byDay.get(ymd).get(slotKey).push({
+      id: task.id,
+      title: task.title,
+      done: task.status === 'completed',
+      fromTask: true,
+    });
+  }
+  for (const note of state?.notes || []) {
+    if (!daySet.has(note.date)) continue;
+    const slotKey = SLOT_KEYS.has(note.slot) ? note.slot : 'bu';
+    byDay.get(note.date).get(slotKey).push({
+      id: note.id,
+      title: note.title,
+      done: Boolean(note.done),
+      fromTask: false,
+      promotedTaskId: note.promotedTaskId,
+    });
+  }
+  return { byDay, pendingTasks };
+}
+
+/**
+ * 渲染「写意 · 四时手卷」：左侧窄竖向「远山志」题跋 + 七日四时格 + 每日底部学休账条。
+ */
+export function xieyiBoardMarkup({ state, result, start, now = Date.now(), snapshot = null, openLogDate = '' } = {}) {
   const days = Array.from({ length: 7 }, (_, idx) => start + idx * DAY);
   const todayYmd = dateStr(now);
   const weekStartYmd = dateStr(start);
   const targetDropDate = days.some(ms => dateStr(ms) === todayYmd) ? todayYmd : weekStartYmd;
+  const ledgerStats = weeklyLedgerStats(state, result, start);
+  const logsByDay = new Map(ledgerStats.daily.map(d => [d.date, d]));
+  const { byDay, pendingTasks } = weekDayItems(snapshot, state, start);
 
   const activeHorizon = GOAL_HORIZONS.find(h => h.key === state.goalTab) || GOAL_HORIZONS[0];
   const pKey = periodKeyFor(activeHorizon.key, start);
   const horizonTabs = GOAL_HORIZONS.map(h => {
-    const k = periodKeyFor(h.key, start);
-    const cnt = state.goals.filter(g => g.horizon === h.key && g.periodKey === k).length;
-    return `<button type="button" class="xy-goal-tab" data-xy-goal-tab="${h.key}" aria-pressed="${h.key === activeHorizon.key}">${h.name}<small>${h.gloss}${cnt ? ` · ${cnt}` : ''}</small></button>`;
+    const label = h.key === 'week' ? '周' : h.key === 'month' ? '月' : '学期';
+    return `<button type="button" class="xy-goal-tab" data-xy-goal-tab="${h.key}" aria-pressed="${h.key === activeHorizon.key}">${label}</button>`;
   }).join('');
 
   const matchingGoals = state.goals.filter(g => g.horizon === activeHorizon.key && g.periodKey === pKey);
-  const goalChips = matchingGoals.length
+  const goalList = matchingGoals.length
     ? `<ul class="xy-goal-list">${matchingGoals.map(g => `<li class="xy-goal-chip${g.done ? ' is-done' : ''}">
         <button type="button" class="xy-goal-check" data-xy-goal-toggle="${escapeHTML(g.id)}" aria-pressed="${g.done}"><i class="xy-seal">${g.done ? '成' : ''}</i><span>${escapeHTML(g.title)}</span></button>
-        <button type="button" class="xy-goal-drop" data-xy-goal-drop="${escapeHTML(g.id)}" title="拆到 ${shortDate(targetDropDate)} 晡（下午）格">落入今日</button>
-        <button type="button" class="xy-del" data-xy-goal-del="${escapeHTML(g.id)}" aria-label="删除目标">×</button>
+        <span class="xy-goal-ops"><button type="button" class="xy-goal-drop" data-xy-goal-drop="${escapeHTML(g.id)}" title="落入 ${shortDate(targetDropDate)} 晡（下午）">落今日</button><button type="button" class="xy-del" data-xy-goal-del="${escapeHTML(g.id)}" aria-label="删除目标">×</button></span>
       </li>`).join('')}</ul>`
-    : `<p class="xy-empty-hint">${activeHorizon.name}（${escapeHTML(pKey)}）尚未题写，写一句这阶段的纲领再落笔到每天。</p>`;
+    : `<p class="xy-empty-hint">${escapeHTML(activeHorizon.name)}尚未题写</p>`;
 
-  const goalsSection = `<section class="xy-goals" aria-label="远山志">
-    <header class="xy-goals-head">
-      <div class="xy-goals-title"><p class="cal-eyebrow">远山志 · ${escapeHTML(pKey)}</p><h3>先立其志，再分四时</h3></div>
+  const pendingBlock = pendingTasks.length
+    ? `<div class="xy-pending">
+        <h4>待定 · 未落哪天</h4>
+        <ul>${pendingTasks.slice(0, 6).map(t => `<li><span>${escapeHTML(t.title)}</span><button type="button" class="xy-goal-drop" data-xy-pending-drop="${escapeHTML(t.id)}" title="落入 ${shortDate(targetDropDate)} 晡（下午）">落今日</button></li>`).join('')}</ul>
+      </div>`
+    : '';
+
+  const colophon = `<aside class="xy-colophon" aria-label="远山志">
+    <header class="xy-colo-head">
+      <div class="xy-colo-title"><p class="cal-eyebrow">远山志</p><small>${escapeHTML(pKey)}</small></div>
       <div class="xy-goal-tabs" role="tablist" aria-label="目标尺度">${horizonTabs}</div>
     </header>
-    ${goalChips}
+    ${goalList}
     <form class="xy-goal-form" data-xy-goal-form>
       <input type="hidden" name="horizon" value="${activeHorizon.key}">
       <input type="hidden" name="periodKey" value="${escapeHTML(pKey)}">
-      <input name="title" type="text" maxlength="80" placeholder="题写一条${activeHorizon.name}（如：完成三维视觉基线复现 / 过完六级高频词）" required>
+      <input name="title" type="text" maxlength="80" aria-label="题写${activeHorizon.name}" placeholder="＋ 题${activeHorizon.name}" required>
       <button type="submit">立志</button>
     </form>
-  </section>`;
+    ${pendingBlock}
+  </aside>`;
 
   const dayColumns = days.map((dayMs, idx) => {
     const ymd = dateStr(dayMs);
     const isToday = ymd === todayYmd;
     const slotCards = SLOTS.map(slot => {
       const info = slotSummary(result, dayMs, slot);
-      const notes = state.notes.filter(n => n.date === ymd && n.slot === slot.key);
+      const entries = byDay.get(ymd)?.get(slot.key) || [];
       const fixedTags = info.busyItems.slice(0, 3).map(item => `<span class="xy-ref-tag is-${item.layer}">${escapeHTML(item.title)}</span>`).join('');
       const moreFixed = info.busyItems.length > 3 ? `<span class="xy-ref-more">+${info.busyItems.length - 3}</span>` : '';
-      const noteItems = notes.map(n => `<li class="xy-note${n.done ? ' is-done' : ''}">
-          <button type="button" class="xy-note-check" data-xy-note-toggle="${escapeHTML(n.id)}" aria-pressed="${n.done}"><i class="xy-seal">${n.done ? '成' : ''}</i><span>${escapeHTML(n.title)}</span></button>
-          <span class="xy-note-ops">
-            ${n.promotedTaskId ? '<em class="xy-promoted">已入工笔</em>' : `<button type="button" class="xy-promote" data-xy-promote="${escapeHTML(n.id)}" title="转入「笔墨·落笔」作精确排期">入工笔</button>`}
-            <button type="button" class="xy-del" data-xy-note-del="${escapeHTML(n.id)}" aria-label="删去此项">×</button>
-          </span>
-        </li>`).join('');
+      const itemRows = entries.map(entry => {
+        const toggleAttr = entry.fromTask ? `data-xy-task-toggle="${escapeHTML(entry.id)}"` : `data-xy-note-toggle="${escapeHTML(entry.id)}"`;
+        const delAttr = entry.fromTask ? `data-xy-task-del="${escapeHTML(entry.id)}"` : `data-xy-note-del="${escapeHTML(entry.id)}"`;
+        const ops = entry.fromTask
+          ? (entry.done ? '' : `<button type="button" class="xy-promote" data-xy-upgrade="${escapeHTML(entry.id)}:30" title="填30分用时，进工笔自动排程">30分</button><button type="button" class="xy-promote" data-xy-upgrade="${escapeHTML(entry.id)}:60" title="填1小时用时，进工笔自动排程">1小时</button>`)
+          : (entry.promotedTaskId ? '<em class="xy-promoted">已入工笔</em>' : `<button type="button" class="xy-promote" data-xy-promote="${escapeHTML(entry.id)}">入工笔</button>`);
+        return `<li class="xy-note${entry.done ? ' is-done' : ''}">
+          <button type="button" class="xy-note-check" ${toggleAttr} aria-pressed="${entry.done}"><i class="xy-seal">${entry.done ? '成' : ''}</i><span>${escapeHTML(entry.title)}</span></button>
+          <span class="xy-note-ops">${ops}<button type="button" class="xy-del" ${delAttr} aria-label="删去此项">×</button></span>
+        </li>`;
+      }).join('');
       return `<div class="xy-slot xy-slot-${slot.key}">
         <div class="xy-slot-head">
           <span class="xy-slot-name"><strong>${slot.name}</strong><small>${slot.gloss}</small></span>
           ${info.label && (info.density === 'is-tight' || info.density === 'is-full') ? `<span class="xy-slot-cap ${info.density}">${escapeHTML(info.label)}</span>` : ''}
         </div>
         ${fixedTags ? `<div class="xy-refs" aria-label="已有底色与点墨">${fixedTags}${moreFixed}</div>` : ''}
-        ${noteItems ? `<ul class="xy-notes">${noteItems}</ul>` : ''}
+        ${itemRows ? `<ul class="xy-notes">${itemRows}</ul>` : ''}
         <form class="xy-add-form" data-xy-add-form>
           <input type="hidden" name="date" value="${ymd}">
           <input type="hidden" name="slot" value="${slot.key}">
@@ -427,14 +577,51 @@ export function xieyiBoardMarkup({ state, result, start, now = Date.now() } = {}
         </form>
       </div>`;
     }).join('');
+
+    const dl = logsByDay.get(ymd) || { study: 0, leisure: 0 };
+    const dlTotal = dl.study + dl.leisure;
+    const dlStudyPct = dlTotal ? Math.round((dl.study / dlTotal) * 100) : 0;
+    const dlLeisurePct = dlTotal ? 100 - dlStudyPct : 0;
+    const isLogOpen = openLogDate === ymd;
+    const dayLogs = (state.logs || []).filter(l => l.date === ymd).sort((a, b) => b.at - a.at);
+    const dayLogLabel = dlTotal
+      ? `${dl.study ? `学 ${minutesLabel(dl.study)}` : ''}${dl.study && dl.leisure ? ' · ' : ''}${dl.leisure ? `休 ${minutesLabel(dl.leisure)}` : ''}`
+      : '记学休';
+    const dayLogPop = isLogOpen
+      ? `<div class="xy-day-log-pop">
+          ${dayLogs.length ? `<ul class="xy-day-log-list">${dayLogs.map(log => `<li class="is-${log.kind}"><i aria-hidden="true"></i><span>${escapeHTML(log.title)}</span><b>${minutesLabel(log.minutes)}</b><button type="button" class="xy-del" data-xy-log-del="${escapeHTML(log.id)}" aria-label="删去记录">×</button></li>`).join('')}</ul>` : ''}
+          <form class="xy-day-log-form" data-xy-log-form>
+            <input type="hidden" name="date" value="${ymd}">
+            <div class="xy-day-log-row">
+              <select name="kind" aria-label="类型"><option value="study">砚耕</option><option value="leisure">闲暇</option></select>
+              <label class="xy-min-input"><input name="minutes" type="number" min="1" max="720" value="45" required><span>分</span></label>
+            </div>
+            <input name="title" type="text" maxlength="80" placeholder="做了什么（可选）">
+            <div class="xy-day-log-foot">
+              <div class="xy-presets" role="group" aria-label="常用时长">
+                <button type="button" data-xy-log-preset="25">25</button>
+                <button type="button" data-xy-log-preset="45">45</button>
+                <button type="button" data-xy-log-preset="60">60</button>
+              </div>
+              <button type="submit" class="xy-day-log-save">记入</button>
+            </div>
+          </form>
+        </div>`
+      : '';
+
     return `<article class="xy-day${isToday ? ' is-today' : ''}" aria-label="${shortDate(ymd)} ${WEEKDAYS[idx]}">
       <header class="xy-day-head"><strong>${WEEKDAYS[idx]}</strong><span>${shortDate(ymd)}${isToday ? ' · 今日' : ''}</span></header>
       <div class="xy-slots">${slotCards}</div>
+      <footer class="xy-day-ledger${isLogOpen ? ' is-open' : ''}">
+        <div class="xy-day-bar" aria-hidden="true"><i class="is-study" style="width:${dlStudyPct}%"></i><i class="is-leisure" style="width:${dlLeisurePct}%"></i></div>
+        <button type="button" class="xy-day-log-btn" data-xy-day-log-toggle="${ymd}" aria-expanded="${isLogOpen}">${escapeHTML(dayLogLabel)}</button>
+        ${dayLogPop}
+      </footer>
     </article>`;
   }).join('');
 
-  return `<div class="xy-board">
-    ${goalsSection}
+  return `<div class="xy-layout">
+    ${colophon}
     <div class="xy-grid" aria-label="写意四时手卷">${dayColumns}</div>
   </div>`;
 }

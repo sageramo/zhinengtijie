@@ -24,9 +24,12 @@ export function formatClock(totalSeconds) {
 }
 
 export function resolveScene(preference = 'auto', nowMs = Date.now()) {
-  if (preference === 'day' || preference === 'night') return preference;
-  const hour = localDateObj(nowMs).getUTCHours();
-  return hour < 6 || hour >= 18 ? 'night' : 'day';
+  if (preference === 'day' || preference === 'dusk' || preference === 'night') return preference;
+  const d = localDateObj(nowMs);
+  const hour = d.getUTCHours() + d.getUTCMinutes() / 60;
+  if (hour >= 16 && hour < 18.75) return 'dusk';
+  if (hour < 5.75 || hour >= 18.75) return 'night';
+  return 'day';
 }
 
 export function companionWhisper({ mode = 'study', progress = 0, running = false, finished = false } = {}) {
@@ -231,23 +234,37 @@ export function createSoundscape(win = globalThis.window) {
 }
 
 /**
- * 随天时的连续昼夜混合：返回 night（夜景不透明度 0..1）与 dusk（暮色暖光 0..1），
- * 让伴读画面像窗外真实天色一样从白昼缓缓过渡到黄昏、夜晚，再回到清晨。
+ * 随天时的连续昼夜混合：返回 dusk（暮色叠层 0..1）与 night（夜雨叠层 0..1），
+ * 让西湖书房实景按北京时间从白昼缓缓溶入黄昏、夜晚与黎明。
  */
 export function sceneMix(preference = 'auto', nowMs = Date.now()) {
   if (preference === 'day') return { night: 0, dusk: 0 };
+  if (preference === 'dusk') return { night: 0, dusk: 1 };
   if (preference === 'night') return { night: 1, dusk: 0 };
   const d = localDateObj(nowMs);
   const h = d.getUTCHours() + d.getUTCMinutes() / 60;
   const ramp = (x, a, b) => Math.max(0, Math.min(1, (x - a) / (b - a)));
-  // 16:30 起转暮，19:30 入夜；4:30 起天光渐亮，7:00 全昼。
-  const night = h >= 12 ? ramp(h, 17.5, 19.5) : 1 - ramp(h, 4.5, 7);
-  const dusk = h >= 12 ? Math.max(0, 1 - Math.abs(h - 18) / 1.6) : Math.max(0, 1 - Math.abs(h - 5.8) / 1.2) * 0.6;
+  // 白昼 07:00-16:00 -> 黄昏 16:00-17:45 渐浓 -> 入夜 17:45-19:30 -> 黎明 04:45-06:15 -> 清晨 06:15-07:00
+  let dusk = 0;
+  let night = 0;
+  if (h >= 16 && h < 17.75) {
+    dusk = ramp(h, 16, 17.75);
+  } else if (h >= 17.75 && h < 19.5) {
+    dusk = 1;
+    night = ramp(h, 17.75, 19.5);
+  } else if (h >= 19.5 || h < 4.75) {
+    night = 1;
+  } else if (h >= 4.75 && h < 6.25) {
+    dusk = 1;
+    night = 1 - ramp(h, 4.75, 6.25);
+  } else if (h >= 6.25 && h < 7) {
+    dusk = 1 - ramp(h, 6.25, 7);
+  }
   return { night: Number(night.toFixed(3)), dusk: Number(dusk.toFixed(3)) };
 }
 
 /**
- * 渲染极简动态「案头伴读」：全幅书房景致随天时流转，左下角只留一枚细字计时与一道香线，
+ * 渲染极简动态「案头伴读」：三时西湖实景随天时流转，左下角只留一枚细字计时与一道香线，
  * 其余设置收进可折叠的小抽屉，专注时界面自动隐去，只剩画面与时间。
  */
 export function companionMarkup({
@@ -278,8 +295,8 @@ export function companionMarkup({
   const totalSec = Math.max(60, durationMinutes * 60);
   const progress = finished ? 1 : Math.max(0, Math.min(1, 1 - remainingSeconds / totalSec));
   const remainPct = Math.max(0, Math.min(100, (1 - progress) * 100));
-  const isNight = resolvedScene === 'night';
-  const m = mix || { night: isNight ? 1 : 0, dusk: 0 };
+  const m = mix || (resolvedScene === 'night' ? { night: 1, dusk: 0 } : resolvedScene === 'dusk' ? { night: 0, dusk: 1 } : { night: 0, dusk: 0 });
+  const sceneClass = resolvedScene === 'night' ? ' is-night' : resolvedScene === 'dusk' ? ' is-dusk' : ' is-day';
   const whisper = companionWhisper({ mode, progress, running, finished });
   const presets = COMPANION_PRESETS[mode] || COMPANION_PRESETS.study;
   const raining = (audioLevels.rain || 0) > 0.02 || m.night > 0.6;
@@ -317,13 +334,13 @@ export function companionMarkup({
       <label class="cmp-chime-opt"><input type="checkbox" data-cmp-chime${chimeOn ? ' checked' : ''}><i aria-hidden="true"></i><span>结束时一声清磬</span></label>`
     : '<p class="cmp-muted">当前浏览器不支持声景合成，计时与记账照常。</p>';
 
-  return `<div class="cmp-card${isNight ? ' is-night' : ' is-day'}${running ? ' is-running' : ''}${raining ? ' is-raining' : ''}" data-active-mode="${mode}" style="--night:${m.night};--dusk:${m.dusk}">
+  return `<div class="cmp-card${sceneClass}${running ? ' is-running' : ''}${raining ? ' is-raining' : ''}" data-active-mode="${mode}" style="--night:${m.night};--dusk:${m.dusk}">
     <div class="cmp-backdrop" aria-hidden="true">
       <div class="cmp-scene">
         <img class="cmp-art cmp-art-day" src="./assets/study-desk-day.webp" alt="" width="1024" height="576">
+        <img class="cmp-art cmp-art-dusk" src="./assets/study-desk-dusk.webp" alt="" width="1024" height="576">
         <img class="cmp-art cmp-art-night" src="./assets/study-desk-night.webp" alt="" width="1024" height="576">
       </div>
-      <div class="cmp-dusk"></div>
       <div class="cmp-light"></div>
       <div class="cmp-rain"></div>
       <div class="cmp-lamp-glow"></div>
@@ -343,6 +360,7 @@ export function companionMarkup({
         <div class="cmp-seg is-quiet" role="group" aria-label="景致">
           <button type="button" data-cmp-scene="auto" aria-pressed="${scenePref === 'auto'}">随天时</button>
           <button type="button" data-cmp-scene="day" aria-pressed="${scenePref === 'day'}">昼</button>
+          <button type="button" data-cmp-scene="dusk" aria-pressed="${scenePref === 'dusk'}">暮</button>
           <button type="button" data-cmp-scene="night" aria-pressed="${scenePref === 'night'}">夜</button>
         </div>
         <button type="button" class="cmp-icon" data-cmp-settings aria-expanded="${settingsOpen}" title="事项与声景">设置</button>

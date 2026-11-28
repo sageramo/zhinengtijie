@@ -1,10 +1,10 @@
-// One page per function, addressed by hash: #/ (landing), #/import, #/items, #/time, #/calendar.
-// Old links #/review and #/plan open their replacements.
+// One page per function, addressed by hash: #/ (landing), #/import (研墨+笔墨), #/time, #/calendar.
+// Old links #/items, #/review and #/plan open their unified replacements.
 // The current page is html[data-current]; CSS shows only that page, so back/forward and reload all work.
 (() => {
   const root = document.documentElement;
-  const titles = { home: '司序 Marshal · 知所先后', time: '铺纸 · 司序', import: '研墨 · 司序', items: '笔墨 · 司序', calendar: '画卷 · 司序' };
-  const aliases = { review: 'items', plan: 'calendar' };
+  const titles = { home: '司序 Marshal · 知所先后', time: '铺纸 · 司序', import: '研墨 · 司序', calendar: '画卷 · 司序' };
+  const aliases = { review: 'import', items: 'import', plan: 'calendar' };
   const routeOf = hash => {
     if (!hash.startsWith('#/')) return hash && root.dataset.current ? root.dataset.current : 'home';
     // #/import?text=… (from an iPhone shortcut) and #/import?shared=1 (from the share sheet) open 研墨.
@@ -105,11 +105,10 @@
   }
   window.SixuVeil = { intro: done => (veil && !calm.matches ? playIntro(done) : (done(), () => {})) };
 
-  // The three primary workbench pages in painting order; arrows and arrow keys step through them.
-  // #/items (笔墨) is entered from 研墨 and shares 研墨 as its parent tab.
+  // The three workbench pages in painting order; inside 画卷, arrows also flip 工笔 ↔ 写意.
   const ORDER = ['import', 'time', 'calendar'];
-  const WORKBENCH = ['import', 'time', 'items', 'calendar'];
-  const NAMES = { time: '铺纸', import: '研墨', items: '笔墨', calendar: '画卷' };
+  const WORKBENCH = ['import', 'time', 'calendar'];
+  const NAMES = { time: '铺纸', import: '研墨', calendar: '画卷' };
 
   // A link click fires both hashchange and popstate; the veil already on its way absorbs the second.
   let pending = null;
@@ -139,26 +138,44 @@
   }
 
   function updateArrows(route) {
+    const custom = route === 'calendar' && typeof window.SixuCalendarFlip?.arrows === 'function' ? window.SixuCalendarFlip.arrows() : null;
     const index = ORDER.indexOf(route);
     for (const button of document.querySelectorAll('[data-page-step]')) {
-      const target = index < 0 ? null : ORDER[index + Number(button.dataset.pageStep)];
+      const step = Number(button.dataset.pageStep);
+      if (custom) {
+        const spec = step < 0 ? custom.prev : custom.next;
+        button.hidden = !spec;
+        if (!spec) continue;
+        button.dataset.target = spec.route || 'calendar';
+        button.dataset.flip = spec.flip || '';
+        button.querySelector('.page-arrow-label').textContent = spec.label;
+        button.setAttribute('aria-label', `${step < 0 ? '上一页' : '下一页'}：${spec.label}`);
+        continue;
+      }
+      const target = index < 0 ? null : ORDER[index + step];
       button.hidden = !target;
       if (!target) continue;
       button.dataset.target = target;
+      button.dataset.flip = '';
       button.querySelector('.page-arrow-label').textContent = NAMES[target];
-      button.setAttribute('aria-label', `${Number(button.dataset.pageStep) < 0 ? '上一页' : '下一页'}：${NAMES[target]}`);
+      button.setAttribute('aria-label', `${step < 0 ? '上一页' : '下一页'}：${NAMES[target]}`);
     }
   }
   document.addEventListener('click', event => {
     const button = event.target.closest('[data-page-step]');
-    if (button?.dataset.target) window.SixuRouter.go(button.dataset.target);
+    if (!button) return;
+    const step = Number(button.dataset.pageStep);
+    if (root.dataset.current === 'calendar' && window.SixuCalendarFlip?.step?.(step)) return;
+    if (button.dataset.target) window.SixuRouter.go(button.dataset.target);
   });
   document.addEventListener('keydown', event => {
     if (!['ArrowLeft', 'ArrowRight'].includes(event.key) || event.altKey || event.ctrlKey || event.metaKey || event.shiftKey || event.defaultPrevented) return;
     const target = event.target;
     if (target instanceof Element && target.closest('input, textarea, select, [contenteditable]')) return;
+    const step = event.key === 'ArrowRight' ? 1 : -1;
+    if (root.dataset.current === 'calendar' && window.SixuCalendarFlip?.step?.(step)) { event.preventDefault(); return; }
     const index = ORDER.indexOf(root.dataset.current);
-    const next = index < 0 ? null : ORDER[index + (event.key === 'ArrowRight' ? 1 : -1)];
+    const next = index < 0 ? null : ORDER[index + step];
     if (!next) return;
     event.preventDefault();
     window.SixuRouter.go(next);
@@ -169,10 +186,9 @@
     root.dataset.current = route;
     document.title = titles[route];
     updateArrows(route);
-    const activeTab = route === 'items' ? 'import' : route;
     for (const tab of document.querySelectorAll('[data-tab]')) {
       // On phones the tab strip scrolls sideways; bring the current tab into it.
-      if (tab.dataset.tab === activeTab) { tab.setAttribute('aria-current', 'page'); tab.parentElement.scrollLeft = Math.max(0, tab.offsetLeft - (tab.parentElement.clientWidth - tab.offsetWidth) / 2); }
+      if (tab.dataset.tab === route) { tab.setAttribute('aria-current', 'page'); tab.parentElement.scrollLeft = Math.max(0, tab.offsetLeft - (tab.parentElement.clientWidth - tab.offsetWidth) / 2); }
       else tab.removeAttribute('aria-current');
     }
     if (!changed) return;
@@ -186,10 +202,13 @@
 
   window.SixuRouter = {
     go(route) {
-      if (routeOf(location.hash) !== route) history.pushState(null, '', route === 'home' ? '#/' : `#/${route}`);
-      apply(route, { focus: true });
+      const normalized = aliases[route] || route;
+      const hashTarget = route === 'items' ? '#/items' : (normalized === 'home' ? '#/' : `#/${normalized}`);
+      if (location.hash !== hashTarget) history.pushState(null, '', hashTarget);
+      apply(normalized, { focus: true });
     },
     current: () => root.dataset.current,
+    refreshArrows: () => updateArrows(root.dataset.current),
   };
   window.addEventListener('hashchange', () => apply(routeOf(location.hash), { focus: true }));
   window.addEventListener('popstate', () => apply(routeOf(location.hash), { focus: true }));

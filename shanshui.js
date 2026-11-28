@@ -173,11 +173,28 @@ function bambooLeaf(x, y, angleDeg, len = 26, scaleY = 1) {
   return `<path d="M0 0 Q${fixed(ctrl1X)} ${fixed(ctrl1Y)} ${fixed(tipX)} ${tipY} Q${fixed(ctrl2X)} ${fixed(ctrl2Y)} 0 0Z" transform="translate(${fixed(x)} ${fixed(y)}) rotate(${fixed(angleDeg)})"/>`;
 }
 
-/** 四时烟水（墨竹扁舟图）：以茶纸、青竹、烟波、扁舟与点朱绘写意四时手卷，与工笔山水截然分途。 */
-export function xieyiShanshuiMarkup({ state, start, now, id = 'ss-xy', weekGoals = [] }) {
+/** 四时烟水（墨竹扁舟图）：以茶纸、青竹、烟波、扁舟与点朱绘写意四时手卷，从统一事项池取每日定日事项。 */
+export function xieyiShanshuiMarkup({ state, snapshot = null, start, now, id = 'ss-xy', weekGoals = [] } = {}) {
   const days = Array.from({ length: 7 }, (_, idx) => {
     const ymd = dayYmd(start + idx * DAY);
-    const notes = (state?.notes || []).filter(n => n.date === ymd);
+    const notes = [];
+    if (snapshot?.tasks) {
+      for (const task of snapshot.tasks) {
+        if (task.status === 'cancelled') continue;
+        const iso = task.earliest_start_at || task.deadline_at;
+        if (!iso || !/^\d{4}-\d{2}-\d{2}/.test(iso)) continue;
+        const tDay = dayYmd(Date.parse(iso));
+        if (tDay !== ymd) continue;
+        const isPersonalTask = Array.isArray(task.notes) && task.notes.includes('个人任务');
+        const hasClock = isPersonalTask && task.deadline_at && (!task.earliest_start_at || !task.deadline_at.includes('T23:59:'));
+        if (isPersonalTask && !hasClock && task.estimate_minutes === null) {
+          notes.push({ slot: state?.slots?.[task.id] || 'bu', done: task.status === 'completed' });
+        }
+      }
+    }
+    for (const legacy of state?.notes || []) {
+      if (legacy.date === ymd) notes.push({ slot: legacy.slot || 'bu', done: Boolean(legacy.done) });
+    }
     return { ymd, notes };
   });
   const today = now >= start && now < start + 7 * DAY ? Math.floor((now - start) / DAY) : -1;

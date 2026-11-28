@@ -7,17 +7,21 @@ import {
   createSoundscape,
   formatClock,
   resolveScene,
+  sceneMix,
   suggestGapSession,
 } from '../companion.js';
 
 const T = iso => Date.parse(iso);
 
-test('formatClock, resolveScene, and companionWhisper cover study/leisure states', () => {
+test('formatClock, resolveScene, sceneMix, and companionWhisper cover study/leisure & 3-phase dusk states', () => {
   assert.equal(formatClock(2705), '45:05');
   assert.equal(formatClock(0), '00:00');
   assert.equal(resolveScene('auto', T('2026-11-28T14:00:00+08:00')), 'day');
+  assert.equal(resolveScene('auto', T('2026-11-28T17:30:00+08:00')), 'dusk');
   assert.equal(resolveScene('auto', T('2026-11-28T21:00:00+08:00')), 'night');
   assert.equal(resolveScene('day', T('2026-11-28T23:00:00+08:00')), 'day');
+  assert.ok(sceneMix('auto', T('2026-11-28T17:30:00+08:00')).dusk > 0.8);
+  assert.equal(sceneMix('dusk', T('2026-11-28T14:00:00+08:00')).dusk, 1);
   assert.deepEqual(COMPANION_PRESETS.study, [15, 25, 45, 60]);
   assert.match(companionWhisper({ mode: 'study', progress: 0.5, running: true }), /窗外山静/);
   assert.match(companionWhisper({ mode: 'leisure', progress: 0.2, running: true }), /檐雨敲竹/);
@@ -68,7 +72,9 @@ test('createSoundscape degrades safely without Web Audio and companionMarkup ren
     ledgerHtml: '<section class="xy-ledger is-compact">账卷内容</section>',
   });
   assert.match(html, /study-desk-day\.webp/);
+  assert.match(html, /study-desk-dusk\.webp/);
   assert.match(html, /study-desk-night\.webp/);
+  assert.match(html, /data-cmp-scene="dusk"/);
   assert.match(html, /is-night/);
   assert.match(html, /依隙定香/);
   assert.match(html, /45:00/);

@@ -8,21 +8,28 @@ import {
   addNote,
   addTimeLog,
   createXieyiState,
+  inferSlotFromText,
+  itemTier,
   ledgerMarkup,
   markNotePromoted,
+  migrateLegacyNotes,
   normalizeXieyiState,
   periodKeyFor,
   removeGoal,
   removeNote,
+  removeTaskSlot,
   removeTimeLog,
   setGoalTab,
   setScrollMode,
+  setTaskSlot,
   slotSummary,
   toggleGoal,
   toggleNote,
+  weeklyLedgerBrief,
   weeklyLedgerStats,
   xieyiBoardMarkup,
 } from '../xieyi-scroll.js';
+import { createTimeSnapshot, addPersonalTask, updateTask } from '../time-state.js';
 import { xieyiShanshuiMarkup } from '../shanshui.js';
 
 const fixture = JSON.parse(readFileSync(new URL('./fixtures/calendar-v3.json', import.meta.url), 'utf8'));
@@ -89,28 +96,57 @@ test('slotSummary projects real free capacity and busy items per classical perio
   assert.equal(slotSummary(null, MONDAY, SLOTS[0]).label, '');
 });
 
-test('xieyiBoardMarkup stays cleanly free of 未定作息 and ledger, while ledgerMarkup & xieyiShanshuiMarkup render Song-Yuan surfaces', () => {
+test('xieyiBoardMarkup renders vertical colophon, unified day tasks with inline upgrade, and per-day ledger strips', () => {
   let state = setScrollMode(createXieyiState(), 'xieyi');
   state = addGoal(state, { horizon: 'week', periodKey: periodKeyFor('week', MONDAY), title: '梳理智能体闭环' });
-  state = addNote(state, { date: '2026-11-11', slot: 'bu', title: '整理摄影社报名资料' });
   state = addTimeLog(state, { kind: 'study', title: '读控制论论文', minutes: 45, date: '2026-11-11' });
 
-  const html = xieyiBoardMarkup({ state, result: fixture.result, start: MONDAY, now: MONDAY + DAY });
+  let snap = createTimeSnapshot({ referenceTime: '2026-11-09T09:00:00Z' });
+  snap = addPersonalTask(snap, { title: '整理摄影社报名资料', day: '2026-11-11', estimate_minutes: null });
+  const dayTask = snap.tasks.at(-1);
+  snap = addPersonalTask(snap, { title: '待定文献整理', day: '', estimate_minutes: null });
+  const pendingTask = snap.tasks.at(-1);
+  state = setTaskSlot(state, dayTask.id, 'bu');
+
+  assert.equal(itemTier(dayTask, 'task'), 'day');
+  assert.equal(itemTier(pendingTask, 'task'), 'pending');
+  assert.equal(itemTier({ deadline_at: '2026-11-12T18:00:00Z' }, 'task'), 'deadline');
+  assert.equal(itemTier({ kind: 'appointment', start_at: '2026-11-10T14:00:00Z', end_at: '2026-11-10T15:00:00Z' }, 'event'), 'timed');
+  assert.equal(inferSlotFromText('明早复习高数'), 'chen');
+  assert.equal(inferSlotFromText('今晚整理笔记'), 'mu');
+  assert.match(weeklyLedgerBrief(state, MONDAY), /本周 砚耕 45分/);
+
+  const html = xieyiBoardMarkup({ state, result: fixture.result, start: MONDAY, now: MONDAY + DAY, snapshot: snap, openLogDate: '2026-11-11' });
+  assert.match(html, /xy-colophon/);
   assert.match(html, /远山志/);
-  assert.match(html, /周志/);
+  assert.match(html, /xy-pending/);
+  assert.match(html, /待定文献整理/);
   assert.match(html, /整理摄影社报名资料/);
-  assert.match(html, /入工笔/);
+  assert.match(html, /data-xy-upgrade="[^"]+:30"/);
+  assert.match(html, /xy-day-ledger/);
+  assert.match(html, /data-xy-day-log-toggle="2026-11-11"/);
+  assert.match(html, /读控制论论文/);
   assert.match(html, /<strong>晨<\/strong><small>上午<\/small>/);
   assert.match(html, /<strong>暮<\/strong><small>晚间<\/small>/);
   assert.doesNotMatch(html, /未定作息/);
-  assert.doesNotMatch(html, /本周学休账卷/);
+
+  state = removeTaskSlot(state, dayTask.id);
+  assert.equal(state.slots[dayTask.id], undefined);
+
+  // Legacy notes migrate cleanly into unified personal tasks + slots
+  let legacyState = addNote(createXieyiState(), { date: '2026-11-12', slot: 'chen', title: '旧手卷早读' });
+  const mig = migrateLegacyNotes(legacyState, snap, addPersonalTask, updateTask);
+  assert.equal(mig.migrated, true);
+  assert.equal(mig.xieyi.notes.length, 0);
+  const migratedTask = mig.snapshot.tasks.find(t => t.title === '旧手卷早读');
+  assert.ok(migratedTask);
+  assert.equal(mig.xieyi.slots[migratedTask.id], 'chen');
 
   const side = ledgerMarkup({ state, result: fixture.result, start: MONDAY, now: MONDAY + DAY, snapshot: fixture.snapshot, compact: true });
   assert.match(side, /xy-ledger is-compact/);
   assert.match(side, /xy-log-fold/);
-  assert.match(side, /读控制论论文/);
 
-  const svg = xieyiShanshuiMarkup({ state, start: MONDAY, now: MONDAY + DAY, weekGoals: ['梳理智能体闭环'] });
+  const svg = xieyiShanshuiMarkup({ state: mig.xieyi, snapshot: mig.snapshot, start: MONDAY, now: MONDAY + DAY, weekGoals: ['梳理智能体闭环'] });
   assert.match(svg, /shanshui-xieyi/);
   assert.match(svg, /xy-bamboo-culm/);
   assert.match(svg, /xy-skiff/);

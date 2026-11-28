@@ -29,22 +29,31 @@ test('side arrows step through 研墨 → 铺纸 → 画卷 and hide at the ends
   assert.equal(app.find('.page-arrow.is-prev').getAttribute('aria-label'), '上一页：研墨');
 });
 
-test('the arrow keys turn pages across 3 primary routes, and #/items highlights 研墨', () => {
+test('the arrow keys turn pages across 3 primary routes, #/items maps to 研墨, and SixuCalendarFlip intercepts on 画卷', () => {
   const app = boot('#/time');
+  let flipped = [];
+  app.window.SixuCalendarFlip = {
+    arrows: () => ({ prev: { label: '铺纸', route: 'time' }, next: { label: '写意 · 四时', flip: 'xieyi', route: 'calendar' } }),
+    step: s => { flipped.push(s); return s > 0; },
+  };
   app.key(app.doc.body, 'ArrowRight');
   assert.equal(app.current(), 'calendar');
-  assert.equal(app.find('.page-arrow.is-next').hidden, true, 'no page after 画卷');
+  assert.equal(app.find('.page-arrow.is-next').hidden, false, 'custom book-flip arrow points to 写意');
+  assert.equal(app.find('.page-arrow.is-next .page-arrow-label').textContent, '写意 · 四时');
   app.key(app.find('#noticeText'), 'ArrowLeft');
   assert.equal(app.current(), 'calendar', 'inside a text box the arrow keys move the caret');
   app.doc.body.dispatchEvent(new app.window.KeyboardEvent('keydown', { key: 'ArrowLeft', altKey: true, bubbles: true }));
+  assert.equal(app.current(), 'calendar');
+  app.key(app.doc.body, 'ArrowRight');
+  assert.deepEqual(flipped, [1], 'ArrowRight on 工笔 invokes SixuCalendarFlip.step(1)');
   assert.equal(app.current(), 'calendar');
   app.key(app.doc.body, 'ArrowLeft');
   assert.equal(app.current(), 'time');
 
   app.window.SixuRouter.go('items');
-  assert.equal(app.current(), 'items');
-  assert.equal(app.find('[data-tab="import"]').getAttribute('aria-current'), 'page', 'items keeps 研墨 highlighted');
-  assert.ok([...app.doc.querySelectorAll('.page-arrow')].every(button => button.hidden), 'subpage hides side arrows');
+  assert.equal(app.current(), 'import');
+  assert.equal(app.find('[data-tab="import"]').getAttribute('aria-current'), 'page', '#/items opens unified 研墨');
+  assert.equal(app.find('.page-arrow.is-next').getAttribute('aria-label'), '下一页：铺纸');
 });
 
 test('the root URL opens the landing page (home)', () => {

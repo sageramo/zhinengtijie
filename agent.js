@@ -16,7 +16,7 @@ import { parseChatAction, findTask, starterReply, nextChips, planCardMarkup, pro
 import { readFocus, writeFocus, pruneStates, setMark, setCommonWindows, addStates, removeState, parseStateSentence, draftLabel, previewRequest, confirmRequest, replanRange, lockedRests, daySegments, bandMarkup, ribbonMarkup, bandUsed, bandLegend, todayStateMarkup, replanMarkup, spanText, dayLabel, isoAt } from './focus.js';
 import { parseJwTimetable, termStartFrom } from './jw-timetable.js';
 import { checkPersistentStorage, isVaultCode, openVault, requestPersistentStorage, sealVault, supportsLocalFileSync, writeLocalBackupFile } from './vault.js';
-import { addGoal, addNote, addTimeLog, ledgerMarkup, markNotePromoted, normalizeXieyiState, periodKeyFor, readXieyi, removeGoal, removeNote, removeTimeLog, setGoalTab, setScrollMode, toggleGoal, toggleNote, writeXieyi, xieyiBoardMarkup } from './xieyi-scroll.js';
+import { addGoal, addNote, addTimeLog, inferSlotFromText, itemTier, ledgerMarkup, markNotePromoted, migrateLegacyNotes, normalizeXieyiState, periodKeyFor, readXieyi, removeGoal, removeNote, removeTaskSlot, removeTimeLog, setGoalTab, setScrollMode, setTaskSlot, SLOT_NAMES, toggleGoal, toggleNote, weekDayItems, weeklyLedgerBrief, writeXieyi, xieyiBoardMarkup } from './xieyi-scroll.js';
 import { COMPANION_PRESETS, companionMarkup, companionWhisper, createSoundscape, formatClock, resolveScene, sceneMix, suggestGapSession } from './companion.js';
 
 /*
@@ -80,10 +80,19 @@ let skipDiffFor = ''; // the text the user chose to import as new despite a dete
 let groupMask = null; // my anonymous free mask for the shown week: { code, mask, range, slot }
 let workGroup = null; // which 落笔 group is spread open ('appointment' | 'personal' | 'deadline'); null = pick one
 const weighs = {}; // conflictKey -> { loading, error, pick, reason, note } from 请模型权衡
+const COVER_DAY_KEY = 'sixu.cover.seenDay';
+const TIER_LABEL = { timed: '定时', deadline: '定期限', day: '定日', pending: '待定' };
 const isPhoneViewport = () => typeof window !== 'undefined' && window.innerWidth <= 760;
-let rolledByMode = { gongbi: !isPhoneViewport(), xieyi: !isPhoneViewport() }; // Desktop enters each scroll via its own 山水 cover without state conflict
+const hasSeenCoverToday = () => {
+  try { return storage?.getItem(COVER_DAY_KEY) === localDate(Date.now()); } catch { return false; }
+};
+const initialCoverRolled = () => !isPhoneViewport() && !hasSeenCoverToday();
+let rolledByMode = { gongbi: initialCoverRolled(), xieyi: initialCoverRolled() };
 const isScrollRolled = () => rolledByMode[xieyiState.mode];
-let calendarAnalyzed = false; // 画卷 defaults to full-width solo view; click 解析画卷 to open the left analysis panel
+let poolFilter = 'all';
+let openLogDate = '';
+let scrollFlipDir = '';
+let calendarAnalyzed = false; // 画卷 defaults to full-width solo view; click 解析 to open the left analysis panel
 let calendarListView = false; // Phones default to the WakeUp-style 7-column week grid; toggle for agenda list
 let focusSettings = pruneStates(readFocus(storage), Date.now()); // 专注时段、精力状态与任务标记 (focus.js), this browser only
 let replanState = null; // the 重排卡: { loading, draft } | { error } | { preview, draft, body, range, revision, chosen } | { applied, label, starter }
@@ -163,7 +172,10 @@ document.addEventListener('click', event => {
   }
 });
 function renderRollFaces() {
-  const set = (key, lines) => { $(`rollSummary-${key}`).innerHTML = lines.filter(Boolean).map(line => `<span>${line}</span>`).join(''); };
+  const set = (key, lines) => {
+    const el = $(`rollSummary-${key}`);
+    if (el) el.innerHTML = lines.filter(Boolean).map(line => `<span>${line}</span>`).join('');
+  };
   const routines = snapshot.routines;
   set('routine', [routines.length ? `<b>${routines.length}</b> 处每周照例` : '没有底色也能算，铺了更准',
     routines.slice(0, 3).map(item => escapeHTML(item.title)).join('、') + (routines.length > 3 ? ' 等' : '')]);
@@ -171,15 +183,6 @@ function renderRollFaces() {
   const ranges = windows ? [...new Set(windows.filter(Boolean).map(window => `${window.start}–${window.end}`))] : [];
   const adds = snapshot.free_adjustments.length;
   set('free', [windows ? `作息 ${ranges.slice(0, 2).join('、')}${ranges.length > 2 ? ' 等' : ''}` : '<em>作息未设定，留白待书</em>', adds ? `<b>${adds}</b> 处临时调整` : '']);
-  const active = list => list.filter(item => item.status === 'active');
-  const appointments = active(snapshot.events).filter(item => item.kind === 'appointment');
-  const events = active(snapshot.events).filter(item => item.kind !== 'appointment');
-  const tasks = active(snapshot.tasks);
-  const personal = tasks.filter(isPersonal).length;
-  const pendingTasks = tasks.filter(task => task.deadline_at === null).length;
-  set('work', [`<b>${appointments.length}</b> 件约定 · <b>${personal}</b> 件个人任务 · <b>${tasks.length - personal}</b> 件截止之事`, pendingTasks ? `<em>${pendingTasks} 件待书</em>` : '']);
-  const pendingEvents = events.filter(item => !item.start_at || !item.end_at).length;
-  set('event', [`<b>${events.length}</b> 处点墨`, events.slice(0, 2).map(item => escapeHTML(item.title)).join('、'), pendingEvents ? `<em>${pendingEvents} 处时间待书</em>` : '']);
 }
 function busy(button, value, idle, working) {
   button.disabled = value;
@@ -192,6 +195,15 @@ function busy(button, value, idle, working) {
 let autoBackupHandle = null;
 let persistRequestedOnce = false;
 let xieyiState = readXieyi(storage);
+function syncLegacyXieyiNotes() {
+  const res = migrateLegacyNotes(xieyiState, snapshot, addPersonalTask, updateTask);
+  if (!res.migrated) return;
+  xieyiState = res.xieyi;
+  writeXieyi(storage, xieyiState);
+  snapshot = res.snapshot;
+  try { snapshotStore.save(snapshot); } catch { /* wait for commit */ }
+}
+syncLegacyXieyiNotes();
 function commitXieyi(next) {
   xieyiState = normalizeXieyiState(next);
   writeXieyi(storage, xieyiState);
@@ -264,6 +276,10 @@ function showOnPage(element, block = 'start') {
   if (roll) openRoll(roll.dataset.roll);
   const group = element.closest?.('[data-group]');
   if (group) { workGroup = group.dataset.group; spreadWorkGroup(workGroup); }
+  if (element.closest?.('#inkPool')) {
+    document.querySelector('[data-page="import"]')?.setAttribute('data-pane', 'pool');
+    if (element.hidden) setPoolFilter('all');
+  }
   const editor = element.querySelector?.(':scope > .item-edit');
   if (editor) { editor.open = true; openCards.add(element.dataset.itemId); }
   const page = element.closest('[data-page]')?.dataset.page;
@@ -393,19 +409,21 @@ function renderCalendar() {
   const rolled = isScrollRolled();
   const isXieyi = xieyiState.mode === 'xieyi';
   const startMs = shownWeek();
-  const xieyiNotesInWeek = (xieyiState.notes || []).filter(n => {
-    const t = Date.parse(`${n.date}T00:00:00+08:00`);
-    return Number.isFinite(t) && t >= startMs && t < startMs + 7 * DAY;
-  });
+  const xieyiWeek = isXieyi ? weekDayItems(snapshot, xieyiState, startMs) : null;
+  const xieyiCount = xieyiWeek ? Array.from(xieyiWeek.byDay.values()).reduce((sum, map) => {
+    let daySum = 0;
+    for (const list of map.values()) daySum += list.length;
+    return sum + daySum;
+  }, 0) : 0;
   const xieyiGoalsInWeek = (xieyiState.goals || []).filter(g => g.horizon === 'week' && g.periodKey === periodKeyFor('week', startMs));
-  const xieyiPainting = isXieyi ? xieyiShanshuiMarkup({ state: xieyiState, start: startMs, now: nowMs, id: rolled ? 'ss-xy-cover' : 'ss-xy-board', weekGoals: xieyiGoalsInWeek.map(g => g.title) }) : '';
-  const xieyiCoverMeta = [xieyiGoalsInWeek.length ? `${xieyiGoalsInWeek.length} 条周志` : '', xieyiNotesInWeek.length ? `${xieyiNotesInWeek.length} 笔四时` : ''].filter(Boolean).join(' · ');
+  const xieyiPainting = isXieyi ? xieyiShanshuiMarkup({ state: xieyiState, snapshot, start: startMs, now: nowMs, id: rolled ? 'ss-xy-cover' : 'ss-xy-board', weekGoals: xieyiGoalsInWeek.map(g => g.title) }) : '';
+  const xieyiCoverMeta = [xieyiGoalsInWeek.length ? `${xieyiGoalsInWeek.length} 条周志` : '', xieyiCount ? `${xieyiCount} 笔定日` : ''].filter(Boolean).join(' · ');
   $('calendarView').innerHTML = calendarMarkup({ result: calendarResult, start: startMs, now: nowMs, loading: calendarLoading && !calendarResult, error: calendarError, undo: strategyUndo?.replan ? '' : strategyUndo?.label || '', note: strategyUndo?.note || '', changes: strategyUndo?.changes || [], focus: calendarFocus, plans: solveState, weighs, rolled, unrolling: Boolean(unrollTimer), fresh: !coverPaintedByMode[xieyiState.mode], analyzed: calendarAnalyzed, futureRef, listView: calendarListView,
     scrollMode: xieyiState.mode,
-    xieyiBoard: isXieyi ? xieyiBoardMarkup({ state: xieyiState, result: calendarResult, start: startMs, now: nowMs, snapshot }) : '',
+    xieyiBoard: isXieyi ? xieyiBoardMarkup({ state: xieyiState, result: calendarResult, start: startMs, now: nowMs, snapshot, openLogDate }) : '',
     xieyiPainting,
     xieyiCoverMeta,
-    sideLedger: ledgerMarkup({ state: xieyiState, result: calendarResult, start: startMs, now: nowMs, snapshot, compact: true }),
+    weekLedgerBrief: weeklyLedgerBrief(xieyiState, startMs),
     band: showBand ? (dayStart, first, last) => bandMarkup(focusSettings, snapshot, dayStart, first, last, pending) : null,
     ribbon: showBand ? (dayStart, first, last) => ribbonMarkup(focusSettings, snapshot, dayStart, first, last, pending) : null,
     energy: showBand ? Array.from({ length: 7 }, (_, index) => daySegments(focusSettings, snapshot, startMs + index * DAY, pending)).flat() : [],
@@ -414,6 +432,16 @@ function renderCalendar() {
     sideTop: replanState ? replanMarkup(card, 'side') : '',
     sideToday: todayStateMarkup(focusSettings, snapshot, nowMs, pending),
     alertLabel: waiting ? '1 个取舍' : '' });
+  if (scrollFlipDir) {
+    const mount = $('calendarView').querySelector('.scroll-mount, .scroll-cover');
+    if (mount) {
+      mount.classList.remove('is-flip-next', 'is-flip-prev');
+      void mount.offsetWidth;
+      mount.classList.add(scrollFlipDir);
+    }
+    scrollFlipDir = '';
+  }
+  window.SixuRouter?.refreshArrows?.();
   if (rolled && (calendarResult || isXieyi)) coverPaintedByMode[xieyiState.mode] = true;
   $('calendarView').querySelector('.cal-remind-slot')?.append(remindBar);
   fitCalendar();
@@ -548,11 +576,16 @@ function taskMarkup(task) {
   const chips = (learned ? `<button type="button" class="chip is-learned" data-estimate="${learned.minutes}" aria-pressed="false" title="按你记录过的实际用时">${escapeHTML(learned.label)}</button>` : '')
     + ESTIMATE_PRESETS.map(preset => `<button type="button" class="chip" data-estimate="${preset.minutes}" aria-pressed="${task.estimate_minutes === preset.minutes}">${preset.label}</button>`).join('');
   const kind = isPersonal(task) ? ['work', '个人任务'] : ['deadline', '截止'];
-  return `<article class="item-card is-${kind[0]}${active ? '' : ' is-inactive'}" data-item-id="${escapeHTML(task.id)}" data-kind="task" id="item-${escapeHTML(task.id)}">
-    <div class="item-top"><i class="item-glyph" aria-hidden="true"></i><span class="item-kind">${kind[1]}</span><div class="item-heading"><input class="item-title" data-field="title" value="${escapeHTML(task.title)}" aria-label="工作名称" maxlength="200"><p class="item-meta" data-item-meta>${escapeHTML(itemMeta(task))}</p></div>${stateBadge(taskState(task))}</div>
+  const tier = itemTier(task, 'task');
+  const slot = xieyiState.slots?.[task.id] || inferSlotFromText(task.title);
+  const slotLabel = tier === 'day' ? `定日 · ${SLOT_NAMES[slot] || '晡'}` : TIER_LABEL[tier];
+  const slotField = tier === 'day' ? `<label>时段<select data-field="xieyi_slot"><option value="chen"${slot === 'chen' ? ' selected' : ''}>晨 · 上午</option><option value="wu"${slot === 'wu' ? ' selected' : ''}>午 · 中午</option><option value="bu"${slot === 'bu' ? ' selected' : ''}>晡 · 下午</option><option value="mu"${slot === 'mu' ? ' selected' : ''}>暮 · 晚间</option></select></label>` : '';
+  return `<article class="item-card is-${kind[0]}${active ? '' : ' is-inactive'}" data-item-id="${escapeHTML(task.id)}" data-kind="task" data-tier="${tier}" id="item-${escapeHTML(task.id)}">
+    <div class="item-top"><i class="item-glyph" aria-hidden="true"></i><span class="item-kind">${kind[1]}</span><span class="pool-tier-badge is-${tier}">${escapeHTML(slotLabel)}</span><div class="item-heading"><input class="item-title" data-field="title" value="${escapeHTML(task.title)}" aria-label="工作名称" maxlength="200"><p class="item-meta" data-item-meta>${escapeHTML(itemMeta(task))}</p></div>${stateBadge(taskState(task))}</div>
     <details class="item-edit"${editorOpen(task) ? ' open' : ''}><summary>修改${isPersonal(task) && !hasPersonalClock(task) ? '日期' : '截止'}、用时与拆分</summary>
     <div class="field-grid">
       ${isPersonal(task) && !hasPersonalClock(task) ? `<label>哪天做<input type="date" data-field="personal_day" value="${personalDay(task)}"></label>` : `<label>截止<input type="datetime-local" data-field="deadline_at" value="${toLocalInput(task.deadline_at)}"></label>`}
+      ${slotField}
       <label>预计用时（分钟）<input type="number" inputmode="numeric" min="1" max="20160" data-field="estimate_minutes" value="${task.estimate_minutes ?? ''}" placeholder="未填"></label>
       <div class="field-wide chips" role="group" aria-label="预计用时快捷选择">${chips}</div>
       <label>能否拆开做<select data-field="splittable"><option value="true"${task.splittable ? ' selected' : ''}>可以分几次做</option><option value="false"${task.splittable ? '' : ' selected'}>需要一次做完</option></select></label>
@@ -575,8 +608,9 @@ function taskMarkup(task) {
 }
 function eventMarkup(event) {
   const appointment = event.kind === 'appointment';
-  return `<article class="item-card is-${appointment ? 'appointment' : 'temporary'}${event.status === 'active' ? '' : ' is-inactive'}" data-item-id="${escapeHTML(event.id)}" data-kind="event" id="item-${escapeHTML(event.id)}">
-    <div class="item-top"><i class="item-glyph" aria-hidden="true"></i><span class="item-kind">${appointment ? '约定' : '点墨'}</span><div class="item-heading"><input class="item-title" data-field="title" value="${escapeHTML(event.title)}" aria-label="${appointment ? '约定' : '点墨'}名称" maxlength="200"><p class="item-meta" data-item-meta>${escapeHTML(itemMeta(event))}</p></div>${stateBadge(eventState(event))}</div>
+  const tier = itemTier(event, 'event');
+  return `<article class="item-card is-${appointment ? 'appointment' : 'temporary'}${event.status === 'active' ? '' : ' is-inactive'}" data-item-id="${escapeHTML(event.id)}" data-kind="event" data-tier="${tier}" id="item-${escapeHTML(event.id)}">
+    <div class="item-top"><i class="item-glyph" aria-hidden="true"></i><span class="item-kind">${appointment ? '约定' : '点墨'}</span><span class="pool-tier-badge is-${tier}">${TIER_LABEL[tier]}</span><div class="item-heading"><input class="item-title" data-field="title" value="${escapeHTML(event.title)}" aria-label="${appointment ? '约定' : '点墨'}名称" maxlength="200"><p class="item-meta" data-item-meta>${escapeHTML(itemMeta(event))}</p></div>${stateBadge(eventState(event))}</div>
     <details class="item-edit"${editorOpen(event) ? ' open' : ''}><summary>修改时间、地点与类别</summary>
     <div class="field-grid">
       <label class="field-wide">这件事是<select data-field="kind"><option value="temporary"${appointment ? '' : ' selected'}>点墨：外部安排的一次性事项（讲座、考试等）</option><option value="appointment"${appointment ? ' selected' : ''}>约定：自己约好的事，属于落笔（如和朋友出去）</option></select></label>
@@ -589,6 +623,30 @@ function eventMarkup(event) {
     <p class="field-error" data-item-error role="status"></p>
   </article>`;
 }
+function applyPoolFilter() {
+  const counts = { all: 0, timed: 0, deadline: 0, day: 0, pending: 0 };
+  for (const card of document.querySelectorAll('#inkPool [data-item-id]')) {
+    const tier = card.dataset.tier || 'pending';
+    counts.all += 1;
+    if (counts[tier] !== undefined) counts[tier] += 1;
+    card.hidden = poolFilter !== 'all' && tier !== poolFilter;
+  }
+  for (const [tier, total] of Object.entries(counts)) {
+    const el = document.querySelector(`[data-tier-count="${tier}"]`);
+    if (el) el.textContent = String(total);
+  }
+  for (const btn of document.querySelectorAll('[data-pool-filter]')) {
+    btn.setAttribute('aria-pressed', String(btn.dataset.poolFilter === poolFilter));
+  }
+  for (const group of document.querySelectorAll('#inkPool .item-group')) {
+    const hasVisible = Boolean(group.querySelector('[data-item-id]:not([hidden])'));
+    group.hidden = poolFilter !== 'all' && !hasVisible;
+  }
+}
+function setPoolFilter(filter) {
+  poolFilter = filter || 'all';
+  applyPoolFilter();
+}
 function renderItems() {
   const points = snapshot.events.filter(event => event.kind !== 'appointment');
   const appointments = snapshot.events.filter(event => event.kind === 'appointment');
@@ -596,20 +654,21 @@ function renderItems() {
   $('appointmentList').innerHTML = appointments.length ? appointments.map(eventMarkup).join('') : '<p class="empty-note">还没有约定。和别人约好的事可以加在这里。</p>';
   const personal = snapshot.tasks.filter(isPersonal);
   const deadlines = snapshot.tasks.filter(task => !isPersonal(task));
-  $('personalList').innerHTML = personal.length ? personal.map(taskMarkup).join('') : '<p class="empty-note">还没有个人任务。点“添加个人任务”，或在研墨里说“提醒我今天……”。</p>';
+  $('personalList').innerHTML = personal.length ? personal.map(taskMarkup).join('') : '<p class="empty-note">还没有定日任务。点“+ 定日”或在写意手卷里随笔记下。</p>';
   $('taskList').innerHTML = deadlines.length ? deadlines.map(taskMarkup).join('') : '<p class="empty-note">还没有截止之事。导入通知或手动添加。</p>';
   for (const [id, list] of [['eventCount', points], ['appointmentCount', appointments], ['personalCount', personal], ['deadlineCount', deadlines]]) $(id).textContent = String(list.length);
   const sizes = { appointment: appointments.length, personal: personal.length, deadline: deadlines.length };
-  for (const [key, size] of Object.entries(sizes)) document.querySelector(`[data-group-count="${key}"]`).textContent = String(size);
+  for (const [key, size] of Object.entries(sizes)) document.querySelector(`[data-group-count="${key}"]`)?.replaceChildren(document.createTextNode(String(size)));
   spreadWorkGroup(workGroup || ['deadline', 'personal', 'appointment'].find(key => sizes[key]) || 'deadline');
+  applyPoolFilter();
 }
-/** Spread one 落笔 group open; the other two fold into narrow strips beside it. */
+/** Spread one 落笔 group open when strips exist; inside flat 笔墨 pool all groups stay legible. */
 function spreadWorkGroup(key) {
   $('taskSection').dataset.active = key;
   for (const group of $('taskSection').querySelectorAll('[data-group]')) {
     const open = group.dataset.group === key;
     group.classList.toggle('is-spread', open);
-    group.querySelector('.group-expand').setAttribute('aria-expanded', String(open));
+    group.querySelector('.group-expand')?.setAttribute('aria-expanded', String(open));
   }
 }
 function renderItemStates() {
@@ -888,6 +947,15 @@ $('noticeForm').addEventListener('submit', async event => {
       && (imported.tasks.some(task => task.deadline_at && Date.parse(task.deadline_at) > nowMs && Date.parse(task.deadline_at) <= refMs)
         || imported.events.some(ev => ev.start_at && Date.parse(ev.start_at) > nowMs && Date.parse(ev.start_at) <= refMs));
     if (needsLiveClock) { next = setReferenceTime(next, currentMinuteISO()); calendarWeek = null; }
+    for (const t of imported.tasks || []) {
+      if (isPersonal(t) && !hasPersonalClock(t)) {
+        const added = next.tasks.find(item => item.title === t.title && item.source_id === imported.source.id);
+        if (added && !xieyiState.slots?.[added.id]) {
+          xieyiState = normalizeXieyiState(setTaskSlot(xieyiState, added.id, inferSlotFromText(`${t.title} ${text}`)));
+        }
+      }
+    }
+    writeXieyi(storage, xieyiState);
     commit(next);
     const personal = imported.tasks.filter(isPersonal);
     lastTaskId = personal.length === 1 && imported.tasks.length === 1 && !imported.events.length ? personal[0].id : null;
@@ -1236,13 +1304,27 @@ function onItemChange(event) {
   const card = event.target.closest('[data-item-id]');
   if (!input || !card) return;
   try {
+    if (input.dataset.field === 'xieyi_slot') {
+      xieyiState = normalizeXieyiState(setTaskSlot(xieyiState, card.dataset.itemId, input.value || 'bu'));
+      writeXieyi(storage, xieyiState);
+      itemError(card, '');
+      renderItems();
+      renderCalendar();
+      return;
+    }
+    const beforeTier = card.dataset.tier;
     const next = input.dataset.field === 'personal_day' ? setPersonalDay(snapshot, card.dataset.itemId, input.value || null)
       : editItem(card, { [input.dataset.field]: fieldValue(input) });
     input.setAttribute('aria-invalid', 'false');
     itemError(card, '');
-    // Changing 点墨/约定 moves the card to the other list.
-    commit(next, { render: input.dataset.field === 'kind' ? 'all' : 'none' });
-    if (card.dataset.kind === 'task' && ['title', 'estimate_minutes'].includes(input.dataset.field)) refreshLearned(card);
+    const updated = card.dataset.kind === 'task'
+      ? next.tasks.find(t => t.id === card.dataset.itemId)
+      : next.events.find(e => e.id === card.dataset.itemId);
+    const afterTier = updated ? itemTier(updated, card.dataset.kind) : beforeTier;
+    const tierChanged = beforeTier !== afterTier;
+    // Changing 点墨/约定 or upgrading between 定日/定期限/定时 moves or updates the badge immediately.
+    commit(next, { render: (input.dataset.field === 'kind' || input.dataset.field === 'personal_day' || tierChanged) ? 'all' : 'none' });
+    if (card.dataset.kind === 'task' && ['title', 'estimate_minutes'].includes(input.dataset.field) && !tierChanged) refreshLearned(card);
     if (input.dataset.field === 'title') clearStarterResult(card.querySelector('[data-task-starter]'));
   } catch (error) {
     input.setAttribute('aria-invalid', 'true');
@@ -1335,14 +1417,22 @@ function onItemClick(event) {
     const chip = event.target.closest('[data-estimate]');
     if (chip) {
       const minutes = Number(chip.dataset.estimate);
+      const beforeTier = card.dataset.tier;
       card.querySelector('[data-field="estimate_minutes"]').value = String(minutes);
-      commit(updateTask(snapshot, id, { estimate_minutes: minutes }), { render: 'none' });
+      const next = updateTask(snapshot, id, { estimate_minutes: minutes });
+      const updated = next.tasks.find(t => t.id === id);
+      const afterTier = updated ? itemTier(updated, 'task') : beforeTier;
+      commit(next, { render: beforeTier !== afterTier ? 'all' : 'none' });
       return;
     }
     const action = event.target.closest('[data-action]')?.dataset.action;
     if (!action) return;
     if (action === 'delete') {
       if (!window.confirm(`删除「${item.title}」？`)) return;
+      if (isTask && xieyiState.slots?.[id]) {
+        xieyiState = normalizeXieyiState(removeTaskSlot(xieyiState, id));
+        writeXieyi(storage, xieyiState);
+      }
       commit(removeItem(snapshot, id));
     } else if (action === 'complete') {
       const finishing = item.status !== 'completed';
@@ -1407,13 +1497,34 @@ $('taskSection').addEventListener('click', event => {
   spreadWorkGroup(workGroup);
   strip.closest('[data-group]').querySelector('.group-head button')?.focus({ preventScroll: true });
 });
+$('inkPool')?.addEventListener('click', event => {
+  const filterBtn = event.target.closest('[data-pool-filter]');
+  if (filterBtn) {
+    setPoolFilter(filterBtn.dataset.poolFilter);
+    return;
+  }
+});
+document.addEventListener('click', event => {
+  const paneBtn = event.target.closest('[data-import-pane]');
+  if (!paneBtn) return;
+  const page = document.querySelector('[data-page="import"]');
+  if (page) page.dataset.pane = paneBtn.dataset.importPane;
+  for (const btn of document.querySelectorAll('.ink-pane-switch [data-import-pane]')) {
+    btn.setAttribute('aria-pressed', String(btn.dataset.importPane === paneBtn.dataset.importPane));
+  }
+});
 $('addPersonal').addEventListener('click', () => {
   let next = addPersonalTask(snapshot, { day: localDate(Date.now()) });
+  const created = next.tasks[next.tasks.length - 1];
+  if (created) {
+    xieyiState = normalizeXieyiState(setTaskSlot(xieyiState, created.id, 'bu'));
+    writeXieyi(storage, xieyiState);
+  }
   const refMs = Date.parse(next.reference_time);
   if (Number.isFinite(refMs) && refMs - Date.now() > 5 * 60000) { next = setReferenceTime(next, currentMinuteISO()); calendarWeek = null; }
   commit(next);
-  const title = $('personalList').lastElementChild.querySelector('[data-field="title"]');
-  title.focus(); title.select();
+  const title = $('personalList').lastElementChild?.querySelector('[data-field="title"]');
+  title?.focus(); title?.select();
 });
 $('addTask').addEventListener('click', () => {
   commit(addTask(snapshot, { title: '新的截止之事' }));
@@ -1633,12 +1744,45 @@ $('timetablePreview').addEventListener('click', event => {
 });
 
 // ---- Calendar interactions ------------------------------------------------
+function flipScrollMode(nextMode, dir = '') {
+  if (xieyiState.mode === nextMode) return false;
+  scrollFlipDir = dir || (nextMode === 'xieyi' ? 'is-flip-next' : 'is-flip-prev');
+  commitXieyi(setScrollMode(xieyiState, nextMode));
+  if (xieyiState.mode === 'gongbi') (window.requestAnimationFrame || window.setTimeout)(fitCalendar);
+  return true;
+}
+
+window.SixuCalendarFlip = {
+  arrows() {
+    if (xieyiState.mode === 'xieyi') {
+      return {
+        prev: { label: '工笔 · 时轴', flip: 'gongbi', route: 'calendar' },
+        next: null,
+      };
+    }
+    return {
+      prev: { label: '铺纸 · 底色与留白', route: 'time' },
+      next: { label: '写意 · 四时', flip: 'xieyi', route: 'calendar' },
+    };
+  },
+  step(step) {
+    if (step > 0 && xieyiState.mode === 'gongbi') return flipScrollMode('xieyi', 'is-flip-next');
+    if (step < 0 && xieyiState.mode === 'xieyi') return flipScrollMode('gongbi', 'is-flip-prev');
+    return false;
+  },
+};
+
 $('calendarView').addEventListener('click', event => {
   if (event.target.closest('[data-open-companion]')) { openCompanionModal(); return; }
+  const flipBtn = event.target.closest('[data-scroll-flip]');
+  if (flipBtn) { flipScrollMode(flipBtn.dataset.scrollFlip); return; }
   const modeBtn = event.target.closest('[data-cal-mode]');
-  if (modeBtn) {
-    commitXieyi(setScrollMode(xieyiState, modeBtn.dataset.calMode));
-    if (xieyiState.mode === 'gongbi') (window.requestAnimationFrame || window.setTimeout)(fitCalendar);
+  if (modeBtn) { flipScrollMode(modeBtn.dataset.calMode); return; }
+  const dayLogBtn = event.target.closest('[data-xy-day-log-toggle]');
+  if (dayLogBtn) {
+    const targetDay = dayLogBtn.dataset.xyDayLogToggle;
+    openLogDate = openLogDate === targetDay ? '' : targetDay;
+    renderCalendar();
     return;
   }
   const goalTabBtn = event.target.closest('[data-xy-goal-tab]');
@@ -1655,8 +1799,57 @@ $('calendarView').addEventListener('click', event => {
     const todayYmd = localDate(Date.now());
     const inWeek = Date.now() >= startMs && Date.now() < startMs + 7 * DAY;
     const dropDate = inWeek ? todayYmd : localDate(startMs);
-    commitXieyi(addNote(xieyiState, { date: dropDate, slot: 'bu', title: goal.title, goalId: goal.id }));
-    tell(`已把「${goal.title}」落入 ${dropDate} 晡（下午）手卷。`);
+    const next = addPersonalTask(snapshot, { title: goal.title, day: dropDate, estimate_minutes: null });
+    const created = next.tasks[next.tasks.length - 1];
+    if (created) {
+      xieyiState = normalizeXieyiState(setTaskSlot(xieyiState, created.id, 'bu'));
+      writeXieyi(storage, xieyiState);
+    }
+    commit(next);
+    tell(`已把「${goal.title}」落入 ${dropDate} 晡（下午），并同步记入笔墨。`);
+    return;
+  }
+  const pendingDropBtn = event.target.closest('[data-xy-pending-drop]');
+  if (pendingDropBtn) {
+    const taskId = pendingDropBtn.dataset.xyPendingDrop;
+    const task = snapshot.tasks.find(t => t.id === taskId);
+    if (!task) return;
+    const startMs = shownWeek();
+    const todayYmd = localDate(Date.now());
+    const inWeek = Date.now() >= startMs && Date.now() < startMs + 7 * DAY;
+    const dropDate = inWeek ? todayYmd : localDate(startMs);
+    xieyiState = normalizeXieyiState(setTaskSlot(xieyiState, taskId, 'bu'));
+    writeXieyi(storage, xieyiState);
+    commit(setPersonalDay(snapshot, taskId, dropDate));
+    tell(`已把「${task.title}」落到 ${dropDate} 晡（下午）。`);
+    return;
+  }
+  const taskToggleBtn = event.target.closest('[data-xy-task-toggle]');
+  if (taskToggleBtn) {
+    const task = snapshot.tasks.find(t => t.id === taskToggleBtn.dataset.xyTaskToggle);
+    if (!task) return;
+    const finishing = task.status !== 'completed';
+    commit(updateTask(snapshot, task.id, { status: finishing ? 'completed' : 'active' }));
+    return;
+  }
+  const taskDelBtn = event.target.closest('[data-xy-task-del]');
+  if (taskDelBtn) {
+    const taskId = taskDelBtn.dataset.xyTaskDel;
+    if (xieyiState.slots?.[taskId]) {
+      xieyiState = normalizeXieyiState(removeTaskSlot(xieyiState, taskId));
+      writeXieyi(storage, xieyiState);
+    }
+    commit(removeItem(snapshot, taskId));
+    return;
+  }
+  const upgradeBtn = event.target.closest('[data-xy-upgrade]');
+  if (upgradeBtn) {
+    const [taskId, minRaw] = upgradeBtn.dataset.xyUpgrade.split(':');
+    const minutes = Number(minRaw);
+    const task = snapshot.tasks.find(t => t.id === taskId);
+    if (!task || !Number.isFinite(minutes)) return;
+    commit(updateTask(snapshot, taskId, { estimate_minutes: minutes }));
+    tell(`已为「${task.title}」补填预计 ${minutes} 分钟，工笔时轴将自动为它落笔排期。`);
     return;
   }
   const noteToggleBtn = event.target.closest('[data-xy-note-toggle]');
@@ -1672,7 +1865,7 @@ $('calendarView').addEventListener('click', event => {
     xieyiState = normalizeXieyiState(markNotePromoted(xieyiState, note.id, createdTask.id));
     writeXieyi(storage, xieyiState);
     commit(nextSnap);
-    tell(`已将「${note.title}」转入「笔墨 · 落笔」（${note.date}），补填预计用时后即可在工笔时轴精确排期。`);
+    tell(`已将「${note.title}」转入「笔墨」，补填预计用时后即可在工笔时轴精确排期。`);
     return;
   }
   const presetBtn = event.target.closest('[data-xy-log-preset]');
@@ -1782,7 +1975,17 @@ $('calendarView').addEventListener('submit', event => {
     event.preventDefault();
     try {
       const { date, slot, title } = addForm.elements;
-      commitXieyi(addNote(xieyiState, { date: String(date?.value || ''), slot: String(slot?.value || 'chen'), title: String(title?.value || '') }));
+      const cleanTitle = String(title?.value || '').trim();
+      const targetDate = String(date?.value || '');
+      const targetSlot = String(slot?.value || 'chen');
+      if (!cleanTitle || !targetDate) return;
+      const next = addPersonalTask(snapshot, { title: cleanTitle, day: targetDate, estimate_minutes: null });
+      const created = next.tasks[next.tasks.length - 1];
+      if (created) {
+        xieyiState = normalizeXieyiState(setTaskSlot(xieyiState, created.id, targetSlot));
+        writeXieyi(storage, xieyiState);
+      }
+      commit(next);
     } catch (error) { tell(error.message, 'warning'); }
     return;
   }
@@ -2402,6 +2605,7 @@ for (const [type, lit] of [['mouseover', true], ['mouseout', false], ['focusin',
 // the 山水 shows through and settles into a faint wash as the week appears (agent.css .is-unrolling).
 function unrollScroll() {
   rolledByMode[xieyiState.mode] = false;
+  try { storage?.setItem(COVER_DAY_KEY, localDate(Date.now())); } catch { /* ignore storage restrictions */ }
   const calm = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
   window.clearTimeout(unrollTimer);
   unrollTimer = calm ? null : window.setTimeout(() => {
@@ -2414,6 +2618,43 @@ function unrollScroll() {
   if (mount) mount.style.setProperty('--unroll', `${Math.max(0, mount.getBoundingClientRect().width / 2 - 2)}px`);
   (window.requestAnimationFrame || window.setTimeout)(fitCalendar);
 }
+// Touch & trackpad horizontal swipe flips between 工笔 ↔ 写意 without hijacking grid horizontal scroll.
+(() => {
+  const cal = $('calendarView');
+  if (!cal) return;
+  let touchStartX = 0;
+  let touchStartY = 0;
+  let lastWheelFlip = 0;
+  cal.addEventListener('touchstart', e => {
+    const t = e.touches?.[0];
+    if (!t) return;
+    touchStartX = t.clientX;
+    touchStartY = t.clientY;
+  }, { passive: true });
+  cal.addEventListener('touchend', e => {
+    if (document.documentElement.dataset.current !== 'calendar') return;
+    const t = e.changedTouches?.[0];
+    if (!t) return;
+    const dx = t.clientX - touchStartX;
+    const dy = t.clientY - touchStartY;
+    if (Math.abs(dx) < 76 || Math.abs(dy) > 48) return;
+    if (dx < 0 && xieyiState.mode === 'gongbi') flipScrollMode('xieyi', 'is-flip-next');
+    else if (dx > 0 && xieyiState.mode === 'xieyi') flipScrollMode('gongbi', 'is-flip-prev');
+  }, { passive: true });
+  cal.addEventListener('wheel', e => {
+    if (document.documentElement.dataset.current !== 'calendar') return;
+    if (Math.abs(e.deltaX) < 52 || Math.abs(e.deltaY) > 22) return;
+    const now = Date.now();
+    if (now - lastWheelFlip < 650) return;
+    const scroller = e.target instanceof Element ? e.target.closest('.cal-week, .xy-grid') : null;
+    if (scroller && scroller.scrollWidth > scroller.clientWidth + 4) {
+      if (e.deltaX > 0 && scroller.scrollLeft + scroller.clientWidth < scroller.scrollWidth - 4) return;
+      if (e.deltaX < 0 && scroller.scrollLeft > 4) return;
+    }
+    if (e.deltaX > 0 && xieyiState.mode === 'gongbi') { lastWheelFlip = now; flipScrollMode('xieyi', 'is-flip-next'); }
+    else if (e.deltaX < 0 && xieyiState.mode === 'xieyi') { lastWheelFlip = now; flipScrollMode('gongbi', 'is-flip-prev'); }
+  }, { passive: true });
+})();
 document.addEventListener('click', event => {
   const link = event.target.closest('a[href="#/import?capacity=1"]');
   if (!link) return;
@@ -2424,13 +2665,25 @@ document.addEventListener('click', event => {
   }
 });
 document.addEventListener('sixu:route', event => {
+  if (event.detail === 'import') {
+    const page = document.querySelector('[data-page="import"]');
+    const toPool = location.hash.startsWith('#/items') || location.hash.startsWith('#/review');
+    if (page && toPool) {
+      page.dataset.pane = 'pool';
+      for (const btn of document.querySelectorAll('.ink-pane-switch [data-import-pane]')) {
+        btn.setAttribute('aria-pressed', String(btn.dataset.importPane === 'pool'));
+      }
+    }
+  }
   if (event.detail !== 'calendar') {
-    rolledByMode = { gongbi: !isPhoneViewport(), xieyi: !isPhoneViewport() };
+    const showCover = !isPhoneViewport() && !hasSeenCoverToday();
+    rolledByMode = { gongbi: showCover, xieyi: showCover };
     coverPaintedByMode = { gongbi: false, xieyi: false };
     return;
   }
-  if (isPhoneViewport()) { rolledByMode.gongbi = false; rolledByMode.xieyi = false; }
+  if (isPhoneViewport() || hasSeenCoverToday()) { rolledByMode.gongbi = false; rolledByMode.xieyi = false; }
   coverPaintedByMode = { gongbi: false, xieyi: false }; // paint the 山水 when the page is actually entered, even if it was redrawn off screen
+  window.SixuRouter?.refreshArrows?.();
   if (calendarResult || xieyiState.mode === 'xieyi') renderCalendar();
   (window.requestAnimationFrame || window.setTimeout)(fitCalendar);
   if (!calendarResult && !calendarLoading) computeCalendar();
@@ -2500,6 +2753,9 @@ $('importFile').addEventListener('change', async event => {
     if (nextXieyi) { xieyiState = nextXieyi; writeXieyi(storage, xieyiState); }
     calendarWeek = null;
     commit({ ...nextSnapshot, revision: snapshot.revision + 1 }, { unlock: true });
+    syncLegacyXieyiNotes();
+    save();
+    renderAll();
     tell('已载入清单。旧版清单会自动转换成四层时间格式。');
   } catch (error) { tell(`导入未完成：${error.message}`, 'error'); }
   finally { event.target.value = ''; }
@@ -2719,6 +2975,9 @@ $('restoreVaultCode')?.addEventListener('click', async () => {
     if (nextXieyi) { xieyiState = nextXieyi; writeXieyi(storage, xieyiState); }
     calendarWeek = null;
     commit({ ...nextSnapshot, revision: snapshot.revision + 1 }, { unlock: true });
+    syncLegacyXieyiNotes();
+    save();
+    renderAll();
     $('vaultPassphrase').value = '';
     $('vaultStatus').textContent = '已从加密恢复码还原整份清单与手卷记录，并同步保存在当前浏览器。';
     tell('已从加密恢复码完整还原清单。');
@@ -2881,6 +3140,13 @@ if ('serviceWorker' in navigator && (location.protocol === 'https:' || ['localho
 }
 
 renderAll();
+if (document.documentElement.dataset.current === 'import' && (location.hash.startsWith('#/items') || location.hash.startsWith('#/review'))) {
+  const page = document.querySelector('[data-page="import"]');
+  if (page) page.dataset.pane = 'pool';
+  for (const btn of document.querySelectorAll('.ink-pane-switch [data-import-pane]')) {
+    btn.setAttribute('aria-pressed', String(btn.dataset.importPane === 'pool'));
+  }
+}
 takeHashText();
 remindTick();
 checkBackup();
@@ -2936,7 +3202,7 @@ function renderCompanion() {
   if (!stage || stage.hidden) return;
   const todayYmd = localDate(Date.now());
   const activeTasks = (snapshot.tasks || []).filter(t => t.status === 'active');
-  const todayNotes = (xieyiState.notes || []).filter(n => n.date === todayYmd && !n.done);
+  const todayNotes = activeTasks.filter(t => isPersonal(t) && !hasPersonalClock(t) && personalDay(t) === todayYmd);
   stage.innerHTML = companionMarkup({
     mode: companion.mode,
     scenePref: companion.scenePref,
