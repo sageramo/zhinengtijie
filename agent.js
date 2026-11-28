@@ -16,6 +16,7 @@ import { readFocus, writeFocus, pruneStates, setMark, setCommonWindows, addState
 import { parseJwTimetable, termStartFrom } from './jw-timetable.js';
 import { checkPersistentStorage, isVaultCode, openVault, requestPersistentStorage, sealVault, supportsLocalFileSync, writeLocalBackupFile } from './vault.js';
 import { addGoal, addNote, addTimeLog, ledgerMarkup, markNotePromoted, normalizeXieyiState, periodKeyFor, readXieyi, removeGoal, removeNote, removeTimeLog, setGoalTab, setScrollMode, toggleGoal, toggleNote, writeXieyi, xieyiBoardMarkup } from './xieyi-scroll.js';
+import { COMPANION_PRESETS, companionMarkup, companionWhisper, createSoundscape, formatClock, resolveScene, suggestGapSession } from './companion.js';
 
 /*
  * Workbench for the four time layers (backend docs/time_layers_v3.md):
@@ -1608,6 +1609,7 @@ $('timetablePreview').addEventListener('click', event => {
 
 // ---- Calendar interactions ------------------------------------------------
 $('calendarView').addEventListener('click', event => {
+  if (event.target.closest('[data-open-companion]')) { openCompanionModal(); return; }
   const modeBtn = event.target.closest('[data-cal-mode]');
   if (modeBtn) {
     if (modeBtn.dataset.calMode === 'xieyi') scrollRolled = false;
@@ -2856,3 +2858,286 @@ if (location.protocol === 'file:') tell('请通过本地HTTP服务打开此页�
 $('timetableText').value ||= '';
 $('periodText').value = DEFAULT_PERIODS;
 scheduleCalendar();
+
+// ---- 案头伴读 · 焚香专注台（.86）----------------------------------------
+const soundscape = createSoundscape(window);
+const companion = {
+  mode: 'study',
+  scenePref: 'auto',
+  durationMinutes: 45,
+  remainingSeconds: 45 * 60,
+  elapsedSeconds: 0,
+  running: false,
+  finished: false,
+  selectedTaskId: '',
+  customTitle: '',
+  suggestion: null,
+  audioLevels: { rain: 0, wind: 0, hearth: 0 },
+  chimeOn: true,
+  settlement: null,
+};
+let companionTimer = null;
+
+function todayStudyLeisureStats() {
+  const todayYmd = localDate(Date.now());
+  let study = 0;
+  let leisure = 0;
+  for (const log of xieyiState.logs || []) {
+    if (log.date !== todayYmd) continue;
+    if (log.kind === 'study') study += log.minutes;
+    else leisure += log.minutes;
+  }
+  return { study, leisure };
+}
+
+function stopCompanionTick() {
+  if (companionTimer) { window.clearInterval(companionTimer); companionTimer = null; }
+  companion.running = false;
+}
+
+function renderCompanion() {
+  const stage = $('companionStage');
+  if (!stage || stage.hidden) return;
+  const todayYmd = localDate(Date.now());
+  const activeTasks = (snapshot.tasks || []).filter(t => t.status === 'active');
+  const todayNotes = (xieyiState.notes || []).filter(n => n.date === todayYmd && !n.done);
+  stage.innerHTML = companionMarkup({
+    mode: companion.mode,
+    scenePref: companion.scenePref,
+    resolvedScene: resolveScene(companion.scenePref, Date.now()),
+    durationMinutes: companion.durationMinutes,
+    remainingSeconds: companion.remainingSeconds,
+    running: companion.running,
+    finished: companion.finished,
+    elapsedSeconds: companion.elapsedSeconds,
+    selectedTaskId: companion.selectedTaskId,
+    customTitle: companion.customTitle,
+    suggestion: companion.suggestion,
+    activeTasks,
+    todayNotes,
+    todayStats: todayStudyLeisureStats(),
+    audioLevels: companion.audioLevels,
+    chimeOn: companion.chimeOn,
+    soundSupported: soundscape.isSupported(),
+    settlement: companion.settlement,
+  });
+}
+
+function resolveCompanionTitleAndTask() {
+  let linkedTask = null;
+  let linkedNote = null;
+  if (companion.selectedTaskId.startsWith('task:')) {
+    linkedTask = snapshot.tasks.find(t => t.id === companion.selectedTaskId.slice(5)) || null;
+  } else if (companion.selectedTaskId.startsWith('note:')) {
+    linkedNote = xieyiState.notes.find(n => n.id === companion.selectedTaskId.slice(5)) || null;
+  }
+  const title = companion.customTitle.trim() || linkedTask?.title || linkedNote?.title || (companion.mode === 'study' ? '案头砚耕' : '听雨休歇');
+  return { title, linkedTask };
+}
+
+function completeCompanionSession({ early = false } = {}) {
+  stopCompanionTick();
+  const loggedMinutes = early ? Math.max(1, Math.round(companion.elapsedSeconds / 60)) : companion.durationMinutes;
+  const { title, linkedTask } = resolveCompanionTitleAndTask();
+  const date = localDate(Date.now());
+  let nextXieyi = addTimeLog(xieyiState, {
+    kind: companion.mode,
+    title,
+    minutes: loggedMinutes,
+    date,
+    taskId: linkedTask?.id || null,
+    source: 'focus',
+  });
+  let calibrationNote = '';
+  if (companion.mode === 'study' && linkedTask) {
+    estimateMemory = recordActual(estimateMemory, linkedTask.title, loggedMinutes);
+    writeMemory(storage, estimateMemory);
+    if (linkedTask.estimate_minutes) {
+      writeCalibration(storage, recordCalibration(readCalibration(storage), linkedTask.title, linkedTask.estimate_minutes, loggedMinutes));
+      calibrationNote = '，并同步校准耗时记忆';
+    }
+  }
+  xieyiState = normalizeXieyiState(nextXieyi);
+  writeXieyi(storage, xieyiState);
+  renderCalendar();
+
+  companion.finished = true;
+  companion.settlement = {
+    mode: companion.mode,
+    minutes: loggedMinutes,
+    summary: `已将「${title}」${loggedMinutes} 分钟记入${companion.mode === 'study' ? '砚耕' : '闲暇'}账卷${calibrationNote}。`,
+  };
+  if (companion.chimeOn) soundscape.playChime();
+  renderCompanion();
+}
+
+function startCompanionTick() {
+  stopCompanionTick();
+  companion.running = true;
+  companion.finished = false;
+  companion.settlement = null;
+  companionTimer = window.setInterval(() => {
+    companion.elapsedSeconds += 1;
+    companion.remainingSeconds = Math.max(0, companion.remainingSeconds - 1);
+    const totalSec = Math.max(60, companion.durationMinutes * 60);
+    const progress = Math.max(0, Math.min(1, 1 - companion.remainingSeconds / totalSec));
+    const clockEl = $('cmpClock');
+    const fillEl = $('cmpIncenseFill');
+    const whisperEl = $('cmpWhisper');
+    const finishBtn = $('companionStage')?.querySelector('[data-cmp-finish]');
+    if (clockEl) clockEl.textContent = formatClock(companion.remainingSeconds);
+    if (fillEl) fillEl.style.width = `${Math.max(0, Math.min(100, (1 - progress) * 100)).toFixed(2)}%`;
+    if (whisperEl) whisperEl.textContent = companionWhisper({ mode: companion.mode, progress, running: true, finished: false });
+    if (finishBtn) finishBtn.disabled = false;
+    if (companion.remainingSeconds <= 0) completeCompanionSession({ early: false });
+  }, 1000);
+  renderCompanion();
+}
+
+function openCompanionModal() {
+  const stage = $('companionStage');
+  if (!stage) return;
+  companion.suggestion = suggestGapSession(calendarResult, Date.now());
+  if (!companion.running && companion.elapsedSeconds === 0 && !companion.finished) {
+    companion.durationMinutes = companion.suggestion.minutes || 45;
+    companion.remainingSeconds = companion.durationMinutes * 60;
+    if (companion.suggestion.taskId && !companion.selectedTaskId) {
+      companion.selectedTaskId = `task:${companion.suggestion.taskId}`;
+    }
+  }
+  stage.hidden = false;
+  renderCompanion();
+  stage.querySelector('[data-cmp-toggle]')?.focus();
+}
+
+function closeCompanionModal() {
+  stopCompanionTick();
+  soundscape.stopAll();
+  companion.audioLevels = { rain: 0, wind: 0, hearth: 0 };
+  if (document.fullscreenElement) document.exitFullscreen?.().catch(() => {});
+  const stage = $('companionStage');
+  if (stage) { stage.hidden = true; stage.innerHTML = ''; }
+}
+
+$('openCompanion')?.addEventListener('click', openCompanionModal);
+document.addEventListener('keydown', event => {
+  if (event.key === 'Escape' && $('companionStage') && !$('companionStage').hidden) closeCompanionModal();
+});
+$('companionStage')?.addEventListener('click', event => {
+  if (event.target === $('companionStage') || event.target.closest('[data-cmp-close]')) { closeCompanionModal(); return; }
+  if (event.target.closest('[data-cmp-fullscreen]')) {
+    const card = $('companionStage').querySelector('.cmp-card');
+    if (document.fullscreenElement) document.exitFullscreen?.().catch(() => {});
+    else card?.requestFullscreen?.().catch(() => {});
+    return;
+  }
+  const modeBtn = event.target.closest('button[data-cmp-mode]');
+  if (modeBtn) {
+    stopCompanionTick();
+    companion.mode = modeBtn.dataset.cmpMode === 'leisure' ? 'leisure' : 'study';
+    companion.durationMinutes = companion.mode === 'leisure' ? 20 : (companion.suggestion?.minutes || 45);
+    companion.remainingSeconds = companion.durationMinutes * 60;
+    companion.elapsedSeconds = 0;
+    companion.finished = false;
+    companion.settlement = null;
+    renderCompanion();
+    return;
+  }
+  const sceneBtn = event.target.closest('[data-cmp-scene]');
+  if (sceneBtn) {
+    companion.scenePref = sceneBtn.dataset.cmpScene;
+    renderCompanion();
+    return;
+  }
+  const gapBtn = event.target.closest('[data-cmp-adopt-gap]');
+  if (gapBtn) {
+    stopCompanionTick();
+    companion.durationMinutes = Number(gapBtn.dataset.cmpAdoptGap) || 45;
+    companion.remainingSeconds = companion.durationMinutes * 60;
+    companion.elapsedSeconds = 0;
+    companion.finished = false;
+    companion.settlement = null;
+    renderCompanion();
+    return;
+  }
+  const minBtn = event.target.closest('[data-cmp-minutes]');
+  if (minBtn) {
+    stopCompanionTick();
+    companion.durationMinutes = Number(minBtn.dataset.cmpMinutes) || 45;
+    companion.remainingSeconds = companion.durationMinutes * 60;
+    companion.elapsedSeconds = 0;
+    companion.finished = false;
+    companion.settlement = null;
+    renderCompanion();
+    return;
+  }
+  if (event.target.closest('[data-cmp-toggle]')) {
+    if (companion.running) { stopCompanionTick(); renderCompanion(); }
+    else {
+      if (companion.finished) {
+        companion.remainingSeconds = companion.durationMinutes * 60;
+        companion.elapsedSeconds = 0;
+      }
+      startCompanionTick();
+    }
+    return;
+  }
+  if (event.target.closest('[data-cmp-finish]')) {
+    if (companion.elapsedSeconds > 0 || companion.finished) completeCompanionSession({ early: !companion.finished });
+    return;
+  }
+  if (event.target.closest('[data-cmp-reset]')) {
+    stopCompanionTick();
+    companion.remainingSeconds = companion.durationMinutes * 60;
+    companion.elapsedSeconds = 0;
+    companion.finished = false;
+    companion.settlement = null;
+    renderCompanion();
+    return;
+  }
+  const switchRest = event.target.closest('[data-cmp-switch-rest]');
+  if (switchRest) {
+    stopCompanionTick();
+    companion.mode = 'leisure';
+    companion.durationMinutes = Number(switchRest.dataset.cmpSwitchRest) || 10;
+    companion.remainingSeconds = companion.durationMinutes * 60;
+    companion.elapsedSeconds = 0;
+    companion.finished = false;
+    companion.settlement = null;
+    startCompanionTick();
+    return;
+  }
+  const switchStudy = event.target.closest('[data-cmp-switch-study]');
+  if (switchStudy) {
+    stopCompanionTick();
+    companion.mode = 'study';
+    companion.durationMinutes = companion.suggestion?.minutes || Number(switchStudy.dataset.cmpSwitchStudy) || 45;
+    companion.remainingSeconds = companion.durationMinutes * 60;
+    companion.elapsedSeconds = 0;
+    companion.finished = false;
+    companion.settlement = null;
+    renderCompanion();
+    return;
+  }
+  if (event.target.closest('[data-cmp-again]')) {
+    stopCompanionTick();
+    companion.remainingSeconds = companion.durationMinutes * 60;
+    companion.elapsedSeconds = 0;
+    companion.finished = false;
+    companion.settlement = null;
+    renderCompanion();
+  }
+});
+$('companionStage')?.addEventListener('input', event => {
+  if (event.target.id === 'cmpTitleInput') companion.customTitle = event.target.value;
+  const slider = event.target.closest('[data-cmp-sound]');
+  if (slider) {
+    const val = Number(slider.value) / 100;
+    companion.audioLevels[slider.dataset.cmpSound] = val;
+    soundscape.setChannel(slider.dataset.cmpSound, val);
+  }
+});
+$('companionStage')?.addEventListener('change', event => {
+  if (event.target.id === 'cmpTaskSelect') companion.selectedTaskId = event.target.value;
+  if (event.target.matches('[data-cmp-chime]')) companion.chimeOn = event.target.checked;
+});

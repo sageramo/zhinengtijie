@@ -1264,3 +1264,25 @@ test('xieyi four-slot scroll, 远山志 goals, promote-to-工笔, and 学休账�
   assert.match(app.find('.xy-goals').textContent, /完成本周文献精读/);
   assert.match(app.find('.xy-ledger').textContent, /三维视觉阅读/);
 });
+
+test('study companion modal opens with gap advice, switches scenes, finishes incense, and logs into 学休账卷', async t => {
+  const app = await imported(t);
+  app.click('#openCompanion');
+  await settle(60);
+  const stage = app.find('#companionStage');
+  assert.equal(stage.hidden, false);
+  assert.match(stage.textContent, /依隙定香/);
+
+  app.click('[data-cmp-scene="night"]');
+  assert.ok(app.find('.cmp-card.is-night'), 'switched cleanly to night scene');
+
+  app.click('[data-cmp-toggle]');
+  await settle(1100);
+  app.click('[data-cmp-finish]');
+  await settle(80);
+  assert.match(app.find('.cmp-settlement').textContent, /已收入学休账卷/);
+
+  app.click('[data-cmp-close]');
+  assert.equal(stage.hidden, true);
+  assert.match(app.find('#calendarView').textContent, /本周学休账卷/);
+});

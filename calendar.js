@@ -469,6 +469,7 @@ export function calendarMarkup({ result, start, now, loading = false, error = ''
       <div class="cal-bar-actions">
         ${clockPill}
         <div class="cal-mode-switch" role="group" aria-label="画卷视图切换"><button type="button" data-cal-mode="gongbi" aria-pressed="${scrollMode === 'gongbi'}">工笔 · 时轴</button><button type="button" data-cal-mode="xieyi" aria-pressed="${scrollMode === 'xieyi'}">写意 · 四时</button></div>
+        <button type="button" class="text-button cal-companion-btn" data-open-companion>案头伴读</button>
         ${result && !rolled && scrollMode === 'gongbi' ? `<button type="button" class="text-button cal-view-toggle" data-cal-view aria-pressed="${listView}">${listView ? '周网格' : '列表'}</button>` : ''}
         ${result && !rolled ? '<button type="button" class="text-button cal-roll-up" data-scroll-roll>卷起画卷</button>' : ''}
         ${analyzeBtn}
