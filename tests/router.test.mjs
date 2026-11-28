@@ -51,9 +51,9 @@ test('the arrow keys turn pages across 3 primary routes, #/items maps to 研墨,
   assert.equal(app.current(), 'time');
 
   app.window.SixuRouter.go('items');
-  assert.equal(app.current(), 'import');
-  assert.equal(app.find('[data-tab="import"]').getAttribute('aria-current'), 'page', '#/items opens unified 研墨');
-  assert.equal(app.find('.page-arrow.is-next').getAttribute('aria-label'), '下一页：铺纸');
+  assert.equal(app.current(), 'items');
+  assert.equal(app.find('[data-tab="import"]').getAttribute('aria-current'), 'page', 'items keeps 研墨 highlighted');
+  assert.ok([...app.doc.querySelectorAll('.page-arrow')].every(button => button.hidden), 'subpage hides side arrows');
 });
 
 test('the root URL opens the landing page (home)', () => {

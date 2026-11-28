@@ -276,10 +276,7 @@ function showOnPage(element, block = 'start') {
   if (roll) openRoll(roll.dataset.roll);
   const group = element.closest?.('[data-group]');
   if (group) { workGroup = group.dataset.group; spreadWorkGroup(workGroup); }
-  if (element.closest?.('#inkPool')) {
-    document.querySelector('[data-page="import"]')?.setAttribute('data-pane', 'pool');
-    if (element.hidden) setPoolFilter('all');
-  }
+  if (element.closest?.('#inkPool') && element.hidden) setPoolFilter('all');
   const editor = element.querySelector?.(':scope > .item-edit');
   if (editor) { editor.open = true; openCards.add(element.dataset.itemId); }
   const page = element.closest('[data-page]')?.dataset.page;
@@ -581,7 +578,7 @@ function taskMarkup(task) {
   const slotLabel = tier === 'day' ? `定日 · ${SLOT_NAMES[slot] || '晡'}` : TIER_LABEL[tier];
   const slotField = tier === 'day' ? `<label>时段<select data-field="xieyi_slot"><option value="chen"${slot === 'chen' ? ' selected' : ''}>晨 · 上午</option><option value="wu"${slot === 'wu' ? ' selected' : ''}>午 · 中午</option><option value="bu"${slot === 'bu' ? ' selected' : ''}>晡 · 下午</option><option value="mu"${slot === 'mu' ? ' selected' : ''}>暮 · 晚间</option></select></label>` : '';
   return `<article class="item-card is-${kind[0]}${active ? '' : ' is-inactive'}" data-item-id="${escapeHTML(task.id)}" data-kind="task" data-tier="${tier}" id="item-${escapeHTML(task.id)}">
-    <div class="item-top"><i class="item-glyph" aria-hidden="true"></i><span class="item-kind">${kind[1]}</span><span class="pool-tier-badge is-${tier}">${escapeHTML(slotLabel)}</span><div class="item-heading"><input class="item-title" data-field="title" value="${escapeHTML(task.title)}" aria-label="工作名称" maxlength="200"><p class="item-meta" data-item-meta>${escapeHTML(itemMeta(task))}</p></div>${stateBadge(taskState(task))}</div>
+    <div class="item-top"><i class="item-glyph" aria-hidden="true"></i><span class="item-kind">${kind[1]}</span><div class="item-heading"><input class="item-title" data-field="title" value="${escapeHTML(task.title)}" aria-label="工作名称" maxlength="200"><div class="item-meta-row"><span class="pool-tier-badge is-${tier}">${escapeHTML(slotLabel)}</span><p class="item-meta" data-item-meta>${escapeHTML(itemMeta(task))}</p></div></div>${stateBadge(taskState(task))}</div>
     <details class="item-edit"${editorOpen(task) ? ' open' : ''}><summary>修改${isPersonal(task) && !hasPersonalClock(task) ? '日期' : '截止'}、用时与拆分</summary>
     <div class="field-grid">
       ${isPersonal(task) && !hasPersonalClock(task) ? `<label>哪天做<input type="date" data-field="personal_day" value="${personalDay(task)}"></label>` : `<label>截止<input type="datetime-local" data-field="deadline_at" value="${toLocalInput(task.deadline_at)}"></label>`}
@@ -610,7 +607,7 @@ function eventMarkup(event) {
   const appointment = event.kind === 'appointment';
   const tier = itemTier(event, 'event');
   return `<article class="item-card is-${appointment ? 'appointment' : 'temporary'}${event.status === 'active' ? '' : ' is-inactive'}" data-item-id="${escapeHTML(event.id)}" data-kind="event" data-tier="${tier}" id="item-${escapeHTML(event.id)}">
-    <div class="item-top"><i class="item-glyph" aria-hidden="true"></i><span class="item-kind">${appointment ? '约定' : '点墨'}</span><span class="pool-tier-badge is-${tier}">${TIER_LABEL[tier]}</span><div class="item-heading"><input class="item-title" data-field="title" value="${escapeHTML(event.title)}" aria-label="${appointment ? '约定' : '点墨'}名称" maxlength="200"><p class="item-meta" data-item-meta>${escapeHTML(itemMeta(event))}</p></div>${stateBadge(eventState(event))}</div>
+    <div class="item-top"><i class="item-glyph" aria-hidden="true"></i><span class="item-kind">${appointment ? '约定' : '点墨'}</span><div class="item-heading"><input class="item-title" data-field="title" value="${escapeHTML(event.title)}" aria-label="${appointment ? '约定' : '点墨'}名称" maxlength="200"><div class="item-meta-row"><span class="pool-tier-badge is-${tier}">${TIER_LABEL[tier]}</span><p class="item-meta" data-item-meta>${escapeHTML(itemMeta(event))}</p></div></div>${stateBadge(eventState(event))}</div>
     <details class="item-edit"${editorOpen(event) ? ' open' : ''}><summary>修改时间、地点与类别</summary>
     <div class="field-grid">
       <label class="field-wide">这件事是<select data-field="kind"><option value="temporary"${appointment ? '' : ' selected'}>点墨：外部安排的一次性事项（讲座、考试等）</option><option value="appointment"${appointment ? ' selected' : ''}>约定：自己约好的事，属于落笔（如和朋友出去）</option></select></label>
@@ -1499,19 +1496,7 @@ $('taskSection').addEventListener('click', event => {
 });
 $('inkPool')?.addEventListener('click', event => {
   const filterBtn = event.target.closest('[data-pool-filter]');
-  if (filterBtn) {
-    setPoolFilter(filterBtn.dataset.poolFilter);
-    return;
-  }
-});
-document.addEventListener('click', event => {
-  const paneBtn = event.target.closest('[data-import-pane]');
-  if (!paneBtn) return;
-  const page = document.querySelector('[data-page="import"]');
-  if (page) page.dataset.pane = paneBtn.dataset.importPane;
-  for (const btn of document.querySelectorAll('.ink-pane-switch [data-import-pane]')) {
-    btn.setAttribute('aria-pressed', String(btn.dataset.importPane === paneBtn.dataset.importPane));
-  }
+  if (filterBtn) setPoolFilter(filterBtn.dataset.poolFilter);
 });
 $('addPersonal').addEventListener('click', () => {
   let next = addPersonalTask(snapshot, { day: localDate(Date.now()) });
@@ -2665,16 +2650,6 @@ document.addEventListener('click', event => {
   }
 });
 document.addEventListener('sixu:route', event => {
-  if (event.detail === 'import') {
-    const page = document.querySelector('[data-page="import"]');
-    const toPool = location.hash.startsWith('#/items') || location.hash.startsWith('#/review');
-    if (page && toPool) {
-      page.dataset.pane = 'pool';
-      for (const btn of document.querySelectorAll('.ink-pane-switch [data-import-pane]')) {
-        btn.setAttribute('aria-pressed', String(btn.dataset.importPane === 'pool'));
-      }
-    }
-  }
   if (event.detail !== 'calendar') {
     const showCover = !isPhoneViewport() && !hasSeenCoverToday();
     rolledByMode = { gongbi: showCover, xieyi: showCover };
@@ -3140,13 +3115,6 @@ if ('serviceWorker' in navigator && (location.protocol === 'https:' || ['localho
 }
 
 renderAll();
-if (document.documentElement.dataset.current === 'import' && (location.hash.startsWith('#/items') || location.hash.startsWith('#/review'))) {
-  const page = document.querySelector('[data-page="import"]');
-  if (page) page.dataset.pane = 'pool';
-  for (const btn of document.querySelectorAll('.ink-pane-switch [data-import-pane]')) {
-    btn.setAttribute('aria-pressed', String(btn.dataset.importPane === 'pool'));
-  }
-}
 takeHashText();
 remindTick();
 checkBackup();

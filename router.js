@@ -1,10 +1,10 @@
-// One page per function, addressed by hash: #/ (landing), #/import (研墨+笔墨), #/time, #/calendar.
-// Old links #/items, #/review and #/plan open their unified replacements.
+// One page per function, addressed by hash: #/ (landing), #/import (研墨), #/items (笔墨), #/time (铺纸), #/calendar (画卷).
+// Old links #/review and #/plan open their unified replacements.
 // The current page is html[data-current]; CSS shows only that page, so back/forward and reload all work.
 (() => {
   const root = document.documentElement;
-  const titles = { home: '司序 Marshal · 知所先后', time: '铺纸 · 司序', import: '研墨 · 司序', calendar: '画卷 · 司序' };
-  const aliases = { review: 'import', items: 'import', plan: 'calendar' };
+  const titles = { home: '司序 Marshal · 知所先后', time: '铺纸 · 司序', import: '研墨 · 司序', items: '笔墨 · 司序', calendar: '画卷 · 司序' };
+  const aliases = { review: 'items', plan: 'calendar' };
   const routeOf = hash => {
     if (!hash.startsWith('#/')) return hash && root.dataset.current ? root.dataset.current : 'home';
     // #/import?text=… (from an iPhone shortcut) and #/import?shared=1 (from the share sheet) open 研墨.
@@ -188,7 +188,7 @@
     updateArrows(route);
     for (const tab of document.querySelectorAll('[data-tab]')) {
       // On phones the tab strip scrolls sideways; bring the current tab into it.
-      if (tab.dataset.tab === route) { tab.setAttribute('aria-current', 'page'); tab.parentElement.scrollLeft = Math.max(0, tab.offsetLeft - (tab.parentElement.clientWidth - tab.offsetWidth) / 2); }
+      if (tab.dataset.tab === route || (route === 'items' && tab.dataset.tab === 'import')) { tab.setAttribute('aria-current', 'page'); tab.parentElement.scrollLeft = Math.max(0, tab.offsetLeft - (tab.parentElement.clientWidth - tab.offsetWidth) / 2); }
       else tab.removeAttribute('aria-current');
     }
     if (!changed) return;
@@ -203,7 +203,7 @@
   window.SixuRouter = {
     go(route) {
       const normalized = aliases[route] || route;
-      const hashTarget = route === 'items' ? '#/items' : (normalized === 'home' ? '#/' : `#/${normalized}`);
+      const hashTarget = normalized === 'home' ? '#/' : `#/${normalized}`;
       if (location.hash !== hashTarget) history.pushState(null, '', hashTarget);
       apply(normalized, { focus: true });
     },

@@ -144,11 +144,13 @@ test('the task starter uses only the supplied excerpt, never writes back, and cl
   assert.equal(app.find('[data-starter-result]').hidden, true);
 });
 
-test('tabs start at 研墨 (embedding right-rail 笔墨 pool), and the 3-step workbench links cleanly', async t => {
+test('tabs start at 研墨 (with bottom-left 笔墨 entry linking to #/items), and the 3-step workbench links cleanly', async t => {
   const app = await boot(t);
   assert.deepEqual(app.all('.page-tabs a').map(tab => [tab.dataset.tab, tab.querySelector('.tab-name').textContent, tab.querySelector('.tab-sub').textContent]),
     [['import', '研墨', '通知与笔墨'], ['time', '铺纸', '底色与留白'], ['calendar', '画卷', '一周日历']]);
-  assert.ok(app.find('[data-page="import"] #inkPool'), '#inkPool lives permanently inside 研墨');
+  assert.equal(app.find('#inkRail .rail-foot #inkItemsEntry').getAttribute('href'), '#/items');
+  assert.equal(app.find('[data-page="items"] .subpage-back').getAttribute('href'), '#/import');
+  assert.ok(app.find('[data-page="items"] #inkPool'), '#inkPool lives on #/items subpage');
   assert.deepEqual(app.all('#inkPool [data-pool-filter]').map(b => b.dataset.poolFilter), ['all', 'timed', 'deadline', 'day', 'pending']);
   assert.ok(app.find('#addPersonal') && app.find('#addTask') && app.find('#addEvent') && app.find('#addAppointment'));
   assert.equal(app.find('.aux-nav a[href="#/"]').textContent, '项目介绍');
@@ -229,7 +231,7 @@ test('笔墨 filters items by precision tier, counts them, and opens card editor
   app.click('[data-pool-filter="all"]');
 
   app.click('[data-tab="calendar"]');
-  app.click('[data-tab="import"]');
+  app.click('#inkItemsEntry');
   app.find('#addEvent').click();
   await settle();
   assert.equal(app.find('#eventList').lastElementChild.querySelector('.item-edit').open, true, 'a 点墨 without a time opens its editor');
@@ -243,7 +245,7 @@ test('笔墨 filters items by precision tier, counts them, and opens card editor
   assert.equal(app.find(`#item-${first.id}`).querySelector('.item-edit').open, true, 'an editor the user opened stays open');
 });
 
-test('笔墨 renders flat groups inside 研墨 and clicking a block on 画卷 jumps to its card in 笔墨', async t => {
+test('笔墨 renders flat groups on #/items and clicking a block on 画卷 jumps to its card in 笔墨', async t => {
   const app = await imported(t);
   const routes = [];
   app.window.SixuRouter = { go: r => routes.push(r) };
@@ -252,8 +254,7 @@ test('笔墨 renders flat groups inside 研墨 and clicking a block on 画卷 ju
   const [task] = app.stored().tasks;
   app.find('#calendarView').insertAdjacentHTML('beforeend', `<button type="button" data-cal-item="${task.id}" data-cal-layer="task">t</button>`);
   app.find(`#calendarView [data-cal-item="${task.id}"]`).click();
-  assert.deepEqual(routes, ['import']);
-  assert.equal(app.find('[data-page="import"]').dataset.pane, 'pool');
+  assert.deepEqual(routes, ['items']);
   assert.ok(app.find(`#item-${task.id}`).classList.contains('is-flash'));
 });
 

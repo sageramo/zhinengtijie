@@ -4,17 +4,17 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="description" content="把校园通知整理成可核对的事项，用真实空闲生成经过校验的个人安排。">
-  <meta name="sixu-ui-version" content="2026.11.22.91">
+  <meta name="sixu-ui-version" content="2026.11.22.92">
   <title>司序 Marshal · 知所先后</title>
   <link rel="icon" href="./assets/sixu-mark.svg" type="image/svg+xml">
   <link rel="manifest" href="./manifest.webmanifest">
   <meta name="theme-color" content="#1e2a35">
   <link rel="apple-touch-icon" href="./assets/icon-192.png">
-  <script>{ const h = location.hash; document.documentElement.dataset.current = h.startsWith('#/') && ['import', 'items', 'time', 'calendar', 'review', 'plan'].includes(h.slice(2).split('?')[0]) ? ({ review: 'import', items: 'import', plan: 'calendar' }[h.slice(2).split('?')[0]] || h.slice(2).split('?')[0]) : 'home'; if (document.documentElement.dataset.current === 'home' && !matchMedia('(prefers-reduced-motion: reduce)').matches) document.documentElement.classList.add('intro'); }</script>
+  <script>{ const h = location.hash; document.documentElement.dataset.current = h.startsWith('#/') && ['import', 'items', 'time', 'calendar', 'review', 'plan'].includes(h.slice(2).split('?')[0]) ? ({ review: 'items', plan: 'calendar' }[h.slice(2).split('?')[0]] || h.slice(2).split('?')[0]) : 'home'; if (document.documentElement.dataset.current === 'home' && !matchMedia('(prefers-reduced-motion: reduce)').matches) document.documentElement.classList.add('intro'); }</script>
   <link rel="preload" as="image" href="./assets/hero-poster.webp">
-  <link rel="stylesheet" href="./agent.css?v=2026.11.22.91">
+  <link rel="stylesheet" href="./agent.css?v=2026.11.22.92">
   <!-- The workbench's whole module graph at once: without this the browser finds it four imports deep, one round trip per level. -->
-  <link rel="modulepreload" href="./agent.js?v=2026.11.22.91"><link rel="modulepreload" href="./task-state.js?v=2026.11.22.91"><link rel="modulepreload" href="./snapshot-store.js?v=2026.11.22.91"><link rel="modulepreload" href="./vault.js?v=2026.11.22.91"><link rel="modulepreload" href="./xieyi-scroll.js?v=2026.11.22.91"><link rel="modulepreload" href="./companion.js?v=2026.11.22.91"><link rel="modulepreload" href="./agenda.js?v=2026.11.22.91"><link rel="modulepreload" href="./calendar.js?v=2026.11.22.91"><link rel="modulepreload" href="./shanshui.js?v=2026.11.22.91"><link rel="modulepreload" href="./reminders.js?v=2026.11.22.91"><link rel="modulepreload" href="./bell-toggle.js?v=2026.11.22.91"><link rel="modulepreload" href="./estimate-memory.js?v=2026.11.22.91"><link rel="modulepreload" href="./screenshot-ocr.js?v=2026.11.22.91"><link rel="modulepreload" href="./chat-actions.js?v=2026.11.22.91"><link rel="modulepreload" href="./focus.js?v=2026.11.22.91"><link rel="modulepreload" href="./jw-timetable.js?v=2026.11.22.91"><link rel="modulepreload" href="./time-state.js?v=2026.11.22.91">
+  <link rel="modulepreload" href="./agent.js?v=2026.11.22.92"><link rel="modulepreload" href="./task-state.js?v=2026.11.22.92"><link rel="modulepreload" href="./snapshot-store.js?v=2026.11.22.92"><link rel="modulepreload" href="./vault.js?v=2026.11.22.92"><link rel="modulepreload" href="./xieyi-scroll.js?v=2026.11.22.92"><link rel="modulepreload" href="./companion.js?v=2026.11.22.92"><link rel="modulepreload" href="./agenda.js?v=2026.11.22.92"><link rel="modulepreload" href="./calendar.js?v=2026.11.22.92"><link rel="modulepreload" href="./shanshui.js?v=2026.11.22.92"><link rel="modulepreload" href="./reminders.js?v=2026.11.22.92"><link rel="modulepreload" href="./bell-toggle.js?v=2026.11.22.92"><link rel="modulepreload" href="./estimate-memory.js?v=2026.11.22.92"><link rel="modulepreload" href="./screenshot-ocr.js?v=2026.11.22.92"><link rel="modulepreload" href="./chat-actions.js?v=2026.11.22.92"><link rel="modulepreload" href="./focus.js?v=2026.11.22.92"><link rel="modulepreload" href="./jw-timetable.js?v=2026.11.22.92"><link rel="modulepreload" href="./time-state.js?v=2026.11.22.92">
 </head>
 <body>
   <div class="intro" id="intro" aria-hidden="true">
@@ -73,7 +73,7 @@
     <div id="appMessage" class="message toast" role="status" aria-live="polite" hidden></div>
     <div id="backupNudge" class="message backup-nudge" role="status" hidden><p>清单默认只保存在这个浏览器里，清理记录或换手机会丢失。建议生成一段本机加密恢复码发到微信“文件传输助手”，或导出 JSON / 绑定本地自动备份。</p><div class="inline-actions"><button type="button" class="primary-button" id="backupNow">导出备份</button><button type="button" id="backupVaultOpen">加密恢复码</button><button type="button" class="text-button" id="backupLater">今天先不</button></div></div>
     <div id="storageConflict" class="message warning" hidden><p>清单在另一个标签页发生了变化。为避免覆盖，请先导出当前内容，再载入最新清单。</p><button type="button" id="reloadLatest">载入最新清单</button></div>
-    <div class="page page-import" data-page="import" data-pane="chat">
+    <div class="page page-import" data-page="import">
         <aside class="ink-rail" id="inkRail" aria-label="砚池记录与工具">
           <div class="rail-head"><button type="button" class="rail-new" id="newThread"><svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true"><path d="M12 5v14M5 12h14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>新对话</button><button type="button" class="rail-close" id="railClose" aria-label="收起记录">收起</button></div>
           <section class="rail-block" aria-labelledby="railSourcesHeading"><h3 id="railSourcesHeading">导入过的通知</h3><ul class="rail-list" id="railSources"></ul></section>
@@ -96,16 +96,16 @@
               </details>
               <p class="privacy-note">导入会把通知原文发给计算服务；模型提取还会交给 Dify 与所选模型。试算发送清单给计算服务。选模型聊天时，最近几轮模型对话会发送给 DeepSeek。清单保存在此浏览器，换设备不会同步。</p>
             </div>
-            <a class="next-step" href="#/time">下一步：铺纸 · 底色与留白<svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><path d="M5 12h14M13 6l6 6-6 6" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></a>
           </section>
+          <div class="rail-foot">
+            <a class="rail-items-entry" id="inkItemsEntry" href="#/items"><span class="rail-items-seal" aria-hidden="true">笔</span><span class="rail-items-copy"><strong>笔墨</strong><small id="itemsSummaryNote">统一事项总库</small></span><span class="tab-count" id="itemsCount" aria-label="项待书"></span><svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true"><path d="M9 6l6 6-6 6" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></a>
+            <a class="next-step" href="#/time">下一步：铺纸 · 底色与留白<svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><path d="M5 12h14M13 6l6 6-6 6" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></a>
+          </div>
         </aside>
         <section class="surface ink-chat" id="noticeSection" aria-labelledby="noticeHeading">
           <div class="ink-top-bar">
             <button type="button" class="rail-open" id="railOpen" aria-controls="inkRail" aria-expanded="false">记录与工具</button>
-            <div class="ink-pane-switch" role="group" aria-label="砚池与笔墨切换">
-              <button type="button" data-import-pane="chat" aria-pressed="true">砚池</button>
-              <button type="button" data-import-pane="pool" aria-pressed="false">笔墨<span class="ink-items-pill-count" id="itemsPillCount"></span></button>
-            </div>
+            <a class="ink-items-pill" href="#/items">笔墨<span class="ink-items-pill-count" id="itemsPillCount"></span></a>
           </div>
           <div class="ink-scroll" id="inkScroll">
           <header class="ink-hello"><svg class="inkstone" viewBox="0 0 120 84" aria-hidden="true"><defs><radialGradient id="inkstonePoolGrad" cx="50%" cy="45%" r="60%"><stop offset="0" stop-color="#101a24"/><stop offset=".7" stop-color="#1e2a35"/><stop offset="1" stop-color="#3d4c5b"/></radialGradient><linearGradient id="inkStone" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#d9d6cf"/><stop offset="1" stop-color="#a9a59c"/></linearGradient></defs><ellipse cx="60" cy="52" rx="56" ry="28" fill="url(#inkStone)"/><ellipse cx="60" cy="48" rx="47" ry="21" fill="#f6f9fc"/><ellipse class="inkstone-pool" cx="60" cy="50" rx="38" ry="15" fill="url(#inkstonePoolGrad)"/><path class="inkstone-swirl" d="M44 50c4-7 18-9 26-4s4 12-6 11-10-7-3-9" fill="none" stroke="#9fcdf5" stroke-width="1.6" stroke-linecap="round" opacity=".8"/><g class="inkstone-stick"><rect x="74" y="6" width="13" height="40" rx="3" transform="rotate(24 80 26)" fill="#1f2d3d"/><rect x="74" y="10" width="13" height="7" transform="rotate(24 80 26)" fill="#e09a35" opacity=".9"/></g></svg>
@@ -151,15 +151,17 @@
             <div class="parse-progress" id="parseProgress" hidden><span class="ink-swirl" aria-hidden="true"></span><div><p id="parseStep" role="status">正在提取</p><p class="field-help"><span id="parseElapsed" aria-hidden="true"></span><span id="parseHint"></span></p></div></div>
           </form>
         </section>
-      <aside class="ink-pool" id="inkPool" aria-label="笔墨事项总库">
-        <div class="ink-top-bar is-pool-top">
-          <button type="button" class="rail-open" data-import-pane="chat">← 回到砚池</button>
-        </div>
+    </div>
+    <div class="page page-items" data-page="items" aria-label="笔墨 · 统一事项总库">
+      <div class="subpage-bar">
+        <a class="subpage-back" href="#/import"><svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true"><path d="M15 5l-7 7 7 7" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>返回研墨</a>
+        <span class="subpage-crumb">研墨 / <strong>笔墨 · 统一事项总库</strong></span>
+      </div>
+      <section class="ink-pool surface" id="inkPool" aria-label="笔墨事项总库">
         <header class="pool-head">
           <div class="pool-title-row">
             <div class="pool-title">
               <h2>笔墨</h2>
-              <span class="tab-count" id="itemsCount" aria-label="项待书"></span>
               <small id="itemsSummaryNote">统一事项总库</small>
             </div>
             <div class="pool-add-row" aria-label="快速添加">
@@ -204,7 +206,7 @@
         <aside class="import-side" aria-label="原文">
           <section class="source-section" aria-labelledby="sourceHeading"><div class="section-top"><h2 id="sourceHeading">原文记录</h2><span id="sourceCount">0 份</span></div><div id="sourceList"><p class="empty-note">导入后可随时回来核对。</p></div></section>
         </aside>
-      </aside>
+      </section>
     </div>
     <div class="page" data-page="time">
         <div class="rolls" data-rolls>
@@ -303,7 +305,7 @@
         <p class="field-help" id="persistStatus" role="status">浏览器防清理保护：检查中…</p>
       </section>
       <p class="field-help">导出文件包含原文与个人安排，请妥善保存。</p>
-      <p class="field-help" id="uiVersion">界面版本 2026.11.22.91</p>
+      <p class="field-help" id="uiVersion">界面版本 2026.11.22.92</p>
     </details>
     <footer class="page-footer"><span>以确认后的信息计算，把取舍留给你。</span></footer>
   </main>
@@ -313,7 +315,7 @@
   <div class="access-ask" id="accessAsk" role="dialog" aria-modal="true" aria-labelledby="accessTitle" hidden><form class="access-card" id="accessForm"><h2 id="accessTitle">访问口令</h2><p class="field-help" id="accessHint"></p><label for="accessCode">口令</label><input id="accessCode" type="password" autocomplete="off" maxlength="200" required><div class="inline-actions"><button type="submit" class="primary-button">确定</button><button type="button" class="text-button" id="accessCancel">取消</button></div></form></div>
   <div class="route-veil" id="routeVeil" aria-hidden="true"><i class="ink ink-1"></i><i class="ink ink-2"></i><i class="ink ink-3"></i><svg class="veil-mark" viewBox="0 0 100 100"><path class="mark-ring" d="M22 86V28H30.56L50 63.64L69.44 28H78V86H70V43.69L54.56 72H45.44L30 43.69V86Z" fill="currentColor"/><g class="veil-needle"><path d="M50 14L53.2 40.4H46.8Z" fill="currentColor"/><path d="M46.8 40.4L50 62L53.2 40.4" fill="none" stroke="currentColor" stroke-width="1.8"/></g></svg><p class="veil-word"><span>司序</span><span>知所先后</span></p></div>
   <noscript>此页面需要启用JavaScript才能编辑和计算任务。</noscript>
-  <script type="importmap">{"imports":{"./task-state.js":"./task-state.js?v=2026.11.22.91","./snapshot-store.js":"./snapshot-store.js?v=2026.11.22.91","./vault.js":"./vault.js?v=2026.11.22.91","./xieyi-scroll.js":"./xieyi-scroll.js?v=2026.11.22.91","./companion.js":"./companion.js?v=2026.11.22.91","./model-candidates.js":"./model-candidates.js?v=2026.11.22.91","./time-review.js":"./time-review.js?v=2026.11.22.91","./planning-result.js":"./planning-result.js?v=2026.11.22.91","./agenda.js":"./agenda.js?v=2026.11.22.91","./calendar.js":"./calendar.js?v=2026.11.22.91","./shanshui.js":"./shanshui.js?v=2026.11.22.91","./reminders.js":"./reminders.js?v=2026.11.22.91","./bell-toggle.js":"./bell-toggle.js?v=2026.11.22.91","./estimate-memory.js":"./estimate-memory.js?v=2026.11.22.91","./time-state.js":"./time-state.js?v=2026.11.22.91","./scenario.js":"./scenario.js?v=2026.11.22.91","./screenshot-ocr.js":"./screenshot-ocr.js?v=2026.11.22.91","./jw-timetable.js":"./jw-timetable.js?v=2026.11.22.91","./focus.js":"./focus.js?v=2026.11.22.91","./chat-actions.js":"./chat-actions.js?v=2026.11.22.91"}}</script>
-  <script src="./koi.js?v=2026.11.22.91"></script><script src="./router.js?v=2026.11.22.91"></script><script src="./about-sky.js?v=2026.11.22.91"></script><script src="./landing.js?v=2026.11.22.91"></script><script src="./api-config.js?v=2026.11.22.91"></script><script type="module" src="./agent.js?v=2026.11.22.91"></script>
+  <script type="importmap">{"imports":{"./task-state.js":"./task-state.js?v=2026.11.22.92","./snapshot-store.js":"./snapshot-store.js?v=2026.11.22.92","./vault.js":"./vault.js?v=2026.11.22.92","./xieyi-scroll.js":"./xieyi-scroll.js?v=2026.11.22.92","./companion.js":"./companion.js?v=2026.11.22.92","./model-candidates.js":"./model-candidates.js?v=2026.11.22.92","./time-review.js":"./time-review.js?v=2026.11.22.92","./planning-result.js":"./planning-result.js?v=2026.11.22.92","./agenda.js":"./agenda.js?v=2026.11.22.92","./calendar.js":"./calendar.js?v=2026.11.22.92","./shanshui.js":"./shanshui.js?v=2026.11.22.92","./reminders.js":"./reminders.js?v=2026.11.22.92","./bell-toggle.js":"./bell-toggle.js?v=2026.11.22.92","./estimate-memory.js":"./estimate-memory.js?v=2026.11.22.92","./time-state.js":"./time-state.js?v=2026.11.22.92","./scenario.js":"./scenario.js?v=2026.11.22.92","./screenshot-ocr.js":"./screenshot-ocr.js?v=2026.11.22.92","./jw-timetable.js":"./jw-timetable.js?v=2026.11.22.92","./focus.js":"./focus.js?v=2026.11.22.92","./chat-actions.js":"./chat-actions.js?v=2026.11.22.92"}}</script>
+  <script src="./koi.js?v=2026.11.22.92"></script><script src="./router.js?v=2026.11.22.92"></script><script src="./about-sky.js?v=2026.11.22.92"></script><script src="./landing.js?v=2026.11.22.92"></script><script src="./api-config.js?v=2026.11.22.92"></script><script type="module" src="./agent.js?v=2026.11.22.92"></script>
 </body>
 </html>
