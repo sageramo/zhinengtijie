@@ -3812,26 +3812,14 @@ html[data-current="items"] .subpage-bar { margin: 0; }
 
 .page-items .import-side { display: grid; gap: 12px; margin-top: 20px; padding-top: 16px; border-top: 1px dashed rgba(30, 42, 53, .14); }
 
-/* 画卷顶栏收窄 + 更多菜单 + 底部卷页 + 翻书动画 */
-.cal-more { position: relative; }
-.cal-more > summary {
-  list-style: none; min-height: 32px; padding: 3px 10px; border-radius: 999px;
-  border: 1px solid rgba(30, 42, 53, .14); background: rgba(255, 255, 255, .82);
-  color: #1e2a35; font-family: var(--font-ui); font-size: .85rem; font-weight: 700;
-  display: inline-flex; align-items: center; justify-content: center; cursor: pointer;
+/* 画卷顶栏：桌面直接显示「卷起画卷」与「解析画卷」，移动端附列表切换 */
+@media (min-width: 761px) { .cal-view-btn { display: none; } }
+.cal-ref-btn {
+  min-height: 30px; padding: 3px 10px; border-radius: 999px;
+  border: 1px dashed rgba(168, 55, 44, .32); background: rgba(251, 246, 236, .9);
+  color: #8c2d23; font-size: .76rem; font-family: var(--font-ui); cursor: pointer;
 }
-.cal-more > summary::-webkit-details-marker { display: none; }
-.cal-more[open] > summary { background: #1e2a35; color: #f8f4ec; border-color: #1e2a35; }
-.cal-more-menu {
-  position: absolute; right: 0; top: calc(100% + 6px); z-index: 25; min-width: 168px; padding: 6px;
-  border-radius: 12px; background: #fffdf9; border: 1px solid rgba(30, 42, 53, .14);
-  box-shadow: 0 16px 36px -14px rgba(19, 40, 74, .35); display: grid; gap: 3px;
-}
-.cal-more-menu button {
-  width: 100%; justify-content: flex-start; text-align: left; padding: 7px 10px; border-radius: 8px;
-  border: 0; background: none; color: #1e2a35; font-size: .8rem; font-family: var(--font-ui); cursor: pointer;
-}
-.cal-more-menu button:hover { background: rgba(30, 42, 53, .06); }
+.cal-ref-btn:hover { background: rgba(168, 55, 44, .12); }
 
 .cal-folio {
   display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 10px 18px;

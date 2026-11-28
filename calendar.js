@@ -449,14 +449,9 @@ export function calendarMarkup({ result, start, now, loading = false, error = ''
       <span class="cr-meta">最长连续 ${minutesLabel(remaining.longest)} · 本周留白共 ${minutesLabel(freeMinutes)}</span>
       <i class="cr-bar" aria-hidden="true"><b style="width:${share.toFixed(1)}%"></b></i>
     </div>` : '';
-  const moreItems = [
-    result && !rolled && !isXieyi ? `<button type="button" data-cal-view aria-pressed="${listView}">${listView ? '切回周网格' : '切到列表视图'}</button>` : '',
-    !rolled && (result || isXieyi) ? '<button type="button" data-scroll-roll>查看本周封面</button>' : '',
-    futureRef ? `<button type="button" data-use-now>当前自 ${escape(futureRef)} 起排 · 改用现在</button>` : '',
-  ].filter(Boolean).join('');
-  const moreMenu = moreItems
-    ? `<details class="cal-more${futureRef ? ' has-ref' : ''}"><summary aria-label="更多画卷选项" title="${futureRef ? `当前自 ${escape(futureRef)} 起排，可在此改回现在` : '更多画卷选项'}">⋯</summary><div class="cal-more-pop">${moreItems}</div></details>`
-    : '';
+  const refBtn = futureRef ? `<button type="button" class="cal-ref-btn" data-use-now>自 ${escape(futureRef)} 起排 · 改用现在</button>` : '';
+  const viewBtn = result && !rolled && !isXieyi ? `<button type="button" class="cal-view-btn" data-cal-view aria-pressed="${listView}">${listView ? '周网格' : '列表'}</button>` : '';
+  const rollUpBtn = !rolled && (result || isXieyi) ? '<button type="button" class="text-button cal-roll-up" data-scroll-roll>卷起画卷</button>' : '';
   const coverEyebrow = isXieyi ? (xieyiCoverMeta ? `四时烟水 · ${escape(xieyiCoverMeta)}` : '四时烟水') : '本周山水';
   const coverTitle = isXieyi ? '竹影随心，烟波留白' : '峰高是忙，云白是留白';
   const coverLegend = isXieyi
@@ -490,7 +485,9 @@ export function calendarMarkup({ result, start, now, loading = false, error = ''
       </div>
       ${isXieyi ? '' : remain}
       <div class="cal-bar-actions">
-        ${moreMenu}
+        ${refBtn}
+        ${viewBtn}
+        ${rollUpBtn}
         ${analyzeBtn}
       </div>
     </header>`;
