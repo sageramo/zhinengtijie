@@ -89,7 +89,6 @@ const hasSeenCoverToday = () => {
 const initialCoverRolled = () => !isPhoneViewport() && !hasSeenCoverToday();
 let rolledByMode = { gongbi: initialCoverRolled(), xieyi: initialCoverRolled() };
 const isScrollRolled = () => rolledByMode[xieyiState.mode];
-let poolFilter = 'all';
 let openLogDate = '';
 let scrollFlipDir = '';
 let calendarAnalyzed = false; // 画卷 defaults to full-width solo view; click 解析 to open the left analysis panel
@@ -183,6 +182,15 @@ function renderRollFaces() {
   const ranges = windows ? [...new Set(windows.filter(Boolean).map(window => `${window.start}–${window.end}`))] : [];
   const adds = snapshot.free_adjustments.length;
   set('free', [windows ? `作息 ${ranges.slice(0, 2).join('、')}${ranges.length > 2 ? ' 等' : ''}` : '<em>作息未设定，留白待书</em>', adds ? `<b>${adds}</b> 处临时调整` : '']);
+  const active = list => list.filter(item => item.status === 'active');
+  const appointments = active(snapshot.events).filter(item => item.kind === 'appointment');
+  const events = active(snapshot.events).filter(item => item.kind !== 'appointment');
+  const tasks = active(snapshot.tasks);
+  const personal = tasks.filter(isPersonal).length;
+  const pendingTasks = tasks.filter(task => task.deadline_at === null).length;
+  set('work', [`<b>${appointments.length}</b> 件约定 · <b>${personal}</b> 件个人任务 · <b>${tasks.length - personal}</b> 件截止之事`, pendingTasks ? `<em>${pendingTasks} 件待书</em>` : '']);
+  const pendingEvents = events.filter(item => !item.start_at || !item.end_at).length;
+  set('event', [`<b>${events.length}</b> 处点墨`, events.slice(0, 2).map(item => escapeHTML(item.title)).join('、'), pendingEvents ? `<em>${pendingEvents} 处时间待书</em>` : '']);
 }
 function busy(button, value, idle, working) {
   button.disabled = value;
@@ -276,7 +284,6 @@ function showOnPage(element, block = 'start') {
   if (roll) openRoll(roll.dataset.roll);
   const group = element.closest?.('[data-group]');
   if (group) { workGroup = group.dataset.group; spreadWorkGroup(workGroup); }
-  if (element.closest?.('#inkPool') && element.hidden) setPoolFilter('all');
   const editor = element.querySelector?.(':scope > .item-edit');
   if (editor) { editor.open = true; openCards.add(element.dataset.itemId); }
   const page = element.closest('[data-page]')?.dataset.page;
@@ -620,30 +627,6 @@ function eventMarkup(event) {
     <p class="field-error" data-item-error role="status"></p>
   </article>`;
 }
-function applyPoolFilter() {
-  const counts = { all: 0, timed: 0, deadline: 0, day: 0, pending: 0 };
-  for (const card of document.querySelectorAll('#inkPool [data-item-id]')) {
-    const tier = card.dataset.tier || 'pending';
-    counts.all += 1;
-    if (counts[tier] !== undefined) counts[tier] += 1;
-    card.hidden = poolFilter !== 'all' && tier !== poolFilter;
-  }
-  for (const [tier, total] of Object.entries(counts)) {
-    const el = document.querySelector(`[data-tier-count="${tier}"]`);
-    if (el) el.textContent = String(total);
-  }
-  for (const btn of document.querySelectorAll('[data-pool-filter]')) {
-    btn.setAttribute('aria-pressed', String(btn.dataset.poolFilter === poolFilter));
-  }
-  for (const group of document.querySelectorAll('#inkPool .item-group')) {
-    const hasVisible = Boolean(group.querySelector('[data-item-id]:not([hidden])'));
-    group.hidden = poolFilter !== 'all' && !hasVisible;
-  }
-}
-function setPoolFilter(filter) {
-  poolFilter = filter || 'all';
-  applyPoolFilter();
-}
 function renderItems() {
   const points = snapshot.events.filter(event => event.kind !== 'appointment');
   const appointments = snapshot.events.filter(event => event.kind === 'appointment');
@@ -651,13 +634,12 @@ function renderItems() {
   $('appointmentList').innerHTML = appointments.length ? appointments.map(eventMarkup).join('') : '<p class="empty-note">还没有约定。和别人约好的事可以加在这里。</p>';
   const personal = snapshot.tasks.filter(isPersonal);
   const deadlines = snapshot.tasks.filter(task => !isPersonal(task));
-  $('personalList').innerHTML = personal.length ? personal.map(taskMarkup).join('') : '<p class="empty-note">还没有定日任务。点“+ 定日”或在写意手卷里随笔记下。</p>';
+  $('personalList').innerHTML = personal.length ? personal.map(taskMarkup).join('') : '<p class="empty-note">还没有个人任务。点“添加个人任务”，或在日课卷里随笔记下。</p>';
   $('taskList').innerHTML = deadlines.length ? deadlines.map(taskMarkup).join('') : '<p class="empty-note">还没有截止之事。导入通知或手动添加。</p>';
   for (const [id, list] of [['eventCount', points], ['appointmentCount', appointments], ['personalCount', personal], ['deadlineCount', deadlines]]) $(id).textContent = String(list.length);
   const sizes = { appointment: appointments.length, personal: personal.length, deadline: deadlines.length };
   for (const [key, size] of Object.entries(sizes)) document.querySelector(`[data-group-count="${key}"]`)?.replaceChildren(document.createTextNode(String(size)));
   spreadWorkGroup(workGroup || ['deadline', 'personal', 'appointment'].find(key => sizes[key]) || 'deadline');
-  applyPoolFilter();
 }
 /** Spread one 落笔 group open when strips exist; inside flat 笔墨 pool all groups stay legible. */
 function spreadWorkGroup(key) {
@@ -1494,10 +1476,6 @@ $('taskSection').addEventListener('click', event => {
   spreadWorkGroup(workGroup);
   strip.closest('[data-group]').querySelector('.group-head button')?.focus({ preventScroll: true });
 });
-$('inkPool')?.addEventListener('click', event => {
-  const filterBtn = event.target.closest('[data-pool-filter]');
-  if (filterBtn) setPoolFilter(filterBtn.dataset.poolFilter);
-});
 $('addPersonal').addEventListener('click', () => {
   let next = addPersonalTask(snapshot, { day: localDate(Date.now()) });
   const created = next.tasks[next.tasks.length - 1];
@@ -1741,13 +1719,13 @@ window.SixuCalendarFlip = {
   arrows() {
     if (xieyiState.mode === 'xieyi') {
       return {
-        prev: { label: '工笔 · 时轴', flip: 'gongbi', route: 'calendar' },
+        prev: { label: '时序卷 · 精确排期', flip: 'gongbi', route: 'calendar' },
         next: null,
       };
     }
     return {
       prev: { label: '铺纸 · 底色与留白', route: 'time' },
-      next: { label: '写意 · 四时', flip: 'xieyi', route: 'calendar' },
+      next: { label: '日课卷 · 每日待办', flip: 'xieyi', route: 'calendar' },
     };
   },
   step(step) {
@@ -1834,7 +1812,7 @@ $('calendarView').addEventListener('click', event => {
     const task = snapshot.tasks.find(t => t.id === taskId);
     if (!task || !Number.isFinite(minutes)) return;
     commit(updateTask(snapshot, taskId, { estimate_minutes: minutes }));
-    tell(`已为「${task.title}」补填预计 ${minutes} 分钟，工笔时轴将自动为它落笔排期。`);
+    tell(`已为「${task.title}」补填预计 ${minutes} 分钟，已同步排入时序卷。`);
     return;
   }
   const noteToggleBtn = event.target.closest('[data-xy-note-toggle]');

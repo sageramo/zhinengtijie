@@ -452,25 +452,26 @@ export function calendarMarkup({ result, start, now, loading = false, error = ''
   const refBtn = futureRef ? `<button type="button" class="cal-ref-btn" data-use-now>自 ${escape(futureRef)} 起排 · 改用现在</button>` : '';
   const viewBtn = result && !rolled && !isXieyi ? `<button type="button" class="cal-view-btn" data-cal-view aria-pressed="${listView}">${listView ? '周网格' : '列表'}</button>` : '';
   const rollUpBtn = !rolled && (result || isXieyi) ? '<button type="button" class="text-button cal-roll-up" data-scroll-roll>卷起画卷</button>' : '';
-  const coverEyebrow = isXieyi ? (xieyiCoverMeta ? `四时烟水 · ${escape(xieyiCoverMeta)}` : '四时烟水') : '本周山水';
+  const coverEyebrow = isXieyi ? (xieyiCoverMeta ? `日课烟水 · ${escape(xieyiCoverMeta)}` : '日课烟水') : '时序山水';
   const coverTitle = isXieyi ? '竹影随心，烟波留白' : '峰高是忙，云白是留白';
   const coverLegend = isXieyi
-    ? '<ul class="cover-legend is-xieyi" aria-label="四时烟水图例"><li class="lg-bamboo">墨竹 · 本日定日事项</li><li class="lg-blossom">点朱 · 已印「成」</li><li class="lg-skiff">扁舟 · 今日所在</li><li class="lg-mist">烟波 · 无事留白</li></ul>'
+    ? '<ul class="cover-legend is-xieyi" aria-label="日课烟水图例"><li class="lg-bamboo">墨竹 · 本日定日待办</li><li class="lg-blossom">点朱 · 已印「成」</li><li class="lg-skiff">扁舟 · 今日所在</li><li class="lg-mist">烟波 · 无事留白</li></ul>'
     : `<ul class="cover-legend" aria-label="山水图例"><li class="lg-peak">近处深色的峰 · 这天排了多少</li><li class="lg-cloud">云 · 留白</li><li class="lg-dot">墨点 · 点墨</li><li class="lg-star">金星 · 截止</li><li class="lg-bleed">朱晕 · 叠墨</li><li class="lg-moon">朱日 · 今天</li><li class="lg-far">淡远山 · 远景，不计时</li>${energy.length ? '<li class="lg-glow">暖光 · 专注时段</li><li class="lg-haze">灰雾 · 精力偏低</li>' : ''}</ul>`;
+  const folioPageText = isXieyi ? '第 2 / 2 页 · 日课卷（每日待办）' : '第 1 / 2 页 · 时序卷（精确排期）';
+  const dogear = isXieyi
+    ? `<button type="button" class="page-dogear is-prev" data-scroll-flip="gongbi" aria-label="翻回上一页：时序卷（精确排期）"><i class="dogear-peel" aria-hidden="true"></i><span class="dogear-label"><small>翻回上页</small><strong>时序卷 · 精确排期</strong></span></button>`
+    : `<button type="button" class="page-dogear is-next" data-scroll-flip="xieyi" aria-label="翻至下一页：日课卷（每日待办）"><span class="dogear-label"><small>翻至下页</small><strong>日课卷 · 每日待办</strong></span><i class="dogear-peel" aria-hidden="true"></i></button>`;
   const folio = `<footer class="cal-folio" aria-label="画卷页码">
-    <div class="cal-folio-pages" role="group" aria-label="画卷翻页">
-      <button type="button" data-cal-mode="gongbi" aria-pressed="${!isXieyi}"><i aria-hidden="true"></i>工笔 · 时轴</button>
-      <span class="cal-folio-sep" aria-hidden="true">·</span>
-      <button type="button" data-cal-mode="xieyi" aria-pressed="${isXieyi}"><i aria-hidden="true"></i>写意 · 四时</button>
-    </div>
+    <span class="cal-folio-index">${folioPageText}</span>
     ${weekLedgerBrief ? `<span class="cal-folio-ledger">${escape(weekLedgerBrief)}</span>` : ''}
+    ${dogear}
   </footer>`;
   const cover = `<section class="scroll-cover" aria-labelledby="coverHeading">
       <header class="cover-head"><p class="cal-eyebrow">${coverEyebrow}</p><h3 id="coverHeading">${coverTitle}</h3></header>
       <div class="cover-painting">${activePainting || (error ? `<p class="cover-wait is-error" role="status">${escape(error)}</p>` : '<p class="cover-wait">正在铺开这一周…</p>')}</div>
       ${coverLegend}
       <div class="cover-actions">
-        <button type="button" class="primary-button cover-open" data-scroll-open${!isXieyi && !result ? ' disabled' : ''}><svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><path d="M4 5v14M20 5v14M8 12h8M11 9l-3 3 3 3M13 9l3 3-3 3" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>${isXieyi ? '展开四时手卷' : '展开画卷'}</button>
+        <button type="button" class="primary-button cover-open" data-scroll-open${!isXieyi && !result ? ' disabled' : ''}><svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><path d="M4 5v14M20 5v14M8 12h8M11 9l-3 3 3 3M13 9l3 3-3 3" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>${isXieyi ? '展开日课卷' : '展开时序卷'}</button>
         <button type="button" class="cover-analyze" data-cal-analyze aria-expanded="${analyzed}">${analyzed ? '收起本周解析' : `解析画卷${weekConflicts.length ? `（${weekConflicts.length} 处叠墨）` : ''}`}</button>
       </div>
       ${folio}

@@ -152,7 +152,7 @@ test('xieyiBoardMarkup renders vertical colophon, unified day tasks with inline 
   assert.match(svg, /xy-skiff/);
   assert.match(svg, /远山志 · 梳理智能体闭环/);
   assert.match(svg, /class="ss-seal is-xieyi"/);
-  assert.match(svg, />写<\/text>/);
-  assert.match(svg, />意<\/text>/);
-  assert.match(svg, /四时烟水/);
+  assert.match(svg, />日<\/text>/);
+  assert.match(svg, />课<\/text>/);
+  assert.match(svg, /日课烟水/);
 });

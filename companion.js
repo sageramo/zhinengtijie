@@ -337,12 +337,11 @@ export function companionMarkup({
   return `<div class="cmp-card${sceneClass}${running ? ' is-running' : ''}${raining ? ' is-raining' : ''}" data-active-mode="${mode}" style="--night:${m.night};--dusk:${m.dusk}">
     <div class="cmp-backdrop" aria-hidden="true">
       <div class="cmp-scene">
-        <img class="cmp-art cmp-art-day" src="./assets/study-desk-day.webp?v=2026.11.22.93" alt="" width="1024" height="576">
-        <img class="cmp-art cmp-art-dusk" src="./assets/study-desk-dusk.webp?v=2026.11.22.93" alt="" width="1024" height="576">
-        <img class="cmp-art cmp-art-night" src="./assets/study-desk-night.webp?v=2026.11.22.93" alt="" width="1024" height="576">
+        <img class="cmp-art cmp-art-day" src="./assets/study-desk-day.webp?v=2026.11.22.94" alt="" width="1024" height="576">
+        <img class="cmp-art cmp-art-dusk" src="./assets/study-desk-dusk.webp?v=2026.11.22.94" alt="" width="1024" height="576">
+        <img class="cmp-art cmp-art-night" src="./assets/study-desk-night.webp?v=2026.11.22.94" alt="" width="1024" height="576">
       </div>
       <div class="cmp-light"></div>
-      <div class="cmp-rain"></div>
       <div class="cmp-lamp-glow"></div>
       <svg class="cmp-smoke" viewBox="0 0 60 120" fill="none">
         <path class="s1" d="M30 112 C22 88, 40 68, 28 42 C20 24, 34 12, 26 2" stroke="currentColor" stroke-width="2.1" stroke-linecap="round"/>

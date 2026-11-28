@@ -556,8 +556,8 @@ export function xieyiBoardMarkup({ state, result, start, now = Date.now(), snaps
         const toggleAttr = entry.fromTask ? `data-xy-task-toggle="${escapeHTML(entry.id)}"` : `data-xy-note-toggle="${escapeHTML(entry.id)}"`;
         const delAttr = entry.fromTask ? `data-xy-task-del="${escapeHTML(entry.id)}"` : `data-xy-note-del="${escapeHTML(entry.id)}"`;
         const ops = entry.fromTask
-          ? (entry.done ? '' : `<button type="button" class="xy-promote" data-xy-upgrade="${escapeHTML(entry.id)}:30" title="填30分用时，进工笔自动排程">30分</button><button type="button" class="xy-promote" data-xy-upgrade="${escapeHTML(entry.id)}:60" title="填1小时用时，进工笔自动排程">1小时</button>`)
-          : (entry.promotedTaskId ? '<em class="xy-promoted">已入工笔</em>' : `<button type="button" class="xy-promote" data-xy-promote="${escapeHTML(entry.id)}">入工笔</button>`);
+          ? (entry.done ? '' : `<button type="button" class="xy-promote" data-xy-upgrade="${escapeHTML(entry.id)}:30" title="填30分用时，排进时序卷">30分</button><button type="button" class="xy-promote" data-xy-upgrade="${escapeHTML(entry.id)}:60" title="填1小时用时，排进时序卷">1小时</button>`)
+          : (entry.promotedTaskId ? '<em class="xy-promoted">已入时序卷</em>' : `<button type="button" class="xy-promote" data-xy-promote="${escapeHTML(entry.id)}">入时序卷</button>`);
         return `<li class="xy-note${entry.done ? ' is-done' : ''}">
           <button type="button" class="xy-note-check" ${toggleAttr} aria-pressed="${entry.done}"><i class="xy-seal">${entry.done ? '成' : ''}</i><span>${escapeHTML(entry.title)}</span></button>
           <span class="xy-note-ops">${ops}<button type="button" class="xy-del" ${delAttr} aria-label="删去此项">×</button></span>
@@ -622,6 +622,6 @@ export function xieyiBoardMarkup({ state, result, start, now = Date.now(), snaps
 
   return `<div class="xy-layout">
     ${colophon}
-    <div class="xy-grid" aria-label="写意四时手卷">${dayColumns}</div>
+    <div class="xy-grid" aria-label="日课卷 · 每日待办">${dayColumns}</div>
   </div>`;
 }

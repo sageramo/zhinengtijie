@@ -150,11 +150,10 @@ test('tabs start at 研墨 (with bottom-left 笔墨 entry linking to #/items), a
     [['import', '研墨', '通知与笔墨'], ['time', '铺纸', '底色与留白'], ['calendar', '画卷', '一周日历']]);
   assert.equal(app.find('#inkRail .rail-foot #inkItemsEntry').getAttribute('href'), '#/items');
   assert.equal(app.find('[data-page="items"] .subpage-back').getAttribute('href'), '#/import');
-  assert.ok(app.find('[data-page="items"] #inkPool'), '#inkPool lives on #/items subpage');
-  assert.deepEqual(app.all('#inkPool [data-pool-filter]').map(b => b.dataset.poolFilter), ['all', 'timed', 'deadline', 'day', 'pending']);
+  assert.ok(app.find('[data-page="items"] [data-roll="work"]') && app.find('[data-page="items"] [data-roll="event"]'), '笔墨 renders double-scroll layout matching 铺纸');
   assert.ok(app.find('#addPersonal') && app.find('#addTask') && app.find('#addEvent') && app.find('#addAppointment'));
   assert.equal(app.find('.aux-nav a[href="#/"]').textContent, '项目介绍');
-  assert.deepEqual(app.all('.next-step').map(link => link.getAttribute('href')).sort(), ['#/calendar', '#/time']);
+  assert.deepEqual(app.all('.next-step').map(link => link.getAttribute('href')).sort(), ['#/calendar', '#/calendar', '#/time']);
   assert.deepEqual(app.all('.feature-card').map(card => card.getAttribute('href')), ['#/import', '#/time', '#/calendar']);
   assert.equal(app.find('.hero-actions .cta').getAttribute('href'), '#/import');
 });
@@ -202,14 +201,11 @@ test('the roadshow case starts at the roadshow (11-24 14:15) and puts the 摄影
   assert.equal(app.calls.some(call => call.path === '/api/v3/extract'), false);
 });
 
-test('笔墨 filters items by precision tier, counts them, and opens card editors when needed', async t => {
+test('笔墨 keeps tier badge metadata, opens card editors when needed, and spreads 落笔 groups', async t => {
   const app = await imported(t);
   assert.equal(app.find('#eventCount').textContent, '1');
   assert.equal(app.find('#deadlineCount').textContent, '2');
   assert.equal(app.find('#appointmentCount').textContent, '0');
-  assert.equal(app.find('[data-tier-count="all"]').textContent, '3');
-  assert.equal(app.find('[data-tier-count="timed"]').textContent, '1');
-  assert.equal(app.find('[data-tier-count="deadline"]').textContent, '2');
   const [first] = app.stored().tasks;
   let card = app.find(`#item-${first.id}`);
   assert.ok(card.classList.contains('is-deadline'));
@@ -223,12 +219,6 @@ test('笔墨 filters items by precision tier, counts them, and opens card editor
   await settle();
   card = app.find(`#item-${first.id}`);
   assert.match(card.querySelector('[data-item-meta]').textContent, /预计 30 分钟/);
-
-  // Filtering by 定时 shows only the timed event
-  app.click('[data-pool-filter="timed"]');
-  assert.equal(app.find(`#item-${first.id}`).hidden, true);
-  assert.equal(app.all('#inkPool [data-item-id]:not([hidden])').length, 1);
-  app.click('[data-pool-filter="all"]');
 
   app.click('[data-tab="calendar"]');
   app.click('#inkItemsEntry');
@@ -245,16 +235,21 @@ test('笔墨 filters items by precision tier, counts them, and opens card editor
   assert.equal(app.find(`#item-${first.id}`).querySelector('.item-edit').open, true, 'an editor the user opened stays open');
 });
 
-test('笔墨 renders flat groups on #/items and clicking a block on 画卷 jumps to its card in 笔墨', async t => {
+test('落笔 spreads one group into strips on 笔墨 and clicking a block on 画卷 jumps into its roll & group', async t => {
   const app = await imported(t);
   const routes = [];
   app.window.SixuRouter = { go: r => routes.push(r) };
-  assert.equal(app.find('#deadlineCount').textContent, '2');
-  assert.equal(app.find('#taskSection').dataset.active, 'deadline', 'the group that has items marks active');
+  assert.equal(app.find('[data-group-count="deadline"]').textContent, '2');
+  assert.equal(app.find('#taskSection').dataset.active, 'deadline', 'the group that has items spreads open first');
+  assert.ok(app.find('[data-group="deadline"]').classList.contains('is-spread'));
+  app.click('[data-group-open="appointment"]');
+  assert.equal(app.find('#taskSection').dataset.active, 'appointment');
+  assert.ok(!app.find('[data-group="deadline"]').classList.contains('is-spread'));
   const [task] = app.stored().tasks;
   app.find('#calendarView').insertAdjacentHTML('beforeend', `<button type="button" data-cal-item="${task.id}" data-cal-layer="task">t</button>`);
   app.find(`#calendarView [data-cal-item="${task.id}"]`).click();
   assert.deepEqual(routes, ['items']);
+  assert.equal(app.find('#taskSection').dataset.active, 'deadline');
   assert.ok(app.find(`#item-${task.id}`).classList.contains('is-flash'));
 });
 
@@ -794,12 +789,12 @@ test('the fictional example notice is written so rules extraction can read every
   assert.doesNotMatch(text, /\d{4}-\d{2}-\d{2}\d{2}:/);
 });
 
-test('铺纸 shows two rolled cards; one unrolls at a time and 返回 rolls it up while 笔墨 stays docked on 研墨', async t => {
+test('铺纸 and 笔墨 show two rolled cards; one unrolls at a time and 返回 rolls it up', async t => {
   const app = await boot(t);
   const group = app.find('[data-roll="routine"]').closest('[data-rolls]');
   assert.match(app.find('#rollSummary-routine').textContent, /没有底色也能算/);
   assert.match(app.find('#rollSummary-free').textContent, /作息未设定/);
-  assert.ok(app.find('#inkPool'));
+  assert.match(app.find('#rollSummary-work').textContent, /0.*件约定/);
   app.click('[data-roll-open="routine"]');
   assert.equal(group.dataset.open, 'routine');
   assert.ok(app.find('[data-roll="routine"]').classList.contains('is-open'));
@@ -1219,19 +1214,21 @@ test('book-flip 画卷 (工笔 ↔ 写意), once-per-day cover, vertical 远山�
   const app = await imported(t);
   app.window.location.hash = '#/calendar';
   await settle(200);
-  // Desktop starts rolled on 工笔 本周山水 cover on first entry of the day
-  assert.ok(app.find('.scroll.is-rolled'), 'starts rolled on 工笔 cover');
+  // Desktop starts rolled on 时序卷 cover on first entry of the day
+  assert.ok(app.find('.scroll.is-rolled'), 'starts rolled on 时序卷 cover');
   assert.match(app.find('#coverHeading').textContent, /峰高是忙/);
-  assert.equal(app.window.SixuCalendarFlip.arrows().next.label, '写意 · 四时');
+  assert.equal(app.window.SixuCalendarFlip.arrows().next.label, '日课卷 · 每日待办');
+  assert.ok(app.find('.page-dogear.is-next'), 'dogear corner points to 日课卷');
 
-  // Flipping via book-flip hook / folio tab switches to 写意's own 四时烟水 cover
+  // Flipping via book-flip hook switches to 日课卷's own cover
   assert.equal(app.window.SixuCalendarFlip.step(1), true);
   await settle(80);
   assert.ok(app.find('.scroll.is-rolled.is-xieyi'), 'xieyi keeps its own rolled cover');
   assert.ok(app.find('.shanshui-xieyi'), 'xieyi renders distinct bamboo-skiff painting');
   assert.match(app.find('#coverHeading').textContent, /竹影随心/);
-  assert.equal(app.window.SixuCalendarFlip.arrows().next, null, 'no page after 写意');
-  assert.equal(app.window.SixuCalendarFlip.arrows().prev.label, '工笔 · 时轴');
+  assert.equal(app.window.SixuCalendarFlip.arrows().next, null, 'no page after 日课卷');
+  assert.equal(app.window.SixuCalendarFlip.arrows().prev.label, '时序卷 · 精确排期');
+  assert.ok(app.find('.page-dogear.is-prev'), 'dogear corner flips back to 时序卷');
 
   // Unrolling xieyi opens .xy-layout with vertical .xy-colophon + .xy-grid and records seenDay
   app.click('[data-scroll-open]');
