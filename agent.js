@@ -2927,7 +2927,7 @@ $('groupFind').addEventListener('click', async () => {
 });
 
 // ---- Examples -------------------------------------------------------------
-$('fillExample').addEventListener('click', () => {
+$('fillExample')?.addEventListener('click', () => {
   // Written the way notices are ("2026年11月7日15:00"); "2026-11-0715:00" would not be readable.
   const [year, month, date] = localDate(Date.now() + DAY).split('-').map(Number);
   const day = `${year}年${month}月${date}日`;
@@ -2936,7 +2936,7 @@ $('fillExample').addEventListener('click', () => {
   tell('已填入虚构通知，点“导入”即可。');
   $('noticeText').focus();
 });
-$('loadDemoWeek').addEventListener('click', () => {
+$('loadDemoWeek')?.addEventListener('click', () => {
   const hasData = snapshot.events.length || snapshot.tasks.length || snapshot.routines.length;
   if (hasData && !window.confirm('载入示例会替换当前清单，请先导出要保留的内容。是否继续？')) return;
   // Next week, so every time in the example lies in the future.
@@ -2985,7 +2985,7 @@ function photoClubCase() {
   next = setRoutinesConfirmed(next, true);
   return { snapshot: next, notice, monday, wednesday };
 }
-$('loadPhotoCase').addEventListener('click', () => {
+$('loadPhotoCase')?.addEventListener('click', () => {
   const hasData = snapshot.events.length || snapshot.tasks.length || snapshot.routines.length;
   if (hasData && !window.confirm('载入路演案例会替换当前清单，请先导出要保留的内容。是否继续？')) return;
   const prepared = photoClubCase();

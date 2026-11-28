@@ -150,6 +150,7 @@ test('tabs start at 研墨 (with bottom-left 笔墨 entry linking to #/items), �
     [['import', '研墨', '通知与笔墨'], ['time', '铺纸', '底色与留白'], ['calendar', '画卷', '一周日历']]);
   assert.equal(app.find('[data-nav-scroll="gongbi"]').textContent, '时序');
   assert.equal(app.find('[data-nav-scroll="xieyi"]').textContent, '待办');
+  assert.equal(app.find('.ink-suggest'), null, '试一试 suggestion list removed from 研墨');
   assert.equal(app.find('a[href="./algorithm.html"]'), null, '计算说明 removed from navigation');
   assert.equal(app.find('#inkRail .rail-foot #inkItemsEntry').getAttribute('href'), '#/items');
   assert.equal(app.find('[data-page="items"] .subpage-back').getAttribute('href'), '#/import');
@@ -185,23 +186,6 @@ test('rules import adds events and tasks at once, explains what is still undefin
   const last = app.calls.filter(item => item.path === '/api/v3/calendar').at(-1);
   assert.equal(last.body.snapshot.revision, stored.revision, 'calendar recomputed for the new list');
   assert.match(app.find("#taskList").textContent, /只标截止/);
-});
-
-test('the roadshow case starts at the roadshow (11-24 14:15) and puts the 摄影社 notice for the 25th in the box without importing it', async t => {
-  const app = await boot(t);
-  app.click('#loadPhotoCase');
-  await settle();
-  const stored = app.stored();
-  const wednesday = '2026-11-25';
-  assert.equal(stored.reference_time.slice(0, 16), '2026-11-24T14:15');
-  assert.deepEqual(stored.daily_window[2], { start: '14:00', end: '18:00' });
-  assert.deepEqual(stored.routines.find(routine => routine.title === '专业课') && [stored.routines.find(routine => routine.title === '专业课').start, stored.routines.find(routine => routine.title === '专业课').end], ['14:00', '15:00']);
-  assert.equal(stored.routines_confirmed, true);
-  assert.deepEqual([stored.events.length, stored.tasks.length], [0, 0]);
-  const [year, month, day] = wednesday.split('-').map(Number);
-  assert.equal(app.find('#noticeText').value, `【摄影社招新通知】\n${year}年${month}月${day}日14:30-15:30举行摄影社招新说明会（学活204）。\n${year}年${month}月${day}日18:00前提交社团报名表。`);
-  assert.equal(app.find('#noticeDate').value, wednesday);
-  assert.equal(app.calls.some(call => call.path === '/api/v3/extract'), false);
 });
 
 test('笔墨 keeps tier badge metadata, opens card editors when needed, and spreads 落笔 groups', async t => {
@@ -318,7 +302,8 @@ test('1.26 calibration: a capacity question is checked against the personal reco
     routes: { '/api/v3/calibrate-capacity': async body => [200, { calibration: { factor: 1.5, sample_count: 2 }, nominal_minutes: body.nominal_minutes, calibrated_minutes: 135, reserve_minutes: body.reserve_minutes,
       nominal_verdict: { fits: true, summary: '排得下' }, calibrated_verdict: { fits: false, summary: '排不下' }, optimism_risk: true }] },
   });
-  app.click('#loadDemoWeek');
+  app.click('#presetWindow');
+  app.submit('#windowForm');
   await settle();
   app.click('[data-tab="import"]');
   app.set('#noticeText', '这周再接1个半小时社团工作，留半小时休息，时间够吗？', 'input');
@@ -663,19 +648,6 @@ test('another tab saving the list stops this tab from overwriting it', async t =
   assert.match(app.find('#saveState').textContent, /尚未保存/);
 });
 
-test('the demo week fills every layer for next week and opens on that week', async t => {
-  const app = await boot(t);
-  app.click('#loadDemoWeek');
-  await settle();
-  const stored = app.stored();
-  assert.equal(stored.routines.length, 3);
-  assert.deepEqual([stored.events.length, stored.tasks.length], [2, 2]);
-  assert.deepEqual(stored.events.map(event => event.kind), ['appointment', 'temporary']);
-  assert.ok(stored.daily_window);
-  const request = app.calls.filter(call => call.path === '/api/v3/calendar').at(-1);
-  assert.ok(Date.parse(`${request.body.range.from}T00:00:00+08:00`) > Date.now(), 'demo week is in the future');
-});
-
 function ocrEngine(result) {
   const jobs = [];
   return { jobs, async createWorker(lang, oem, options) {
@@ -782,16 +754,6 @@ test('pasting an image recognises it; pasting text behaves normally', async t =>
   assert.equal(app.find('#noticeText').value, '粘贴的通知');
 });
 
-test('the fictional example notice is written so rules extraction can read every time', async t => {
-  const posted = [];
-  const app = await boot(t, { routes: { '/api/v3/extract': async body => { posted.push(body); return [200, structuredClone(API.extract)]; } } });
-  app.click('#fillExample');
-  const text = app.find('#noticeText').value;
-  assert.match(text, /\d{4}年\d{1,2}月\d{1,2}日15:00前完成讲座报名/);
-  assert.match(text, /\d{4}年\d{1,2}月\d{1,2}日18:00-20:00举行/);
-  assert.doesNotMatch(text, /\d{4}-\d{2}-\d{2}\d{2}:/);
-});
-
 test('铺纸 and 笔墨 show two rolled cards; one unrolls at a time and 返回 rolls it up', async t => {
   const app = await boot(t);
   const group = app.find('[data-roll="routine"]').closest('[data-rolls]');
@@ -808,7 +770,7 @@ test('铺纸 and 笔墨 show two rolled cards; one unrolls at a time and 返回 
 
 test('messages float and fade on their own; a click dismisses them', async t => {
   const app = await boot(t);
-  app.click('#fillExample');
+  app.submit('#noticeForm');
   app.find('#appMessage').hidden = false;
   app.find('#appMessage').textContent = '提示';
   app.click('#appMessage');
@@ -968,8 +930,9 @@ test('submitting a notice clears hidden #noticeDate so subsequent relative remin
     },
   };
   const app = await boot(t, { routes });
-  app.click('#loadPhotoCase');
-  assert.ok(app.find('#noticeDate').value, 'photo case pre-fills #noticeDate for its notice');
+  app.find('#noticeDate').value = '2026-11-25';
+  app.find('#noticeText').value = '【摄影社招新通知】2026年11月25日下午开会';
+  assert.ok(app.find('#noticeDate').value, 'hidden #noticeDate pre-filled before submission');
   app.submit('#noticeForm');
   await settle();
   assert.equal(app.find('#noticeDate').value, '', 'hidden #noticeDate must reset after submission');
@@ -990,7 +953,8 @@ test('1.31 several activities in one question go to the planner, and a fitting p
     health: { capabilities: [...CAPABILITIES, 'capacity_plan_v1'] },
     routes: { '/api/v3/capacity/plan': async () => [200, plan] },
   });
-  app.click('#loadDemoWeek');
+  app.click('#presetWindow');
+  app.submit('#windowForm');
   await settle();
   app.click('[data-tab="import"]');
   app.set('#noticeText', '这周末出去玩半天、写3小时作业，排得开吗', 'input');

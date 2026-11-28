@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="description" content="把校园通知整理成可核对的事项，用真实空闲生成经过校验的个人安排。">
-  <meta name="sixu-ui-version" content="2026.11.22.97">
+  <meta name="sixu-ui-version" content="2026.11.22.98">
   <title>司序 Marshal · 知所先后</title>
   <link rel="icon" href="./assets/sixu-mark.svg" type="image/svg+xml">
   <link rel="manifest" href="./manifest.webmanifest">
@@ -12,9 +12,9 @@
   <link rel="apple-touch-icon" href="./assets/icon-192.png">
   <script>{ const h = location.hash; document.documentElement.dataset.current = h.startsWith('#/') && ['import', 'items', 'time', 'calendar', 'review', 'plan'].includes(h.slice(2).split('?')[0]) ? ({ review: 'items', plan: 'calendar' }[h.slice(2).split('?')[0]] || h.slice(2).split('?')[0]) : 'home'; if (document.documentElement.dataset.current === 'home' && !matchMedia('(prefers-reduced-motion: reduce)').matches) document.documentElement.classList.add('intro'); }</script>
   <link rel="preload" as="image" href="./assets/hero-poster.webp">
-  <link rel="stylesheet" href="./agent.css?v=2026.11.22.97">
+  <link rel="stylesheet" href="./agent.css?v=2026.11.22.98">
   <!-- The workbench's whole module graph at once: without this the browser finds it four imports deep, one round trip per level. -->
-  <link rel="modulepreload" href="./agent.js?v=2026.11.22.97"><link rel="modulepreload" href="./task-state.js?v=2026.11.22.97"><link rel="modulepreload" href="./snapshot-store.js?v=2026.11.22.97"><link rel="modulepreload" href="./vault.js?v=2026.11.22.97"><link rel="modulepreload" href="./xieyi-scroll.js?v=2026.11.22.97"><link rel="modulepreload" href="./companion.js?v=2026.11.22.97"><link rel="modulepreload" href="./agenda.js?v=2026.11.22.97"><link rel="modulepreload" href="./calendar.js?v=2026.11.22.97"><link rel="modulepreload" href="./shanshui.js?v=2026.11.22.97"><link rel="modulepreload" href="./reminders.js?v=2026.11.22.97"><link rel="modulepreload" href="./bell-toggle.js?v=2026.11.22.97"><link rel="modulepreload" href="./estimate-memory.js?v=2026.11.22.97"><link rel="modulepreload" href="./screenshot-ocr.js?v=2026.11.22.97"><link rel="modulepreload" href="./chat-actions.js?v=2026.11.22.97"><link rel="modulepreload" href="./focus.js?v=2026.11.22.97"><link rel="modulepreload" href="./jw-timetable.js?v=2026.11.22.97"><link rel="modulepreload" href="./time-state.js?v=2026.11.22.97">
+  <link rel="modulepreload" href="./agent.js?v=2026.11.22.98"><link rel="modulepreload" href="./task-state.js?v=2026.11.22.98"><link rel="modulepreload" href="./snapshot-store.js?v=2026.11.22.98"><link rel="modulepreload" href="./vault.js?v=2026.11.22.98"><link rel="modulepreload" href="./xieyi-scroll.js?v=2026.11.22.98"><link rel="modulepreload" href="./companion.js?v=2026.11.22.98"><link rel="modulepreload" href="./agenda.js?v=2026.11.22.98"><link rel="modulepreload" href="./calendar.js?v=2026.11.22.98"><link rel="modulepreload" href="./shanshui.js?v=2026.11.22.98"><link rel="modulepreload" href="./reminders.js?v=2026.11.22.98"><link rel="modulepreload" href="./bell-toggle.js?v=2026.11.22.98"><link rel="modulepreload" href="./estimate-memory.js?v=2026.11.22.98"><link rel="modulepreload" href="./screenshot-ocr.js?v=2026.11.22.98"><link rel="modulepreload" href="./chat-actions.js?v=2026.11.22.98"><link rel="modulepreload" href="./focus.js?v=2026.11.22.98"><link rel="modulepreload" href="./jw-timetable.js?v=2026.11.22.98"><link rel="modulepreload" href="./time-state.js?v=2026.11.22.98">
 </head>
 <body>
   <div class="intro" id="intro" aria-hidden="true">
@@ -121,14 +121,6 @@
               </ol>
             </div>
           </header>
-          <div class="ink-suggest" role="group" aria-labelledby="inkSuggestLabel">
-            <p class="ink-suggest-label" id="inkSuggestLabel">试一试</p>
-            <button type="button" class="suggest is-personal" data-suggest="提醒我今天晚上9点前交实验报告"><i aria-hidden="true"></i><b>记一件事</b><span>提醒我今晚 9 点前交实验报告</span></button>
-            <button type="button" class="suggest is-capacity" data-suggest="这周再接4小时的社团工作，留6小时休息，时间够吗？"><i aria-hidden="true"></i><b>承诺前试算</b><span>再接 4 小时社团工作，留 6 小时休息</span></button>
-            <button type="button" class="suggest is-notice" id="fillExample"><i aria-hidden="true"></i><b>粘贴一条通知</b><span>填入一份虚构的讲座通知</span></button>
-            <button type="button" class="suggest is-week" id="loadDemoWeek"><i aria-hidden="true"></i><b>看示例一周</b><span>带叠墨、待书与约定的下周</span></button>
-            <button type="button" class="suggest is-case" id="loadPhotoCase"><i aria-hidden="true"></i><b>路演案例</b><span>摄影社招新：说明会撞上专业课</span></button>
-          </div>
           <div class="ink-thread" id="inkThread" aria-label="研墨记录"><div class="import-summary" id="importSummary" role="status" hidden></div></div>
           </div>
           <form id="noticeForm" class="ink-composer" novalidate>
@@ -310,7 +302,7 @@
         <p class="field-help" id="persistStatus" role="status">浏览器防清理保护：检查中…</p>
       </section>
       <p class="field-help">导出文件包含原文与个人安排，请妥善保存。</p>
-      <p class="field-help" id="uiVersion">界面版本 2026.11.22.97</p>
+      <p class="field-help" id="uiVersion">界面版本 2026.11.22.98</p>
     </details>
     <footer class="page-footer"><span>以确认后的信息计算，把取舍留给你。</span></footer>
   </main>
@@ -320,7 +312,7 @@
   <div class="access-ask" id="accessAsk" role="dialog" aria-modal="true" aria-labelledby="accessTitle" hidden><form class="access-card" id="accessForm"><h2 id="accessTitle">访问口令</h2><p class="field-help" id="accessHint"></p><label for="accessCode">口令</label><input id="accessCode" type="password" autocomplete="off" maxlength="200" required><div class="inline-actions"><button type="submit" class="primary-button">确定</button><button type="button" class="text-button" id="accessCancel">取消</button></div></form></div>
   <div class="route-veil" id="routeVeil" aria-hidden="true"><i class="ink ink-1"></i><i class="ink ink-2"></i><i class="ink ink-3"></i><svg class="veil-mark" viewBox="0 0 100 100"><path class="mark-ring" d="M22 86V28H30.56L50 63.64L69.44 28H78V86H70V43.69L54.56 72H45.44L30 43.69V86Z" fill="currentColor"/><g class="veil-needle"><path d="M50 14L53.2 40.4H46.8Z" fill="currentColor"/><path d="M46.8 40.4L50 62L53.2 40.4" fill="none" stroke="currentColor" stroke-width="1.8"/></g></svg><p class="veil-word"><span>司序</span><span>知所先后</span></p></div>
   <noscript>此页面需要启用JavaScript才能编辑和计算任务。</noscript>
-  <script type="importmap">{"imports":{"./task-state.js":"./task-state.js?v=2026.11.22.97","./snapshot-store.js":"./snapshot-store.js?v=2026.11.22.97","./vault.js":"./vault.js?v=2026.11.22.97","./xieyi-scroll.js":"./xieyi-scroll.js?v=2026.11.22.97","./companion.js":"./companion.js?v=2026.11.22.97","./model-candidates.js":"./model-candidates.js?v=2026.11.22.97","./time-review.js":"./time-review.js?v=2026.11.22.97","./planning-result.js":"./planning-result.js?v=2026.11.22.97","./agenda.js":"./agenda.js?v=2026.11.22.97","./calendar.js":"./calendar.js?v=2026.11.22.97","./shanshui.js":"./shanshui.js?v=2026.11.22.97","./reminders.js":"./reminders.js?v=2026.11.22.97","./bell-toggle.js":"./bell-toggle.js?v=2026.11.22.97","./estimate-memory.js":"./estimate-memory.js?v=2026.11.22.97","./time-state.js":"./time-state.js?v=2026.11.22.97","./scenario.js":"./scenario.js?v=2026.11.22.97","./screenshot-ocr.js":"./screenshot-ocr.js?v=2026.11.22.97","./jw-timetable.js":"./jw-timetable.js?v=2026.11.22.97","./focus.js":"./focus.js?v=2026.11.22.97","./chat-actions.js":"./chat-actions.js?v=2026.11.22.97"}}</script>
-  <script src="./koi.js?v=2026.11.22.97"></script><script src="./router.js?v=2026.11.22.97"></script><script src="./about-sky.js?v=2026.11.22.97"></script><script src="./landing.js?v=2026.11.22.97"></script><script src="./api-config.js?v=2026.11.22.97"></script><script type="module" src="./agent.js?v=2026.11.22.97"></script>
+  <script type="importmap">{"imports":{"./task-state.js":"./task-state.js?v=2026.11.22.98","./snapshot-store.js":"./snapshot-store.js?v=2026.11.22.98","./vault.js":"./vault.js?v=2026.11.22.98","./xieyi-scroll.js":"./xieyi-scroll.js?v=2026.11.22.98","./companion.js":"./companion.js?v=2026.11.22.98","./model-candidates.js":"./model-candidates.js?v=2026.11.22.98","./time-review.js":"./time-review.js?v=2026.11.22.98","./planning-result.js":"./planning-result.js?v=2026.11.22.98","./agenda.js":"./agenda.js?v=2026.11.22.98","./calendar.js":"./calendar.js?v=2026.11.22.98","./shanshui.js":"./shanshui.js?v=2026.11.22.98","./reminders.js":"./reminders.js?v=2026.11.22.98","./bell-toggle.js":"./bell-toggle.js?v=2026.11.22.98","./estimate-memory.js":"./estimate-memory.js?v=2026.11.22.98","./time-state.js":"./time-state.js?v=2026.11.22.98","./scenario.js":"./scenario.js?v=2026.11.22.98","./screenshot-ocr.js":"./screenshot-ocr.js?v=2026.11.22.98","./jw-timetable.js":"./jw-timetable.js?v=2026.11.22.98","./focus.js":"./focus.js?v=2026.11.22.98","./chat-actions.js":"./chat-actions.js?v=2026.11.22.98"}}</script>
+  <script src="./koi.js?v=2026.11.22.98"></script><script src="./router.js?v=2026.11.22.98"></script><script src="./about-sky.js?v=2026.11.22.98"></script><script src="./landing.js?v=2026.11.22.98"></script><script src="./api-config.js?v=2026.11.22.98"></script><script type="module" src="./agent.js?v=2026.11.22.98"></script>
 </body>
 </html>
