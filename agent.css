@@ -3277,11 +3277,35 @@ html[data-current="calendar"] [data-app]::before {
 .cal-mode-switch button[aria-pressed="true"] {
   background: #1e2a35; color: #f8f4ec; font-weight: 600;
 }
-.scroll.is-xieyi .cover-head .cal-eyebrow { font-family: var(--font-ui); font-weight: 600; letter-spacing: .16em; }
-.scroll.is-xieyi .cover-head h3 { font-family: var(--font-editorial); }
+.scroll.is-xieyi .cover-head .cal-eyebrow { font-family: var(--font-ui); font-weight: 600; letter-spacing: .16em; color: #35524a; }
+.scroll.is-xieyi .cover-head h3 { font-family: var(--font-editorial); color: #20332d; }
+.scroll.is-xieyi .cover-painting { border-color: rgba(47, 79, 69, .2); }
 .scroll.is-xieyi .cover-legend { font-family: var(--font-ui); }
-.scroll.is-xieyi .cover-open, .scroll.is-xieyi .cover-analyze { font-family: var(--font-ui); }
+.scroll.is-xieyi .cover-open { font-family: var(--font-ui); background: #2f4f45; border-color: #2f4f45; color: #f8f4ec; }
+.scroll.is-xieyi .cover-open:hover { background: #223b33; border-color: #223b33; }
+.scroll.is-xieyi .cover-analyze { font-family: var(--font-ui); }
 .ss-seal.is-xieyi text { font-family: var(--font-editorial); }
+.cover-legend.is-xieyi .lg-bamboo::before { background: #2f4f45; border-radius: 999px 2px 999px 2px; transform: rotate(-18deg); }
+.cover-legend.is-xieyi .lg-blossom::before { background: #b53b2e; border-radius: 50%; box-shadow: 0 0 0 3px rgba(231, 164, 149, .55); }
+.cover-legend.is-xieyi .lg-skiff::before { width: 16px; height: 5px; border-radius: 0 0 8px 8px; background: #2c3e44; }
+.cover-legend.is-xieyi .lg-mist::before { width: 16px; height: 7px; border-radius: 999px; background: rgba(135, 160, 149, .55); }
+.shanshui-xieyi .xy-mist-pool { fill: #d7e1d9; opacity: .55; }
+.shanshui-xieyi .xy-river { fill: none; stroke: rgba(95, 121, 114, .34); stroke-width: 1.4; stroke-linecap: round; }
+.shanshui-xieyi .xy-ripple { fill: none; stroke: rgba(95, 121, 114, .42); stroke-width: 1.2; stroke-linecap: round; }
+.shanshui-xieyi .xy-bamboo-culm { fill: none; stroke: #2f4f45; stroke-width: 2.3; stroke-linecap: round; }
+.shanshui-xieyi .xy-bamboo-sub { fill: none; stroke: #648276; stroke-width: 1.5; stroke-linecap: round; opacity: .78; }
+.shanshui-xieyi .xy-bamboo-node { stroke: #1e352e; stroke-width: 1.5; stroke-linecap: round; }
+.shanshui-xieyi .xy-leaf path { fill: #2f4f45; opacity: .88; }
+.shanshui-xieyi .xy-leaf.is-crown path { opacity: .92; }
+.shanshui-xieyi .xy-blossom-halo { fill: rgba(231, 164, 149, .55); }
+.shanshui-xieyi .xy-blossom-core { fill: #b53b2e; }
+.shanshui-xieyi .xy-moon-glow { fill: rgba(233, 211, 156, .52); }
+.shanshui-xieyi .xy-moon-disc { fill: #dfbe72; opacity: .88; }
+.shanshui-xieyi .xy-skiff-hull { fill: #2c3e44; }
+.shanshui-xieyi .xy-skiff-canopy { fill: #5e746d; }
+.shanshui-xieyi .xy-skiff-wake { fill: none; stroke: rgba(74, 96, 118, .42); stroke-width: 1.2; stroke-linecap: round; }
+.shanshui-xieyi .xy-inscribe { font-family: var(--font-editorial); font-size: 13.5px; fill: #52625a; letter-spacing: .12em; }
+.shanshui-xieyi .xy-day-lbl { font-family: var(--font-editorial); }
 
 .xy-board { display: grid; gap: 18px; font-family: var(--font-ui); }
 .xy-goals {

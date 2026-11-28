@@ -1214,11 +1214,12 @@ test('xieyi independent cover & scroll state, 远山志 goals, promote-to-工笔
   assert.ok(app.find('.scroll.is-rolled'), 'starts rolled on 工笔 cover');
   assert.match(app.find('#coverHeading').textContent, /峰高是忙/);
 
-  // Switching to 写意 shows 写意's own 写意山水 cover instead of jumping straight into grid
+  // Switching to 写意 shows 写意's own 四时烟水（墨竹扁舟）cover instead of jumping straight into grid
   app.click('[data-cal-mode="xieyi"]');
   await settle(80);
   assert.ok(app.find('.scroll.is-rolled.is-xieyi'), 'xieyi keeps its own rolled cover');
-  assert.match(app.find('#coverHeading').textContent, /峰随笔意/);
+  assert.ok(app.find('.shanshui-xieyi'), 'xieyi renders distinct bamboo-skiff painting');
+  assert.match(app.find('#coverHeading').textContent, /竹影随心/);
 
   // Unrolling xieyi opens .xy-grid without 未定作息 or stacked bottom ledger
   app.click('[data-scroll-open]');

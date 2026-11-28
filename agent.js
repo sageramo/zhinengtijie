@@ -393,12 +393,12 @@ function renderCalendar() {
   const rolled = isScrollRolled();
   const isXieyi = xieyiState.mode === 'xieyi';
   const startMs = shownWeek();
-  const xieyiPainting = isXieyi ? xieyiShanshuiMarkup({ state: xieyiState, start: startMs, now: nowMs, id: rolled ? 'ss-xy-cover' : 'ss-xy-board' }) : '';
   const xieyiNotesInWeek = (xieyiState.notes || []).filter(n => {
     const t = Date.parse(`${n.date}T00:00:00+08:00`);
     return Number.isFinite(t) && t >= startMs && t < startMs + 7 * DAY;
   });
   const xieyiGoalsInWeek = (xieyiState.goals || []).filter(g => g.horizon === 'week' && g.periodKey === periodKeyFor('week', startMs));
+  const xieyiPainting = isXieyi ? xieyiShanshuiMarkup({ state: xieyiState, start: startMs, now: nowMs, id: rolled ? 'ss-xy-cover' : 'ss-xy-board', weekGoals: xieyiGoalsInWeek.map(g => g.title) }) : '';
   const xieyiCoverMeta = [xieyiGoalsInWeek.length ? `${xieyiGoalsInWeek.length} 条周志` : '', xieyiNotesInWeek.length ? `${xieyiNotesInWeek.length} 笔四时` : ''].filter(Boolean).join(' · ');
   $('calendarView').innerHTML = calendarMarkup({ result: calendarResult, start: startMs, now: nowMs, loading: calendarLoading && !calendarResult, error: calendarError, undo: strategyUndo?.replan ? '' : strategyUndo?.label || '', note: strategyUndo?.note || '', changes: strategyUndo?.changes || [], focus: calendarFocus, plans: solveState, weighs, rolled, unrolling: Boolean(unrollTimer), fresh: !coverPaintedByMode[xieyiState.mode], analyzed: calendarAnalyzed, futureRef, listView: calendarListView,
     scrollMode: xieyiState.mode,

@@ -450,10 +450,10 @@ export function calendarMarkup({ result, start, now, loading = false, error = ''
       <i class="cr-bar" aria-hidden="true"><b style="width:${share.toFixed(1)}%"></b></i>
     </div>` : '';
   const clockPill = futureRef ? `<button type="button" class="cal-clock-pill" data-use-now title="安排的起点设在了未来（铺纸里的“从什么时刻开始安排”）。点这里改成从现在开始">从 ${escape(futureRef)} 开始安排 · 改用现在</button>` : '';
-  const coverEyebrow = isXieyi ? (xieyiCoverMeta ? `写意山水 · ${escape(xieyiCoverMeta)}` : '写意山水') : '本周山水';
-  const coverTitle = isXieyi ? '峰随笔意，四时留白' : '峰高是忙，云白是留白';
+  const coverEyebrow = isXieyi ? (xieyiCoverMeta ? `四时烟水 · ${escape(xieyiCoverMeta)}` : '四时烟水') : '本周山水';
+  const coverTitle = isXieyi ? '竹影随心，烟波留白' : '峰高是忙，云白是留白';
   const coverLegend = isXieyi
-    ? '<ul class="cover-legend" aria-label="写意山水图例"><li class="lg-peak">近山 · 本日四时手卷</li><li class="lg-cloud">云 · 尚未落笔</li><li class="lg-dot">墨点 · 待做一笔</li><li class="lg-star">金星 · 已印「成」</li><li class="lg-moon">朱日 · 今天</li><li class="lg-far">淡远山 · 远景</li></ul>'
+    ? '<ul class="cover-legend is-xieyi" aria-label="四时烟水图例"><li class="lg-bamboo">墨竹 · 本日四时手卷</li><li class="lg-blossom">点朱 · 已印「成」</li><li class="lg-skiff">扁舟 · 今日所在</li><li class="lg-mist">烟波 · 无事留白</li></ul>'
     : `<ul class="cover-legend" aria-label="山水图例"><li class="lg-peak">近处深色的峰 · 这天排了多少</li><li class="lg-cloud">云 · 留白</li><li class="lg-dot">墨点 · 点墨</li><li class="lg-star">金星 · 截止</li><li class="lg-bleed">朱晕 · 叠墨</li><li class="lg-moon">朱日 · 今天</li><li class="lg-far">淡远山 · 远景，不计时</li>${energy.length ? '<li class="lg-glow">暖光 · 专注时段</li><li class="lg-haze">灰雾 · 精力偏低</li>' : ''}</ul>`;
   const cover = `<section class="scroll-cover" aria-labelledby="coverHeading">
       <header class="cover-head"><p class="cal-eyebrow">${coverEyebrow}</p><h3 id="coverHeading">${coverTitle}</h3></header>

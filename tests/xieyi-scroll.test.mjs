@@ -110,9 +110,13 @@ test('xieyiBoardMarkup stays cleanly free of 未定作息 and ledger, while ledg
   assert.match(side, /xy-log-fold/);
   assert.match(side, /读控制论论文/);
 
-  const svg = xieyiShanshuiMarkup({ state, start: MONDAY, now: MONDAY + DAY });
+  const svg = xieyiShanshuiMarkup({ state, start: MONDAY, now: MONDAY + DAY, weekGoals: ['梳理智能体闭环'] });
+  assert.match(svg, /shanshui-xieyi/);
+  assert.match(svg, /xy-bamboo-culm/);
+  assert.match(svg, /xy-skiff/);
+  assert.match(svg, /远山志 · 梳理智能体闭环/);
   assert.match(svg, /class="ss-seal is-xieyi"/);
   assert.match(svg, />写<\/text>/);
   assert.match(svg, />意<\/text>/);
-  assert.match(svg, /写意山水/);
+  assert.match(svg, /四时烟水/);
 });
