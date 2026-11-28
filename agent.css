@@ -3729,6 +3729,73 @@ html[data-current="items"]:has(.rolls[data-open]) .subpage-bar { margin-top: 0; 
   [data-app] .site-header .aux-nav a { display: none; }
 }
 
+/* ==== 2026.11.22.96 导航「画卷 时序｜日课」内嵌切换 + 右侧「专注曲线」面板 ==== */
+.tab-calendar-wrap {
+  display: inline-flex; align-items: center; gap: 4px; border-radius: 10px; padding-right: 4px;
+}
+.tab-calendar-wrap.is-current { background: rgba(30, 42, 53, .05); }
+.tab-scroll-switch {
+  display: inline-flex; align-items: center; gap: 1px; padding: 2px; border-radius: 999px;
+  background: rgba(30, 42, 53, .06); font-family: var(--font-ui);
+}
+.tab-scroll-switch i { font-style: normal; font-size: .65rem; color: rgba(30, 42, 53, .28); user-select: none; }
+.tab-scroll-switch button {
+  min-height: 22px; padding: 1px 8px; border: 0; border-radius: 999px; background: transparent;
+  color: #5b636a; font-size: .72rem; font-weight: 600; cursor: pointer; line-height: 1.2;
+}
+.tab-scroll-switch button:hover { color: #1e2a35; }
+.tab-scroll-switch button[aria-pressed="true"] { background: #1e2a35; color: #f8f4ec; }
+@media (max-width: 760px) {
+  .tab-calendar-wrap { gap: 2px; }
+  .tab-scroll-switch button { padding: 1px 6px; font-size: .68rem; }
+}
+
+.cal-curve-btn {
+  display: inline-flex; align-items: center; gap: 5px; min-height: 32px; padding: 4px 12px;
+  border-radius: 999px; border: 1px solid rgba(36, 70, 92, .22);
+  background: rgba(255, 255, 255, .86); color: #24465c;
+  font-family: var(--font-ui); font-size: .78rem; font-weight: 600; cursor: pointer;
+}
+.cal-curve-btn:hover { border-color: #24465c; background: rgba(36, 70, 92, .08); }
+.cal-curve-btn.is-open { background: #24465c; color: #f8f4ec; border-color: #24465c; }
+
+.scroll-curve[hidden] { display: none; }
+.scroll.is-curve .scroll-body { grid-template-columns: minmax(0, 1fr) 332px; gap: 18px; align-items: start; }
+@media (max-width: 1120px) {
+  .scroll.is-curve .scroll-body { grid-template-columns: minmax(0, 1fr); }
+}
+.focus-curve-panel {
+  font-family: var(--font-ui); padding: 14px 15px; border-radius: 12px;
+  background: #fbf8f1; border: 1px solid rgba(30, 42, 53, .12);
+  box-shadow: 0 12px 28px -22px rgba(19, 40, 74, .4); display: grid; gap: 11px;
+}
+.fc-legend { display: flex; align-items: center; gap: 14px; font-size: .72rem; color: #5b636a; }
+.fc-legend span { display: inline-flex; align-items: center; gap: 5px; }
+.fc-legend i { display: inline-block; width: 14px; height: 2px; border-radius: 2px; }
+.fc-legend i.is-study { background: #24465c; }
+.fc-legend i.is-leisure { border-top: 2px dashed #c47a44; height: 0; }
+.fc-svg { width: 100%; height: auto; display: block; overflow: visible; }
+.fc-grid { stroke: rgba(30, 42, 53, .08); stroke-width: 1; }
+.fc-ytick, .fc-xtick { font-size: 9px; fill: #7a7368; font-family: var(--font-ui); text-anchor: middle; }
+.fc-ytick { text-anchor: end; }
+.fc-xtick.is-today { fill: #a8372c; font-weight: 700; }
+.fc-today-line { stroke: rgba(168, 55, 44, .28); stroke-width: 1; stroke-dasharray: 2.5 2.5; }
+.fc-line { fill: none; stroke-linecap: round; stroke-linejoin: round; }
+.fc-line.is-study { stroke: #24465c; stroke-width: 2.2; }
+.fc-line.is-leisure { stroke: #c47a44; stroke-width: 1.8; stroke-dasharray: 4 3; }
+.fc-dot.is-study { fill: #24465c; stroke: #fbf8f1; stroke-width: 1.5; }
+.fc-dot.is-leisure { fill: #c47a44; stroke: #fbf8f1; stroke-width: 1.2; }
+.fc-peak { font-size: 9.5px; font-weight: 700; fill: #24465c; text-anchor: middle; }
+.fc-kpis {
+  display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 6px;
+  padding-block: 8px; border-block: 1px solid rgba(30, 42, 53, .09);
+}
+.fc-kpis div { display: grid; gap: 2px; }
+.fc-kpis em { font-style: normal; font-size: .66rem; color: #6a6358; }
+.fc-kpis strong { font-family: var(--font-editorial); font-size: .86rem; color: #1e2a35; font-variant-numeric: tabular-nums; }
+.fc-kpis strong.is-study { color: #24465c; }
+.fc-kpis strong.is-leisure { color: #9c5e33; }
+
 /* ==== 2026.11.22.92 极简研墨（左下笔墨入口 + 独立全宽笔墨页）· 卡片零重叠 · 西湖案头伴读对比度 ==== */
 html[data-current="import"] [data-page="import"] {
   display: grid; grid-template-columns: 280px minmax(0, 1fr); gap: 28px; align-items: start;

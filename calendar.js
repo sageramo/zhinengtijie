@@ -337,7 +337,7 @@ export function weeklyBrief(items, start, now) {
  * inside each day column on the week's time axis, bandLegend explains them,
  * banner is the 重排卡 above the week, sideTop opens 本周解析 (full width), sideToday heads its right column, alertLabel badges the 解析画卷 button.
  */
-export function calendarMarkup({ result, start, now, loading = false, error = '', undo = '', note = '', changes = [], plans = null, weighs = {}, focus = '', rolled = false, unrolling = false, fresh = false, analyzed = true, futureRef = '', listView = false, scrollMode = 'gongbi', xieyiBoard = '', xieyiPainting = '', xieyiCoverMeta = '', weekLedgerBrief = '', band = null, ribbon = null, energy = [], bandLegend = '', banner = '', sideTop = '', sideToday = '', alertLabel = '' }) {
+export function calendarMarkup({ result, start, now, loading = false, error = '', undo = '', note = '', changes = [], plans = null, weighs = {}, focus = '', rolled = false, unrolling = false, fresh = false, analyzed = true, curveOpen = false, futureRef = '', listView = false, scrollMode = 'gongbi', xieyiBoard = '', xieyiPainting = '', xieyiCoverMeta = '', weekLedgerBrief = '', focusCurve = '', band = null, ribbon = null, energy = [], bandLegend = '', banner = '', sideTop = '', sideToday = '', alertLabel = '' }) {
   const weekConflicts = conflictsInWeek(result?.conflicts || [], start);
   const weekUndefined = undefinedInWeek(result, start);
   const items = calendarItems(result, start);
@@ -451,7 +451,8 @@ export function calendarMarkup({ result, start, now, loading = false, error = ''
     </div>` : '';
   const refBtn = futureRef ? `<button type="button" class="cal-ref-btn" data-use-now>自 ${escape(futureRef)} 起排 · 改用现在</button>` : '';
   const viewBtn = result && !rolled && !isXieyi ? `<button type="button" class="cal-view-btn" data-cal-view aria-pressed="${listView}">${listView ? '周网格' : '列表'}</button>` : '';
-  const rollUpBtn = !rolled && (result || isXieyi) ? '<button type="button" class="text-button cal-roll-up" data-scroll-roll>卷起画卷</button>' : '';
+  const rollUpBtn = !rolled && !analyzed && !curveOpen && (result || isXieyi) ? '<button type="button" class="text-button cal-roll-up" data-scroll-roll>卷起画卷</button>' : '';
+  const curveBtn = !analyzed ? `<button type="button" class="cal-curve-btn${curveOpen ? ' is-open' : ''}" data-cal-curve aria-expanded="${curveOpen}">${curveOpen ? '收起曲线' : '专注曲线'}</button>` : '';
   const coverEyebrow = isXieyi ? (xieyiCoverMeta ? `日课烟水 · ${escape(xieyiCoverMeta)}` : '日课烟水') : '时序山水';
   const coverTitle = isXieyi ? '竹影随心，烟波留白' : '峰高是忙，云白是留白';
   const coverLegend = isXieyi
@@ -489,10 +490,11 @@ export function calendarMarkup({ result, start, now, loading = false, error = ''
         ${refBtn}
         ${viewBtn}
         ${rollUpBtn}
+        ${curveBtn}
         ${analyzeBtn}
       </div>
     </header>`;
-  return `<div class="scroll${rolled ? ' is-rolled' : ''}${rolled && fresh ? ' is-fresh' : ''}${unrolling ? ' is-unrolling' : ''}${analyzed ? ' is-analyzed' : ' is-solo'}${listView ? ' is-list' : ''}${scrollMode === 'xieyi' ? ' is-xieyi' : ''}">
+  return `<div class="scroll${rolled ? ' is-rolled' : ''}${rolled && fresh ? ' is-fresh' : ''}${unrolling ? ' is-unrolling' : ''}${analyzed ? ' is-analyzed' : ' is-solo'}${!analyzed && curveOpen ? ' is-curve' : ''}${listView ? ' is-list' : ''}${scrollMode === 'xieyi' ? ' is-xieyi' : ''}">
     ${docked ? '' : bar}
     <div class="scroll-body">
       <aside class="scroll-side" aria-label="本周解析"${analyzed ? '' : ' hidden'}>
@@ -518,6 +520,7 @@ export function calendarMarkup({ result, start, now, loading = false, error = ''
         <ol class="cal-agenda">${agenda || '<li class="cal-agenda-day"><p>这一周还没有安排。</p></li>'}</ol>
         ${folio}
       </div></div>`)}
+      <aside class="scroll-curve" aria-label="本周专注曲线"${!analyzed && curveOpen ? '' : ' hidden'}>${focusCurve}</aside>
     </div>
   </div>`;
 }

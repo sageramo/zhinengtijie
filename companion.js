@@ -337,9 +337,9 @@ export function companionMarkup({
   return `<div class="cmp-card${sceneClass}${running ? ' is-running' : ''}${raining ? ' is-raining' : ''}" data-active-mode="${mode}" style="--night:${m.night};--dusk:${m.dusk}">
     <div class="cmp-backdrop" aria-hidden="true">
       <div class="cmp-scene">
-        <img class="cmp-art cmp-art-day" src="./assets/study-desk-day.webp?v=2026.11.22.95" alt="" width="1024" height="576">
-        <img class="cmp-art cmp-art-dusk" src="./assets/study-desk-dusk.webp?v=2026.11.22.95" alt="" width="1024" height="576">
-        <img class="cmp-art cmp-art-night" src="./assets/study-desk-night.webp?v=2026.11.22.95" alt="" width="1024" height="576">
+        <img class="cmp-art cmp-art-day" src="./assets/study-desk-day.webp?v=2026.11.22.96" alt="" width="1024" height="576">
+        <img class="cmp-art cmp-art-dusk" src="./assets/study-desk-dusk.webp?v=2026.11.22.96" alt="" width="1024" height="576">
+        <img class="cmp-art cmp-art-night" src="./assets/study-desk-night.webp?v=2026.11.22.96" alt="" width="1024" height="576">
       </div>
       <div class="cmp-light"></div>
       <div class="cmp-lamp-glow"></div>
@@ -384,7 +384,7 @@ export function companionMarkup({
       <p class="cmp-whisper" id="cmpWhisper">${escapeHTML(whisper)}</p>
       <div class="cmp-controls">
         <button type="button" class="cmp-primary" data-cmp-toggle>${startLabel}</button>
-        <button type="button" class="cmp-link" data-cmp-finish${elapsedSeconds > 0 || finished ? '' : ' disabled'}>${mode === 'study' ? '收香记账' : '结束记账'}</button>
+        <button type="button" class="cmp-link" data-cmp-finish${!finished && elapsedSeconds >= 60 ? '' : ' disabled'} title="${finished ? '本炷已记账，点开始或重来开启新一轮' : '专注或休歇满 1 分钟后可记账'}">${mode === 'study' ? '收香记账' : '结束记账'}</button>
         <button type="button" class="cmp-link" data-cmp-reset>重来</button>
         <span class="cmp-presets" role="group" aria-label="时长">${presets.map(min => `<button type="button" data-cmp-minutes="${min}" aria-pressed="${durationMinutes === min}">${min}</button>`).join('')}<em>分</em></span>
       </div>

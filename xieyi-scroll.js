@@ -455,6 +455,133 @@ export function weeklyLedgerBrief(state, weekStartMs) {
   return `本周 砚耕 ${minutesLabel(stats.studyMinutes)} · 闲暇 ${minutesLabel(stats.leisureMinutes)}`;
 }
 
+function smoothCurvePath(points, baseY) {
+  if (!points.length) return '';
+  let d = `M${points[0].x.toFixed(1)} ${points[0].y.toFixed(1)}`;
+  for (let i = 0; i < points.length - 1; i += 1) {
+    const p0 = points[Math.max(0, i - 1)];
+    const p1 = points[i];
+    const p2 = points[i + 1];
+    const p3 = points[Math.min(points.length - 1, i + 2)];
+    const c1x = p1.x + (p2.x - p0.x) / 6;
+    const c1y = Math.min(baseY, Math.max(8, p1.y + (p2.y - p0.y) / 6));
+    const c2x = p2.x - (p3.x - p1.x) / 6;
+    const c2y = Math.min(baseY, Math.max(8, p2.y - (p3.y - p1.y) / 6));
+    d += ` C${c1x.toFixed(1)} ${c1y.toFixed(1)} ${c2x.toFixed(1)} ${c2y.toFixed(1)} ${p2.x.toFixed(1)} ${p2.y.toFixed(1)}`;
+  }
+  return d;
+}
+
+/**
+ * 渲染画卷右侧「专注曲线」面板：七日平滑双曲线（砚耕专注实线 + 闲暇休歇虚线）、峰值摘要与快速手记。
+ */
+export function focusCurveMarkup({ state, result, start, now = Date.now(), snapshot = null } = {}) {
+  const stats = weeklyLedgerStats(state, result, start);
+  const totalLogged = stats.studyMinutes + stats.leisureMinutes;
+  const studyPct = totalLogged ? Math.round((stats.studyMinutes / totalLogged) * 100) : 0;
+  const leisurePct = totalLogged ? 100 - studyPct : 0;
+  const todayYmd = dateStr(now);
+  const defaultDate = stats.daily.some(d => d.date === todayYmd) ? todayYmd : stats.daily[0].date;
+
+  const W = 312;
+  const H = 148;
+  const PAD_L = 22;
+  const PAD_R = 16;
+  const PAD_T = 20;
+  const BASE_Y = 122;
+  const PLOT_H = BASE_Y - PAD_T;
+  const stepX = (W - PAD_L - PAD_R) / 6;
+  const maxMin = Math.max(60, ...stats.daily.map(d => Math.max(d.study, d.leisure)));
+  const yOf = val => BASE_Y - (val / maxMin) * PLOT_H;
+
+  const studyPts = stats.daily.map((d, i) => ({ x: PAD_L + i * stepX, y: yOf(d.study), v: d.study, wd: d.weekday, today: d.date === todayYmd }));
+  const leisurePts = stats.daily.map((d, i) => ({ x: PAD_L + i * stepX, y: yOf(d.leisure), v: d.leisure, wd: d.weekday }));
+  const studyLine = smoothCurvePath(studyPts, BASE_Y);
+  const studyArea = studyLine ? `${studyLine} L${studyPts.at(-1).x.toFixed(1)} ${BASE_Y} L${studyPts[0].x.toFixed(1)} ${BASE_Y} Z` : '';
+  const leisureLine = smoothCurvePath(leisurePts, BASE_Y);
+
+  const gridLines = [0, 0.5, 1].map(r => {
+    const y = (BASE_Y - r * PLOT_H).toFixed(1);
+    const val = Math.round(r * maxMin);
+    return `<line x1="${PAD_L}" y1="${y}" x2="${W - PAD_R}" y2="${y}" class="fc-grid"/>${r > 0 ? `<text x="${PAD_L - 4}" y="${Number(y) + 3}" class="fc-ytick">${val}</text>` : ''}`;
+  }).join('');
+
+  const todayIdx = stats.daily.findIndex(d => d.date === todayYmd);
+  const todayGuide = todayIdx >= 0
+    ? `<line x1="${(PAD_L + todayIdx * stepX).toFixed(1)}" y1="${PAD_T - 6}" x2="${(PAD_L + todayIdx * stepX).toFixed(1)}" y2="${BASE_Y}" class="fc-today-line"/>`
+    : '';
+
+  const peakStudy = studyPts.reduce((best, p) => (p.v > best.v ? p : best), { v: 0 });
+  const dots = studyPts.filter(p => p.v > 0).map(p =>
+    `<circle cx="${p.x.toFixed(1)}" cy="${p.y.toFixed(1)}" r="${p === peakStudy ? 4 : 3}" class="fc-dot is-study"><title>${p.wd} 砚耕 ${minutesLabel(p.v)}</title></circle>`
+  ).join('') + leisurePts.filter(p => p.v > 0).map(p =>
+    `<circle cx="${p.x.toFixed(1)}" cy="${p.y.toFixed(1)}" r="2.8" class="fc-dot is-leisure"><title>${p.wd} 闲暇 ${minutesLabel(p.v)}</title></circle>`
+  ).join('');
+  const peakLabel = peakStudy.v > 0
+    ? `<text x="${peakStudy.x.toFixed(1)}" y="${Math.max(11, peakStudy.y - 7).toFixed(1)}" class="fc-peak">${minutesLabel(peakStudy.v)}</text>`
+    : '';
+  const xLabels = stats.daily.map((d, i) =>
+    `<text x="${(PAD_L + i * stepX).toFixed(1)}" y="${H - 6}" class="fc-xtick${d.date === todayYmd ? ' is-today' : ''}">${d.weekday.replace('周', '')}</text>`
+  ).join('');
+
+  const svg = `<svg class="fc-svg" viewBox="0 0 ${W} ${H}" role="img" aria-label="本周七日专注与休歇曲线">
+    <defs><linearGradient id="fcStudyGrad" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#24465c" stop-opacity=".22"/><stop offset="1" stop-color="#24465c" stop-opacity=".01"/></linearGradient></defs>
+    ${gridLines}${todayGuide}
+    ${studyArea ? `<path d="${studyArea}" fill="url(#fcStudyGrad)"/>` : ''}
+    ${leisureLine ? `<path d="${leisureLine}" class="fc-line is-leisure"/>` : ''}
+    ${studyLine ? `<path d="${studyLine}" class="fc-line is-study"/>` : ''}
+    ${dots}${peakLabel}${xLabels}
+  </svg>`;
+
+  const peakDay = stats.daily.reduce((best, d) => (d.study > best.study ? d : best), { study: 0, weekday: '—' });
+  const activeDays = stats.daily.filter(d => d.study > 0).length || 1;
+  const avgStudy = Math.round(stats.studyMinutes / activeDays);
+  const recentLogs = stats.recentLogs.slice(0, 6);
+  const logList = recentLogs.length
+    ? `<ul class="xy-log-list">${recentLogs.map(log => `<li class="xy-log-item is-${log.kind}"><i class="xy-log-dot" aria-hidden="true"></i><span class="xy-log-title">${escapeHTML(log.title)}</span><b>${minutesLabel(log.minutes)} · ${shortDate(log.date)}</b><button type="button" class="xy-del" data-xy-log-del="${escapeHTML(log.id)}" aria-label="删去此笔记录">×</button></li>`).join('')}</ul>`
+    : '<p class="xy-empty-hint">开启「案头伴读」满 1 分钟记账或下方手记，七日专注曲线会随之起伏。</p>';
+  const activeTasks = (snapshot?.tasks || []).filter(t => t.status === 'active');
+  const taskOptions = activeTasks.length
+    ? `<select name="taskId" class="xy-log-task" aria-label="关联落笔事项（可选）"><option value="">不关联特定落笔</option>${activeTasks.map(t => `<option value="${escapeHTML(t.id)}">${escapeHTML(t.title)}${t.estimate_minutes ? `（${t.estimate_minutes}分）` : ''}</option>`).join('')}</select>`
+    : '';
+
+  return `<section class="focus-curve-panel" aria-label="专注曲线">
+    <header class="xy-ledger-head">
+      <div><p class="xy-ledger-eyebrow">七日学休</p><h3>专注曲线</h3></div>
+      ${totalLogged ? `<span class="xy-ratio-pill">专注 ${studyPct}% · 休歇 ${leisurePct}%</span>` : '<span class="xy-ratio-pill is-idle">待记</span>'}
+    </header>
+    <div class="fc-legend"><span><i class="is-study"></i>砚耕专注</span><span><i class="is-leisure"></i>闲暇休歇</span></div>
+    ${svg}
+    <div class="fc-kpis">
+      <div><em>本周砚耕</em><strong class="is-study">${minutesLabel(stats.studyMinutes)}</strong></div>
+      <div><em>本周闲暇</em><strong class="is-leisure">${minutesLabel(stats.leisureMinutes)}</strong></div>
+      <div><em>日均专注</em><strong>${stats.studyMinutes ? minutesLabel(avgStudy) : '0分'}</strong></div>
+      <div><em>峰值日</em><strong>${peakDay.study ? `${peakDay.weekday.replace('周', '周')}` : '—'}</strong></div>
+    </div>
+    ${logList}
+    <details class="xy-log-fold">
+      <summary>+ 手记一笔学休</summary>
+      <form class="xy-log-form" data-xy-log-form>
+        <div class="xy-log-row">
+          <select name="kind" aria-label="记录类型"><option value="study">砚耕（专注）</option><option value="leisure">闲暇（休歇）</option></select>
+          <input name="date" type="date" value="${defaultDate}" aria-label="日期" required>
+        </div>
+        <input name="title" type="text" maxlength="80" placeholder="做了什么（如：算法推导 / 散步听雨）">
+        <div class="xy-log-dur">
+          <div class="xy-presets" role="group" aria-label="常用时长">
+            <button type="button" data-xy-log-preset="25">25分</button>
+            <button type="button" data-xy-log-preset="45">45分</button>
+            <button type="button" data-xy-log-preset="60">1小时</button>
+          </div>
+          <label class="xy-min-input"><input name="minutes" type="number" min="1" max="720" value="45" required><span>分</span></label>
+          <button type="submit" class="primary-button xy-log-submit">记入</button>
+        </div>
+        ${taskOptions}
+      </form>
+    </details>
+  </section>`;
+}
+
 /**
  * 将统一事项池投影到写意四时格与左侧远山志的待定队列。
  */

@@ -193,6 +193,8 @@
       if (tab.dataset.tab === route || (route === 'items' && tab.dataset.tab === 'import')) { tab.setAttribute('aria-current', 'page'); tab.parentElement.scrollLeft = Math.max(0, tab.offsetLeft - (tab.parentElement.clientWidth - tab.offsetWidth) / 2); }
       else tab.removeAttribute('aria-current');
     }
+    const calWrap = document.querySelector('[data-tab-wrap="calendar"]');
+    if (calWrap) calWrap.classList.toggle('is-current', route === 'calendar');
     if (!changed) return;
     window.scrollTo(0, 0);
     if (focus) {

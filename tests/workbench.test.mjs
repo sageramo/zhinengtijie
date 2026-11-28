@@ -144,10 +144,13 @@ test('the task starter uses only the supplied excerpt, never writes back, and cl
   assert.equal(app.find('[data-starter-result]').hidden, true);
 });
 
-test('tabs start at 研墨 (with bottom-left 笔墨 entry linking to #/items), and the 3-step workbench links cleanly', async t => {
+test('tabs start at 研墨 (with bottom-left 笔墨 entry linking to #/items), 时序｜日课 sits in header, and 计算说明 is removed', async t => {
   const app = await boot(t);
   assert.deepEqual(app.all('.page-tabs a').map(tab => [tab.dataset.tab, tab.querySelector('.tab-name').textContent, tab.querySelector('.tab-sub').textContent]),
     [['import', '研墨', '通知与笔墨'], ['time', '铺纸', '底色与留白'], ['calendar', '画卷', '一周日历']]);
+  assert.equal(app.find('[data-nav-scroll="gongbi"]').textContent, '时序');
+  assert.equal(app.find('[data-nav-scroll="xieyi"]').textContent, '日课');
+  assert.equal(app.find('a[href="./algorithm.html"]'), null, '计算说明 removed from navigation');
   assert.equal(app.find('#inkRail .rail-foot #inkItemsEntry').getAttribute('href'), '#/items');
   assert.equal(app.find('[data-page="items"] .subpage-back').getAttribute('href'), '#/import');
   assert.ok(app.find('[data-page="items"] [data-roll="work"]') && app.find('[data-page="items"] [data-roll="event"]'), '笔墨 renders double-scroll layout matching 铺纸');
@@ -1245,10 +1248,21 @@ test('book-flip 画卷 (工笔 ↔ 写意), once-per-day cover, vertical 远山�
   await settle(80);
   assert.equal(app.find('.scroll.is-rolled'), null, 'same-day revisit enters scroll directly');
 
-  // Reviewing the cover manually via ⋯ menu works anytime
+  // Reviewing the cover manually works anytime, and disappears when 解析画卷 or 专注曲线 is open
+  app.click('[data-cal-analyze]');
+  await settle(40);
+  assert.equal(app.find('[data-scroll-roll]'), null, '卷起画卷 hidden while 解析画卷 is open');
+  app.click('[data-cal-analyze]');
+  await settle(40);
+  app.click('[data-cal-curve]');
+  await settle(40);
+  assert.ok(app.find('.scroll.is-curve .scroll-curve .fc-svg'), 'right-hand 专注曲线 SVG panel opens cleanly');
+  assert.equal(app.find('[data-scroll-roll]'), null, '卷起画卷 hidden while 专注曲线 is open');
+  app.click('[data-cal-curve]');
+  await settle(40);
   app.click('[data-scroll-roll]');
   await settle(60);
-  assert.ok(app.find('.scroll.is-rolled.is-xieyi'), 'manual 查看本周封面 rolls back into cover');
+  assert.ok(app.find('.scroll.is-rolled.is-xieyi'), 'manual 卷起画卷 rolls back into cover');
   app.click('[data-scroll-open]');
   await settle(60);
 
@@ -1320,7 +1334,7 @@ test('book-flip 画卷 (工笔 ↔ 写意), once-per-day cover, vertical 远山�
   assert.match(app.find('.cal-folio-ledger').textContent, /砚耕 45分 · 闲暇 30分/);
 });
 
-test('study companion modal opens with gap advice, switches 3 West Lake phases (昼/暮/夜), finishes incense, and updates folio brief', async t => {
+test('study companion modal requires >=60s to finish/log, updates 专注曲线 on 画卷, and switches 3 West Lake phases', async t => {
   const app = await imported(t);
   app.click('#openCompanion');
   await settle(60);
@@ -1338,13 +1352,26 @@ test('study companion modal opens with gap advice, switches 3 West Lake phases (
   app.click('[data-cmp-scene="night"]');
   assert.ok(app.find('.cmp-card.is-night'), 'switched cleanly to night scene');
 
+  // After only 1 second, finish/log button MUST stay disabled and NOT add fake 1-minute entries
   app.click('[data-cmp-toggle]');
   await settle(1100);
-  app.click('[data-cmp-finish]');
-  await settle(80);
-  assert.match(app.find('.cmp-settlement').textContent, /已收入学休账卷/);
+  assert.equal(app.find('[data-cmp-finish]').disabled, true, 'cannot early-log under 60s');
+  app.find('[data-cmp-finish]').click();
+  await settle(40);
+  assert.match(stage.textContent, /今日砚耕 0 分 · 今日闲暇 0 分/);
 
   app.click('[data-cmp-close]');
   assert.equal(stage.hidden, true);
-  assert.match(app.find('.cal-folio-ledger').textContent, /本周 砚耕 1分/);
+
+  // Opening 专注曲线 panel on 画卷 allows logging and draws the curve
+  app.click('[data-cal-curve]');
+  await settle(60);
+  const logForm = app.find('.scroll-curve [data-xy-log-form]');
+  logForm.querySelector('select[name="kind"]').value = 'study';
+  logForm.querySelector('input[name="minutes"]').value = '35';
+  logForm.querySelector('input[name="title"]').value = '电路实验整理';
+  logForm.dispatchEvent(new app.window.Event('submit', { bubbles: true, cancelable: true }));
+  await settle(60);
+  assert.match(app.find('.scroll-curve').textContent, /35分/);
+  assert.match(app.find('.cal-folio-ledger').textContent, /本周 砚耕 35分/);
 });

@@ -64,7 +64,10 @@ test('createSoundscape degrades safely without Web Audio and companionMarkup ren
     mode: 'study',
     resolvedScene: 'night',
     durationMinutes: 45,
-    remainingSeconds: 2700,
+    remainingSeconds: 2630,
+    elapsedSeconds: 70,
+    running: true,
+    finished: false,
     suggestion: suggestGapSession(null),
     todayStats: { study: 45, leisure: 20 },
     soundSupported: false,
@@ -77,8 +80,14 @@ test('createSoundscape degrades safely without Web Audio and companionMarkup ren
   assert.match(html, /data-cmp-scene="dusk"/);
   assert.match(html, /is-night/);
   assert.match(html, /依隙定香/);
-  assert.match(html, /45:00/);
   assert.match(html, /今日砚耕 <b>45<\/b> 分/);
   assert.match(html, /cmp-ledger-toggle/);
   assert.match(html, /cmp-ledger-drawer/);
+  assert.match(html, /data-cmp-finish[^>]*>收香记账/);
+
+  // Under 60s or already settled: finish button MUST be disabled so users cannot spam log entries
+  const tooEarly = companionMarkup({ mode: 'leisure', elapsedSeconds: 5, finished: false });
+  assert.match(tooEarly, /data-cmp-finish disabled/);
+  const alreadyDone = companionMarkup({ mode: 'leisure', elapsedSeconds: 0, finished: true });
+  assert.match(alreadyDone, /data-cmp-finish disabled/);
 });

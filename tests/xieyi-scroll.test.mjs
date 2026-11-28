@@ -8,6 +8,7 @@ import {
   addNote,
   addTimeLog,
   createXieyiState,
+  focusCurveMarkup,
   inferSlotFromText,
   itemTier,
   ledgerMarkup,
@@ -145,6 +146,12 @@ test('xieyiBoardMarkup renders vertical colophon, unified day tasks with inline 
   const side = ledgerMarkup({ state, result: fixture.result, start: MONDAY, now: MONDAY + DAY, snapshot: fixture.snapshot, compact: true });
   assert.match(side, /xy-ledger is-compact/);
   assert.match(side, /xy-log-fold/);
+
+  const curve = focusCurveMarkup({ state, result: fixture.result, start: MONDAY, now: MONDAY + DAY, snapshot: fixture.snapshot });
+  assert.match(curve, /focus-curve-panel/);
+  assert.match(curve, /fc-svg/);
+  assert.match(curve, /fc-line is-study/);
+  assert.match(curve, /读控制论论文/);
 
   const svg = xieyiShanshuiMarkup({ state: mig.xieyi, snapshot: mig.snapshot, start: MONDAY, now: MONDAY + DAY, weekGoals: ['梳理智能体闭环'] });
   assert.match(svg, /shanshui-xieyi/);

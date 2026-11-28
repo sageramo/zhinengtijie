@@ -16,7 +16,7 @@ import { parseChatAction, findTask, starterReply, nextChips, planCardMarkup, pro
 import { readFocus, writeFocus, pruneStates, setMark, setCommonWindows, addStates, removeState, parseStateSentence, draftLabel, previewRequest, confirmRequest, replanRange, lockedRests, daySegments, bandMarkup, ribbonMarkup, bandUsed, bandLegend, todayStateMarkup, replanMarkup, spanText, dayLabel, isoAt } from './focus.js';
 import { parseJwTimetable, termStartFrom } from './jw-timetable.js';
 import { checkPersistentStorage, isVaultCode, openVault, requestPersistentStorage, sealVault, supportsLocalFileSync, writeLocalBackupFile } from './vault.js';
-import { addGoal, addNote, addTimeLog, inferSlotFromText, itemTier, ledgerMarkup, markNotePromoted, migrateLegacyNotes, normalizeXieyiState, periodKeyFor, readXieyi, removeGoal, removeNote, removeTaskSlot, removeTimeLog, setGoalTab, setScrollMode, setTaskSlot, SLOT_NAMES, toggleGoal, toggleNote, weekDayItems, weeklyLedgerBrief, writeXieyi, xieyiBoardMarkup } from './xieyi-scroll.js';
+import { addGoal, addNote, addTimeLog, focusCurveMarkup, inferSlotFromText, itemTier, ledgerMarkup, markNotePromoted, migrateLegacyNotes, normalizeXieyiState, periodKeyFor, readXieyi, removeGoal, removeNote, removeTaskSlot, removeTimeLog, setGoalTab, setScrollMode, setTaskSlot, SLOT_NAMES, toggleGoal, toggleNote, weekDayItems, weeklyLedgerBrief, writeXieyi, xieyiBoardMarkup } from './xieyi-scroll.js';
 import { COMPANION_PRESETS, companionMarkup, companionWhisper, createSoundscape, formatClock, resolveScene, sceneMix, suggestGapSession } from './companion.js';
 
 /*
@@ -92,6 +92,7 @@ const isScrollRolled = () => rolledByMode[xieyiState.mode];
 let openLogDate = '';
 let scrollFlipDir = '';
 let calendarAnalyzed = false; // 画卷 defaults to full-width solo view; click 解析 to open the left analysis panel
+let calendarCurveOpen = false;
 let calendarListView = false; // Phones default to the WakeUp-style 7-column week grid; toggle for agenda list
 let focusSettings = pruneStates(readFocus(storage), Date.now()); // 专注时段、精力状态与任务标记 (focus.js), this browser only
 let replanState = null; // the 重排卡: { loading, draft } | { error } | { preview, draft, body, range, revision, chosen } | { applied, label, starter }
@@ -422,12 +423,13 @@ function renderCalendar() {
   const xieyiGoalsInWeek = (xieyiState.goals || []).filter(g => g.horizon === 'week' && g.periodKey === periodKeyFor('week', startMs));
   const xieyiPainting = isXieyi ? xieyiShanshuiMarkup({ state: xieyiState, snapshot, start: startMs, now: nowMs, id: rolled ? 'ss-xy-cover' : 'ss-xy-board', weekGoals: xieyiGoalsInWeek.map(g => g.title) }) : '';
   const xieyiCoverMeta = [xieyiGoalsInWeek.length ? `${xieyiGoalsInWeek.length} 条周志` : '', xieyiCount ? `${xieyiCount} 笔定日` : ''].filter(Boolean).join(' · ');
-  $('calendarView').innerHTML = calendarMarkup({ result: calendarResult, start: startMs, now: nowMs, loading: calendarLoading && !calendarResult, error: calendarError, undo: strategyUndo?.replan ? '' : strategyUndo?.label || '', note: strategyUndo?.note || '', changes: strategyUndo?.changes || [], focus: calendarFocus, plans: solveState, weighs, rolled, unrolling: Boolean(unrollTimer), fresh: !coverPaintedByMode[xieyiState.mode], analyzed: calendarAnalyzed, futureRef, listView: calendarListView,
+  $('calendarView').innerHTML = calendarMarkup({ result: calendarResult, start: startMs, now: nowMs, loading: calendarLoading && !calendarResult, error: calendarError, undo: strategyUndo?.replan ? '' : strategyUndo?.label || '', note: strategyUndo?.note || '', changes: strategyUndo?.changes || [], focus: calendarFocus, plans: solveState, weighs, rolled, unrolling: Boolean(unrollTimer), fresh: !coverPaintedByMode[xieyiState.mode], analyzed: calendarAnalyzed, curveOpen: calendarCurveOpen, futureRef, listView: calendarListView,
     scrollMode: xieyiState.mode,
     xieyiBoard: isXieyi ? xieyiBoardMarkup({ state: xieyiState, result: calendarResult, start: startMs, now: nowMs, snapshot, openLogDate }) : '',
     xieyiPainting,
     xieyiCoverMeta,
     weekLedgerBrief: weeklyLedgerBrief(xieyiState, startMs),
+    focusCurve: focusCurveMarkup({ state: xieyiState, result: calendarResult, start: startMs, now: nowMs, snapshot }),
     band: showBand ? (dayStart, first, last) => bandMarkup(focusSettings, snapshot, dayStart, first, last, pending) : null,
     ribbon: showBand ? (dayStart, first, last) => ribbonMarkup(focusSettings, snapshot, dayStart, first, last, pending) : null,
     energy: showBand ? Array.from({ length: 7 }, (_, index) => daySegments(focusSettings, snapshot, startMs + index * DAY, pending)).flat() : [],
@@ -436,6 +438,7 @@ function renderCalendar() {
     sideTop: replanState ? replanMarkup(card, 'side') : '',
     sideToday: todayStateMarkup(focusSettings, snapshot, nowMs, pending),
     alertLabel: waiting ? '1 个取舍' : '' });
+  syncNavScrollSwitch();
   if (scrollFlipDir) {
     const mount = $('calendarView').querySelector('.scroll-mount, .scroll-cover');
     if (mount) {
@@ -1849,11 +1852,18 @@ $('calendarView').addEventListener('click', event => {
     computeCalendar();
     return;
   }
+  if (event.target.closest('[data-cal-curve]')) {
+    calendarCurveOpen = !calendarCurveOpen;
+    if (calendarCurveOpen) calendarAnalyzed = false;
+    renderCalendar();
+    return;
+  }
   if (event.target.closest('[data-cal-analyze]')) {
     // 画卷 and 本周解析 are two full pages side by side: the analysis turns in from the right, the
     // painting comes back from the left. The class lives only on this render, so a later refresh
     // of the same page does not play the turn again.
     calendarAnalyzed = !calendarAnalyzed;
+    if (calendarAnalyzed) calendarCurveOpen = false;
     renderCalendar();
     $('calendarView').querySelector('.scroll')?.classList.add(calendarAnalyzed ? 'turn-in-right' : 'turn-in-left');
     const top = $('calendarView').getBoundingClientRect().top;
@@ -2627,6 +2637,28 @@ document.addEventListener('click', event => {
     input.dispatchEvent(new Event('input'));
   }
 });
+function syncNavScrollSwitch() {
+  const mode = xieyiState.mode === 'xieyi' ? 'xieyi' : 'gongbi';
+  const wrap = document.querySelector('[data-tab-wrap="calendar"]');
+  if (wrap) wrap.dataset.activeScroll = mode;
+  for (const btn of document.querySelectorAll('[data-nav-scroll]')) {
+    btn.setAttribute('aria-pressed', String(btn.dataset.navScroll === mode));
+  }
+}
+document.addEventListener('click', event => {
+  const navScrollBtn = event.target.closest('[data-nav-scroll]');
+  if (!navScrollBtn) return;
+  const targetMode = navScrollBtn.dataset.navScroll === 'xieyi' ? 'xieyi' : 'gongbi';
+  if (document.documentElement.dataset.current === 'calendar') {
+    flipScrollMode(targetMode);
+    return;
+  }
+  if (xieyiState.mode !== targetMode) {
+    scrollFlipDir = targetMode === 'xieyi' ? 'is-flip-next' : 'is-flip-prev';
+    commitXieyi(setScrollMode(xieyiState, targetMode));
+  }
+  window.SixuRouter?.go('calendar');
+});
 document.addEventListener('sixu:route', event => {
   if (event.detail !== 'calendar') {
     const showCover = !isPhoneViewport() && !hasSeenCoverToday();
@@ -3093,6 +3125,7 @@ if ('serviceWorker' in navigator && (location.protocol === 'https:' || ['localho
 }
 
 renderAll();
+syncNavScrollSwitch();
 takeHashText();
 remindTick();
 checkBackup();
@@ -3195,7 +3228,12 @@ function resolveCompanionTitleAndTask() {
 
 function completeCompanionSession({ early = false } = {}) {
   stopCompanionTick();
-  const loggedMinutes = early ? Math.max(1, Math.round(companion.elapsedSeconds / 60)) : companion.durationMinutes;
+  if (companion.finished) return;
+  if (early && companion.elapsedSeconds < 60) {
+    tell('满 1 分钟才计入账卷，再专注一会儿吧。', 'warning');
+    return;
+  }
+  const loggedMinutes = early ? Math.floor(companion.elapsedSeconds / 60) : companion.durationMinutes;
   const { title, linkedTask } = resolveCompanionTitleAndTask();
   const date = localDate(Date.now());
   let nextXieyi = addTimeLog(xieyiState, {
@@ -3219,6 +3257,8 @@ function completeCompanionSession({ early = false } = {}) {
   writeXieyi(storage, xieyiState);
   renderCalendar();
 
+  companion.elapsedSeconds = 0;
+  companion.remainingSeconds = companion.durationMinutes * 60;
   companion.finished = true;
   if (companion.mode === 'study') companion.round += 1;
   companion.settlement = {
@@ -3248,7 +3288,7 @@ function startCompanionTick() {
     if (clockEl) clockEl.textContent = formatClock(companion.remainingSeconds);
     if (fillEl) fillEl.style.width = `${Math.max(0, Math.min(100, (1 - progress) * 100)).toFixed(2)}%`;
     if (whisperEl) whisperEl.textContent = companionWhisper({ mode: companion.mode, progress, running: true, finished: false });
-    if (finishBtn) finishBtn.disabled = false;
+    if (finishBtn) finishBtn.disabled = companion.elapsedSeconds < 60;
     if (companion.elapsedSeconds % 30 === 0) {
       const card = $('companionStage')?.querySelector('.cmp-card');
       const mixNow = sceneMix(companion.scenePref, Date.now());
@@ -3358,7 +3398,7 @@ $('companionStage')?.addEventListener('click', event => {
     return;
   }
   if (event.target.closest('[data-cmp-finish]')) {
-    if (companion.elapsedSeconds > 0 || companion.finished) completeCompanionSession({ early: !companion.finished });
+    if (!companion.finished && companion.elapsedSeconds >= 60) completeCompanionSession({ early: true });
     return;
   }
   if (event.target.closest('[data-cmp-reset]')) {
